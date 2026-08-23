@@ -31,9 +31,11 @@ native/**/.build/
 package-lock.json
 
 # Environment
+!.envrc
 .env
 .env.local
 .env.*.local
+/.direnv/
 
 # IDE
 .vscode/
