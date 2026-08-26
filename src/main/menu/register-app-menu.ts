@@ -109,6 +109,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const newWindowItem: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.newWindow', 'New Window'),
+    accelerator: 'CmdOrCtrl+Alt+N',
     click: () => onNewWindow?.()
   }
 

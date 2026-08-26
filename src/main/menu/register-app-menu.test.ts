@@ -38,6 +38,7 @@ const isMac = process.platform === 'darwin'
 function buildMenuOptions() {
   return {
     onCheckForUpdates: vi.fn(),
+    onNewWindow: vi.fn(),
     onOpenSettings: vi.fn(),
     onOpenSetupGuide: vi.fn(),
     onOpenFeatureTour: vi.fn(),
@@ -231,6 +232,23 @@ describe('registerAppMenu', () => {
     expect(paletteItem).toBeDefined()
     expect(paletteItem?.accelerator).toBeUndefined()
   })
+
+  it.each(['darwin', 'linux', 'win32'] as const)(
+    'adds the new-window shortcut to File on %s',
+    (platform) => {
+      vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+      const options = buildMenuOptions()
+      registerAppMenu({ ...options, multiWindowEnabled: true })
+
+      const newWindowItem = getSubmenu(getTemplate(), 'File').find(
+        (item) => item.label === 'New Window'
+      )
+
+      expect(newWindowItem?.accelerator).toBe('CmdOrCtrl+Alt+N')
+      newWindowItem?.click?.({} as never, {} as never, {} as never)
+      expect(options.onNewWindow).toHaveBeenCalledOnce()
+    }
+  )
 
   // Why: pin the platform on every case — CI runs this suite on Linux only, so an
   // unpinned test leaves the other platforms' branches entirely uncovered.
