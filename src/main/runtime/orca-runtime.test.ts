@@ -693,6 +693,9 @@ function resetRuntimeTestMocks(): void {
   setRuntimeDesktopSurface({
     showNotification: () => true,
     findWindowById: (id) => electronMocks.BrowserWindow.fromId(id) as never,
+    broadcastMainWindows: () => {},
+    getMainWindowCount: () => 0,
+    sendToMainWindow: (window, channel, ...args) => window.webContents.send(channel, ...args),
     onIpc: (channel, listener) => electronMocks.ipcMain.on(channel, listener as never),
     removeIpcListener: (channel, listener) =>
       electronMocks.ipcMain.removeListener(channel, listener as never)

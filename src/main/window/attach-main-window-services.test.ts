@@ -17,7 +17,8 @@ const {
   registerPtyHandlersMock,
   hydrateLocalPtyRegistryAtBootMock,
   setupAutoUpdaterMock,
-  browserManagerUnregisterAllMock,
+  browserManagerUnregisterGuestsForRendererMock,
+  browserWindowFromWebContentsMock,
   runWorktreeChangeInvalidatorsMock,
   acknowledgePendingTccPromptNoticeMock,
   consumePendingTccPromptNoticeMock,
@@ -39,7 +40,8 @@ const {
   registerPtyHandlersMock: vi.fn(),
   hydrateLocalPtyRegistryAtBootMock: vi.fn(),
   setupAutoUpdaterMock: vi.fn(),
-  browserManagerUnregisterAllMock: vi.fn(),
+  browserManagerUnregisterGuestsForRendererMock: vi.fn(),
+  browserWindowFromWebContentsMock: vi.fn(),
   runWorktreeChangeInvalidatorsMock: vi.fn(),
   acknowledgePendingTccPromptNoticeMock: vi.fn(),
   consumePendingTccPromptNoticeMock: vi.fn(),
@@ -49,6 +51,9 @@ const {
 
 vi.mock('electron', () => ({
   app: {},
+  BrowserWindow: {
+    fromWebContents: browserWindowFromWebContentsMock
+  },
   clipboard: {},
   systemPreferences: {
     askForMediaAccess: systemPreferencesAskForMediaAccessMock,
@@ -91,7 +96,7 @@ vi.mock('../memory/hydrate-local-pty-registry', () => ({
 
 vi.mock('../browser/browser-manager', () => ({
   browserManager: {
-    unregisterAll: browserManagerUnregisterAllMock
+    unregisterGuestsForRenderer: browserManagerUnregisterGuestsForRendererMock
   }
 }))
 
@@ -111,6 +116,7 @@ vi.mock('../macos-tcc-prompt-notice', () => ({
 }))
 
 import { attachMainWindowServices } from './attach-main-window-services'
+import { registerMainWindow } from './main-window-registry'
 
 type MockFn = ReturnType<typeof vi.fn>
 
@@ -119,6 +125,7 @@ type MainWindowStub = {
   isDestroyed?: MockFn
   on: MockFn
   once: MockFn
+  removeListener: MockFn
   webContents: {
     id?: number
     getURL: MockFn
@@ -141,12 +148,18 @@ type RuntimeStub = {
   markRendererReloadCancelled: MockFn
   markGraphReloadFailed: MockFn
   markGraphUnavailable: MockFn
+  resolveOwnerWindowIdForLeaf: MockFn
+  resolveOwnerWindowIdForWorktreeTab: MockFn
+  resolveOwnerWindowIdForTabId: MockFn
+  resolveOwnerWindowIdForPtyId: MockFn
+  resolveOwnerWindowIdForBrowserPageId: MockFn
+  registerPtyOwnerWindow: MockFn
 }
 
 function createMainWindow(
   extraWebContents: { isLoadingMainFrame?: MockFn; on?: MockFn; send?: MockFn } = {}
 ): MainWindowStub {
-  return {
+  const mainWindow: MainWindowStub = {
     id: 1,
     isDestroyed: vi.fn(() => false),
     on: vi.fn(),
@@ -163,8 +176,14 @@ function createMainWindow(
         setPermissionCheckHandler: setPermissionCheckHandlerMock
       },
       ...extraWebContents
-    }
+    },
+    removeListener: vi.fn()
   }
+  browserWindowFromWebContentsMock.mockImplementation((sender) =>
+    sender === mainWindow.webContents ? mainWindow : null
+  )
+  registerMainWindow(mainWindow as never)
+  return mainWindow
 }
 
 function createStore(): Store & { flushPendingAsync: MockFn } {
@@ -181,7 +200,13 @@ function createRuntime(): RuntimeStub {
     markRendererReloading: vi.fn(),
     markRendererReloadCancelled: vi.fn(),
     markGraphReloadFailed: vi.fn(),
-    markGraphUnavailable: vi.fn()
+    markGraphUnavailable: vi.fn(),
+    resolveOwnerWindowIdForLeaf: vi.fn(() => 1),
+    resolveOwnerWindowIdForWorktreeTab: vi.fn(() => 1),
+    resolveOwnerWindowIdForTabId: vi.fn(() => 1),
+    resolveOwnerWindowIdForPtyId: vi.fn(() => 1),
+    resolveOwnerWindowIdForBrowserPageId: vi.fn(() => 1),
+    registerPtyOwnerWindow: vi.fn()
   }
 }
 
@@ -213,26 +238,7 @@ async function fireReadyToShow(mainWindow: MainWindowStub): Promise<void> {
 
 describe('attachMainWindowServices', () => {
   beforeEach(() => {
-    onMock.mockReset()
-    removeAllListenersMock.mockReset()
-    removeListenerMock.mockReset()
-    handleMock.mockReset()
-    removeHandlerMock.mockReset()
-    setPermissionRequestHandlerMock.mockReset()
-    setPermissionCheckHandlerMock.mockReset()
-    systemPreferencesAskForMediaAccessMock.mockReset()
-    systemPreferencesGetMediaAccessStatusMock.mockReset()
-    registerRepoHandlersMock.mockReset()
-    setRepoRemoteClientNotifierMock.mockReset()
-    registerWorktreeHandlersMock.mockReset()
-    registerPtyHandlersMock.mockReset()
-    hydrateLocalPtyRegistryAtBootMock.mockReset()
-    setupAutoUpdaterMock.mockReset()
-    browserManagerUnregisterAllMock.mockReset()
-    acknowledgePendingTccPromptNoticeMock.mockReset()
-    consumePendingTccPromptNoticeMock.mockReset()
-    dismissTccPromptNoticeMock.mockReset()
-    releasePendingTccPromptNoticeMock.mockReset()
+    vi.resetAllMocks()
     systemPreferencesAskForMediaAccessMock.mockResolvedValue(true)
     systemPreferencesGetMediaAccessStatusMock.mockReturnValue('granted')
   })
@@ -537,7 +543,7 @@ describe('attachMainWindowServices', () => {
     expect(mainWindow.webContents.reload).not.toHaveBeenCalled()
   })
 
-  it('removes the app reload IPC handler when the owning window closes', () => {
+  it('keeps the process-wide app reload IPC handler when a window closes', () => {
     const mainWindowOnMock = vi.fn()
     const mainWindow = createMainWindow()
     mainWindow.on = mainWindowOnMock
@@ -551,10 +557,10 @@ describe('attachMainWindowServices', () => {
       handler()
     }
 
-    expect(removeHandlerMock).toHaveBeenCalledWith('app:reload')
+    expect(removeHandlerMock).not.toHaveBeenCalledWith('app:reload')
   })
 
-  it('keeps a newer app reload handler when an older window closes late', () => {
+  it('keeps the process-wide app reload IPC handler when windows close', () => {
     const oldWindowOnMock = vi.fn()
     const oldWindow = createMainWindow()
     oldWindow.on = oldWindowOnMock
@@ -576,7 +582,7 @@ describe('attachMainWindowServices', () => {
     for (const handler of getClosedHandlers(newWindowOnMock)) {
       handler()
     }
-    expect(removeHandlerMock).toHaveBeenCalledWith('app:reload')
+    expect(removeHandlerMock).not.toHaveBeenCalledWith('app:reload')
   })
 
   it('only allows the explicit permission allowlist', async () => {
@@ -627,10 +633,10 @@ describe('attachMainWindowServices', () => {
     const closedHandler = getClosedHandlers(mainWindowOnMock).at(-1)
     expect(closedHandler).toBeTypeOf('function')
     closedHandler?.()
-    expect(browserManagerUnregisterAllMock).toHaveBeenCalledTimes(1)
+    expect(browserManagerUnregisterGuestsForRendererMock).toHaveBeenCalledWith(1)
   })
 
-  it('removes the native file-drop relay when the main window closes', () => {
+  it('keeps the native file-drop relay process-wide when the main window closes', () => {
     const mainWindowOnMock = vi.fn()
     const mainWindow = createMainWindow({ send: vi.fn() })
     mainWindow.on = mainWindowOnMock
@@ -647,7 +653,7 @@ describe('attachMainWindowServices', () => {
       handler()
     }
 
-    expect(removeListenerMock).toHaveBeenCalledWith(channel, relayHandler)
+    expect(removeListenerMock).not.toHaveBeenCalledWith(channel, relayHandler)
   })
 
   it('relays native file drops only from the owning renderer webContents', () => {
@@ -705,7 +711,7 @@ describe('attachMainWindowServices', () => {
     expect(sendMock).not.toHaveBeenCalled()
   })
 
-  it('clears the runtime notifier when the owning window closes', () => {
+  it('keeps runtime notifications available after the owning window closes', () => {
     const mainWindowOnMock = vi.fn()
     const mainWindow = createMainWindow()
     mainWindow.on = mainWindowOnMock
@@ -719,7 +725,7 @@ describe('attachMainWindowServices', () => {
     }
 
     expect(runtime.markGraphUnavailable).toHaveBeenCalledWith(1)
-    expect(runtime.setNotifier).toHaveBeenCalledWith(null)
+    expect(runtime.setNotifier).not.toHaveBeenCalledWith(null)
   })
 
   it('keeps a newer runtime notifier when an older window closes late', () => {
@@ -745,7 +751,7 @@ describe('attachMainWindowServices', () => {
     for (const handler of getClosedHandlers(newWindowOnMock)) {
       handler()
     }
-    expect(runtime.setNotifier).toHaveBeenCalledWith(null)
+    expect(runtime.setNotifier).not.toHaveBeenCalledWith(null)
   })
 
   it('forwards runtime notifier events to the renderer', () => {

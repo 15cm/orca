@@ -11,6 +11,7 @@ import { translate } from '@/i18n/i18n'
 import { NativeChatExperimentalSetting } from './NativeChatExperimentalSetting'
 import { AgentDashboardExperimentalSetting } from './AgentDashboardExperimentalSetting'
 import { EphemeralVmsExperimentalSetting } from './EphemeralVmsExperimentalSetting'
+import { ExperimentalMultiWindowSetting } from './ExperimentalMultiWindowSetting'
 import {
   MAX_AGENT_HIBERNATION_IDLE_MS,
   MIN_AGENT_HIBERNATION_IDLE_MS,
@@ -53,6 +54,9 @@ export function ExperimentalPane({
   ])
   const showNewWorktreeCardStyle = matchesSettingsSearch(searchQuery, [
     getExperimentalSearchEntry().newWorktreeCardStyle
+  ])
+  const showMultiWindow = matchesSettingsSearch(searchQuery, [
+    getExperimentalSearchEntry().multiWindow
   ])
   const agentHibernationEnabled = settings.experimentalAgentHibernation === true
   const newWorktreeCardStyleEnabled = settings.experimentalNewWorktreeCardStyle === true
@@ -305,6 +309,13 @@ export function ExperimentalPane({
       ) : null}
 
       <EphemeralVmsExperimentalSetting settings={settings} updateSettings={updateSettings} />
+
+      {showMultiWindow ? (
+        <ExperimentalMultiWindowSetting
+          enabled={settings.experimentalMultiWindow === true}
+          updateSettings={updateSettings}
+        />
+      ) : null}
 
       {hiddenExperimentalUnlocked ? <HiddenExperimentalGroup /> : null}
     </div>

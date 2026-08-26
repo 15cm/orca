@@ -319,6 +319,19 @@ function resolveMobileFloorClientId(
   return null
 }
 
+function assertSenderOwnsTerminal(
+  runtime: OrcaRuntimeService,
+  terminal: string,
+  senderWindowId: number | undefined
+): void {
+  if (
+    senderWindowId !== undefined &&
+    !runtime.senderWindowOwnsTerminalHandle(terminal, senderWindowId)
+  ) {
+    throw new Error('runtime_unavailable')
+  }
+}
+
 type TerminalStreamInputOutcome = 'delivered' | 'rejected' | 'failed'
 
 function watchSubscriptionLifetime(
@@ -1261,21 +1274,24 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.rename',
     params: TerminalRename,
-    handler: async (params, { runtime }) => ({
-      rename: await runtime.renameTerminal(params.terminal, params.title || null)
-    })
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return { rename: await runtime.renameTerminal(params.terminal, params.title || null) }
+    }
   }),
   defineMethod({
     name: 'terminal.clearBuffer',
     params: TerminalHandle,
-    handler: async (params, { runtime }) => ({
-      clear: await runtime.clearTerminalBuffer(params.terminal)
-    })
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return { clear: await runtime.clearTerminalBuffer(params.terminal) }
+    }
   }),
   defineMethod({
     name: 'terminal.send',
     params: TerminalSend,
-    handler: async (params, { runtime, clientId, signal }) => {
+    handler: async (params, { runtime, clientId, signal, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       await assertTerminalSendTextWithinLimit(params.text)
       await assertTerminalSendTextWithinLimit(params.resolvedLaunchDraft?.text)
       const queryReplyClientId = clientId ?? params.client?.id
@@ -1531,19 +1547,23 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.split',
     params: TerminalSplit,
-    handler: async (params, { runtime }) => ({
-      split: await runtime.splitTerminal(params.terminal, {
-        direction: params.direction,
-        command: params.command,
-        env: params.env,
-        telemetrySource: params.telemetrySource
-      })
-    })
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return {
+        split: await runtime.splitTerminal(params.terminal, {
+          direction: params.direction,
+          command: params.command,
+          env: params.env,
+          telemetrySource: params.telemetrySource
+        })
+      }
+    }
   }),
   defineMethod({
     name: 'terminal.stop',
     params: TerminalStop,
-    handler: async (params, { runtime }) => runtime.stopTerminalsForWorktree(params.worktree)
+    handler: async (params, { runtime, senderWindowId }) =>
+      runtime.stopTerminalsForWorktree(params.worktree, { senderWindowId })
   }),
   defineMethod({
     name: 'terminal.sleep',
@@ -1562,7 +1582,8 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.resizeForClient',
     params: TerminalResizeForClient,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not resize the wrong PTY (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {
@@ -1586,39 +1607,48 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.focus',
     params: TerminalFocus,
-    handler: async (params, { runtime, clientKind }) => ({
-      focus: await runtime.focusTerminal(params.terminal, {
-        navigateHost: navigationTargetsHost(
-          resolveRuntimeNavigationTarget({ navigation: params.navigation, clientKind })
-        )
-      })
-    })
+    handler: async (params, { runtime, clientKind, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return {
+        focus: await runtime.focusTerminal(params.terminal, {
+          navigateHost: navigationTargetsHost(
+            resolveRuntimeNavigationTarget({ navigation: params.navigation, clientKind })
+          )
+        })
+      }
+    }
   }),
   defineMethod({
     name: 'terminal.close',
     params: TerminalHandle,
-    handler: async (params, context) => ({
-      close: await withTerminalCloseAttribution(
-        'terminal.close',
-        context,
-        'terminal',
-        params.terminal,
-        () => context.runtime.closeTerminal(params.terminal)
-      )
-    })
+    handler: async (params, context) => {
+      assertSenderOwnsTerminal(context.runtime, params.terminal, context.senderWindowId)
+      return {
+        close: await withTerminalCloseAttribution(
+          'terminal.close',
+          context,
+          'terminal',
+          params.terminal,
+          () => context.runtime.closeTerminal(params.terminal)
+        )
+      }
+    }
   }),
   defineMethod({
     name: 'terminal.closeTab',
     params: TerminalHandle,
-    handler: async (params, context) => ({
-      close: await withTerminalCloseAttribution(
-        'terminal.closeTab',
-        context,
-        'terminal-tab',
-        params.terminal,
-        () => context.runtime.closeTerminalTab(params.terminal)
-      )
-    })
+    handler: async (params, context) => {
+      assertSenderOwnsTerminal(context.runtime, params.terminal, context.senderWindowId)
+      return {
+        close: await withTerminalCloseAttribution(
+          'terminal.closeTab',
+          context,
+          'terminal-tab',
+          params.terminal,
+          () => context.runtime.closeTerminalTab(params.terminal)
+        )
+      }
+    }
   }),
   defineMethod({
     name: 'agentTeams.tmuxCompat',
@@ -1640,7 +1670,8 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.setDisplayMode',
     params: TerminalSetDisplayMode,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not mutate the wrong PTY's display mode/viewport (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {
@@ -1661,7 +1692,8 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.restoreFit',
     params: TerminalHandle,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not reclaim the wrong PTY to desktop dims (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {
@@ -1673,7 +1705,8 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.getDisplayMode',
     params: TerminalHandle,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       const leaf = runtime.resolveLeafForHandle(params.terminal)
       const mode = leaf?.ptyId ? runtime.getMobileDisplayMode(leaf.ptyId) : 'auto'
       const isPhoneFitted = leaf?.ptyId ? runtime.isMobileSubscriberActive(leaf.ptyId) : false
@@ -1683,7 +1716,8 @@ export const TERMINAL_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.updateViewport',
     params: TerminalUpdateViewport,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not write viewport state to the wrong PTY (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {

@@ -79,6 +79,13 @@ import {
 import { normalizeRemoteArtifactInput } from '../../shared/artifact-cli-bridge'
 import type { Store } from '../persistence'
 import type { OrcaRuntimeService } from '../runtime/orca-runtime'
+import {
+  broadcastToMainWindows,
+  getMainWindowById,
+  getMainWindows,
+  getSingleMainWindow,
+  sendToWindow
+} from '../window/main-window-registry'
 import { DEFAULT_PTY_SOURCE_WINDOW_SU } from '../../shared/pty-source-credit-contract'
 import { PTY_CONSUMER_STALE_OWNER_RECOVERY_ERROR } from '../../shared/pty-consumer-session'
 import {
@@ -1674,18 +1681,27 @@ export class SshRelaySession {
 
   // Why: shared by establish()/reconnect() so both paths reset renderer lists the same way.
   private broadcastEmptyLists(): void {
-    const win = this.getMainWindow()
-    if (!win || win.isDestroyed()) {
-      return
-    }
-    win.webContents.send('ssh:port-forwards-changed', {
+    broadcastToMainWindows('ssh:port-forwards-changed', {
       targetId: this.targetId,
       forwards: []
     })
-    win.webContents.send('ssh:detected-ports-changed', {
+    broadcastToMainWindows('ssh:detected-ports-changed', {
       targetId: this.targetId,
       ports: []
     })
+    if (getMainWindows().length === 0) {
+      const win = this.getMainWindow()
+      if (win && !win.isDestroyed()) {
+        sendToWindow(win, 'ssh:port-forwards-changed', {
+          targetId: this.targetId,
+          forwards: []
+        })
+        sendToWindow(win, 'ssh:detected-ports-changed', {
+          targetId: this.targetId,
+          ports: []
+        })
+      }
+    }
   }
 
   private startPortScanning(): void {
@@ -1760,9 +1776,9 @@ export class SshRelaySession {
       if (this.mux !== mux || this.activePtyProviderGeneration !== providerGeneration) {
         return
       }
-      const win = this.getMainWindow()
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('pty:replay', payload)
+      const win = this.getOwnerWindowForPty(payload.id)
+      if (win) {
+        sendToWindow(win, 'pty:replay', payload)
       }
     })
     ptyProvider.onExit((payload) => {
@@ -2228,9 +2244,9 @@ export class SshRelaySession {
       return
     }
     this.runtime?.onPtyExit(payload.id, payload.code, payload.incarnationId)
-    const win = this.getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:exit', payload)
+    const win = this.getOwnerWindowForPty(payload.id)
+    if (win) {
+      sendToWindow(win, 'pty:exit', payload)
     }
   }
 
@@ -2238,10 +2254,20 @@ export class SshRelaySession {
     if (!data) {
       return
     }
-    const win = this.getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:replay', { id: appPtyId, data })
+    const win = this.getOwnerWindowForPty(appPtyId)
+    if (win) {
+      sendToWindow(win, 'pty:replay', { id: appPtyId, data })
     }
+  }
+
+  private getOwnerWindowForPty(ptyId: string): BrowserWindow | null {
+    if (typeof this.runtime?.resolveOwnerWindowIdForPtyId === 'function') {
+      const ownerWindowId = this.runtime.resolveOwnerWindowIdForPtyId(ptyId)
+      if (ownerWindowId !== null) {
+        return getMainWindowById(ownerWindowId)
+      }
+    }
+    return getSingleMainWindow() ?? this.getMainWindow()
   }
 
   private async reattachKnownPtys(
@@ -2683,9 +2709,9 @@ export class SshRelaySession {
     clearProviderPtyState(appPtyId)
     deletePtyOwnership(appPtyId)
     this.store.markSshRemotePtyLease(this.targetId, ptyId, 'expired')
-    const win = this.getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:exit', { id: appPtyId, code: -1 })
+    const win = this.getOwnerWindowForPty(appPtyId)
+    if (win) {
+      sendToWindow(win, 'pty:exit', { id: appPtyId, code: -1 })
     }
   }
 

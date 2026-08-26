@@ -261,7 +261,7 @@ describe('startup ordering', () => {
     const serveReturn = source.indexOf('return', serveReady)
     const runtimeRpcStart = source.indexOf('await runtimeRpc.start()', serveStart)
     const automationStart = source.indexOf('automations.start()', serveStart)
-    const desktopSetWebContents = source.indexOf('automations.setWebContents(window.webContents)')
+    const desktopSetWebContents = source.indexOf('updateAutomationWindow(window)')
     const desktopAutomationStart = source.indexOf('automations.start()', desktopSetWebContents + 1)
 
     expect(serveStart).toBeGreaterThanOrEqual(0)

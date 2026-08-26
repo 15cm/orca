@@ -61,10 +61,55 @@ import { installPrivilegedWindowNavigationPolicy } from './privileged-window-nav
 import { isMacosTahoeOrNewer } from './macos-tahoe-release'
 import { registerPluginPanelNavigationGuard } from '../plugins/plugin-panel-navigation-guard'
 import { installWindowsPathRegistryChangeListener } from '../pty/windows-path-registry-change'
+import {
+  getLastActiveMainWindow,
+  getMainWindowForWebContents,
+  sendToWindow
+} from './main-window-registry'
 
 // Why: show/restore/resume can overlap before the size nudge resets; never capture the temporary width as the next baseline.
 const activeRepaintJiggles = new WeakSet<BrowserWindow>()
 export const WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS = 10_000
+let windowControlHandlersRegistered = false
+const confirmedCloseByWindow = new WeakMap<BrowserWindow, () => void>()
+const quitCloseRequestByWindow = new WeakMap<BrowserWindow, () => boolean>()
+const requestCloseByWindow = new WeakMap<BrowserWindow, () => void>()
+
+function registerWindowControlIpcHandlers(): void {
+  if (windowControlHandlersRegistered) {
+    return
+  }
+  windowControlHandlersRegistered = true
+  ipcMain.on('window:minimize', (event) => {
+    getMainWindowForWebContents(event.sender)?.minimize()
+  })
+  ipcMain.on('window:maximize', (event) => {
+    const window = getMainWindowForWebContents(event.sender)
+    if (!window) {
+      return
+    }
+    if (window.isMaximized()) {
+      window.unmaximize()
+    } else {
+      window.maximize()
+    }
+  })
+  ipcMain.on('window:request-close', (event) => {
+    const window = getMainWindowForWebContents(event.sender)
+    if (window) {
+      requestCloseByWindow.get(window)?.()
+    }
+  })
+  ipcMain.on('menu:popup', (event) => {
+    const window = getMainWindowForWebContents(event.sender)
+    if (window) {
+      Menu.getApplicationMenu()?.popup({ window })
+    }
+  })
+  ipcMain.handle('window:isMaximized', (event): boolean => {
+    return getMainWindowForWebContents(event.sender)?.isMaximized() ?? false
+  })
+}
 
 function forceRepaint(window: BrowserWindow): void {
   // Why: webContents can be destroyed a beat before the BrowserWindow during close, and this runs from timers/focus events in that gap.
@@ -191,6 +236,9 @@ type CreateMainWindowOptions = {
   getIsQuitting?: () => boolean
   /** Notifies the caller when the renderer vetoes unload, so the quit latch clears — a prevented beforeunload cancels the in-flight app.quit(). */
   onQuitAborted?: () => void
+  /** True while app-level quit is collecting every window's close decision. */
+  isQuitConfirmationCollecting?: () => boolean
+  onQuitWindowCloseConfirmed?: (window: BrowserWindow) => void
   onRendererProcessGone?: (
     details: Electron.RenderProcessGoneDetails,
     webContentsId: number
@@ -217,6 +265,14 @@ type CreateMainWindowOptions = {
   onBeforeRecoveryReload?: (webContentsId: number) => void
 }
 
+export function closeWindowAfterConfirmation(window: BrowserWindow): void {
+  confirmedCloseByWindow.get(window)?.()
+}
+
+export function requestWindowCloseForQuit(window: BrowserWindow): boolean {
+  return quitCloseRequestByWindow.get(window)?.() ?? false
+}
+
 export function loadMainWindow(mainWindow: BrowserWindow): void {
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -229,6 +285,7 @@ export function createMainWindow(
   store: Store | null,
   opts?: CreateMainWindowOptions
 ): BrowserWindow {
+  registerWindowControlIpcHandlers()
   const rawSavedBounds = store?.getUI().windowBounds
   // Why: reject min-size or substantially off-screen bounds so the titlebar stays reachable after display changes.
   const savedBounds =
@@ -245,6 +302,22 @@ export function createMainWindow(
     )
   }
   const savedMaximized = store?.getUI().windowMaximized ?? false
+  const lastActiveWindow = getLastActiveMainWindow()
+  const offsetBounds = (() => {
+    if (!lastActiveWindow || lastActiveWindow.isDestroyed()) {
+      return undefined
+    }
+    const bounds = lastActiveWindow.getBounds()
+    const candidate = {
+      x: bounds.x + 32,
+      y: bounds.y + 32,
+      width: bounds.width,
+      height: bounds.height
+    }
+    return rectHasVisibleAreaOnAnyDisplay(candidate, MIN_WIDTH / 2, MIN_HEIGHT / 2)
+      ? candidate
+      : undefined
+  })()
   // Why: on first launch fill the primary display work area so the window feels spacious without maximize(); saved bounds win later.
   const defaultBounds = (() => {
     try {
@@ -267,9 +340,13 @@ export function createMainWindow(
     blur && process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}
 
   const mainWindow = new BrowserWindow({
-    width: savedBounds?.width ?? defaultBounds.width,
-    height: savedBounds?.height ?? defaultBounds.height,
-    ...(savedBounds ? { x: savedBounds.x, y: savedBounds.y } : {}),
+    width: offsetBounds?.width ?? savedBounds?.width ?? defaultBounds.width,
+    height: offsetBounds?.height ?? savedBounds?.height ?? defaultBounds.height,
+    ...(offsetBounds
+      ? { x: offsetBounds.x, y: offsetBounds.y }
+      : savedBounds
+        ? { x: savedBounds.x, y: savedBounds.y }
+        : {}),
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
     title: opts?.title ?? 'Orca',
@@ -385,7 +462,7 @@ export function createMainWindow(
     if (e2eConfig.headless) {
       return
     }
-    if (savedMaximized) {
+    if (!offsetBounds && savedMaximized) {
       mainWindow.maximize()
     }
     mainWindow.show()
@@ -968,7 +1045,9 @@ export function createMainWindow(
 
   // Intercept close so the renderer can confirm killing running-process terminals (replies window:confirm-close to proceed).
   let windowCloseConfirmed = false
+  let pendingQuitCloseRequest = false
   const confirmCloseChannel = 'window:confirm-close'
+  const cancelCloseChannel = 'window:cancel-close'
   const closeRequestReceivedChannel = 'window:close-request-received'
   let closeRequestSequence = 0
   let quitRendererAckRequestId: number | null = null
@@ -1004,6 +1083,27 @@ export function createMainWindow(
       clearQuitRendererAckTimer()
     }
   }
+
+  const closeControlWebContents = mainWindow.webContents
+  confirmedCloseByWindow.set(mainWindow, () => {
+    windowCloseConfirmed = true
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.close()
+    }
+  })
+  quitCloseRequestByWindow.set(mainWindow, () => {
+    if (mainWindow.isDestroyed() || closeControlWebContents.isDestroyed()) {
+      return false
+    }
+    const isRendererCrashed =
+      rendererProcessGone || (closeControlWebContents.isCrashed?.() ?? false)
+    if (isRendererCrashed) {
+      return false
+    }
+    pendingQuitCloseRequest = true
+    closeControlWebContents.send('window:close-requested', { isQuitting: true })
+    return true
+  })
 
   // Windows minimize-to-tray: hide instead of close when enabled; returns true when it hid so callers skip their close path.
   const hideToTrayIfEnabled = (): boolean => {
@@ -1065,6 +1165,7 @@ export function createMainWindow(
     }
     e.preventDefault()
     const isQuitting = opts?.getIsQuitting?.() ?? false
+    pendingQuitCloseRequest = isQuitting
     const requestId = ++closeRequestSequence
     if (isQuitting) {
       armQuitRendererAckTimer(requestId)
@@ -1083,66 +1184,60 @@ export function createMainWindow(
     mainWindow.webContents.send('window:unload-prevented')
   })
 
-  const onConfirmClose = (): void => {
+  const onConfirmClose = (event: Electron.IpcMainEvent): void => {
+    if (event.sender !== closeControlWebContents) {
+      return
+    }
     clearQuitRendererAckTimer()
+    if (opts?.getIsQuitting?.() && opts?.isQuitConfirmationCollecting?.()) {
+      pendingQuitCloseRequest = false
+      windowClosing = true
+      if (boundsTimer) {
+        clearTimeout(boundsTimer)
+        boundsTimer = null
+      }
+      opts.onQuitWindowCloseConfirmed?.(mainWindow)
+      return
+    }
+    if (pendingQuitCloseRequest) {
+      pendingQuitCloseRequest = false
+      return
+    }
     windowCloseConfirmed = true
     if (!mainWindow.isDestroyed()) {
       mainWindow.close()
     }
   }
+  const onCancelClose = (event: Electron.IpcMainEvent): void => {
+    if (event.sender !== closeControlWebContents) {
+      return
+    }
+    if (opts?.getIsQuitting?.() && opts?.isQuitConfirmationCollecting?.()) {
+      pendingQuitCloseRequest = false
+      opts.onQuitAborted?.()
+    }
+  }
   const trafficLightChannel = 'ui:sync-traffic-lights'
-  const onSyncTrafficLights = (_event: Electron.IpcMainEvent, zoomFactor: number): void => {
+  const onSyncTrafficLights = (event: Electron.IpcMainEvent, zoomFactor: number): void => {
+    if (event.sender !== closeControlWebContents) {
+      return
+    }
     syncTrafficLightPosition(mainWindow, zoomFactor)
   }
   ipcMain.on(trafficLightChannel, onSyncTrafficLights)
 
-  // Why: renderer-drawn window controls on Windows/Linux replicate the native title-bar buttons hidden by custom chrome.
-  const minimizeChannel = 'window:minimize'
-  const onMinimize = (): void => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.minimize()
-    }
-  }
-  const maximizeChannel = 'window:maximize'
-  const onMaximize = (): void => {
+  requestCloseByWindow.set(mainWindow, () => {
     if (mainWindow.isDestroyed()) {
       return
     }
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize()
-    } else {
-      mainWindow.maximize()
-    }
-  }
-  // Why: mainWindow.close() from an IPC handler on Windows can make 'close' misfire, so send window:close-requested directly.
-  const requestCloseChannel = 'window:request-close'
-  const onRequestClose = (): void => {
-    if (mainWindow.isDestroyed()) {
-      return
-    }
-    // Why: renderer-drawn X routes here (not the native close event), so the minimize-to-tray guard must also run here.
     if (hideToTrayIfEnabled()) {
       return
     }
-    mainWindow.webContents.send('window:close-requested', { isQuitting: false })
-  }
-  // Why: renderer-drawn title-bar ··· menu button replicates the Alt-key reveal autoHideMenuBar provides (Windows/Linux).
-  const popupMenuChannel = 'menu:popup'
-  const onPopupMenu = (): void => {
-    Menu.getApplicationMenu()?.popup({ window: mainWindow })
-  }
-  // Why: WindowControls mounts after window:maximize-changed already fired, so expose a synchronous getter to init its icon.
-  const isMaximizedChannel = 'window:isMaximized'
-  const onIsMaximized = (): boolean => {
-    return !mainWindow.isDestroyed() && mainWindow.isMaximized()
-  }
-  ipcMain.on(minimizeChannel, onMinimize)
-  ipcMain.on(maximizeChannel, onMaximize)
-  ipcMain.on(requestCloseChannel, onRequestClose)
-  ipcMain.on(popupMenuChannel, onPopupMenu)
-  ipcMain.handle(isMaximizedChannel, onIsMaximized)
+    sendToWindow(mainWindow, 'window:close-requested', { isQuitting: false })
+  })
 
   ipcMain.on(confirmCloseChannel, onConfirmClose)
+  ipcMain.on(cancelCloseChannel, onCancelClose)
   ipcMain.on(closeRequestReceivedChannel, onCloseRequestReceived)
   mainWindow.on('closed', () => {
     // Why: the dashboard pop-out is a companion of the main window — close it
@@ -1159,13 +1254,12 @@ export function createMainWindow(
     shortcutRecorderFocused = false
     clearRendererRecoveryTimer()
     ipcMain.removeListener(trafficLightChannel, onSyncTrafficLights)
-    ipcMain.removeListener(minimizeChannel, onMinimize)
-    ipcMain.removeListener(maximizeChannel, onMaximize)
     browserManager.setDictationShortcutForwardingPredicate(null)
-    ipcMain.removeListener(requestCloseChannel, onRequestClose)
-    ipcMain.removeListener(popupMenuChannel, onPopupMenu)
-    ipcMain.removeHandler(isMaximizedChannel)
+    confirmedCloseByWindow.delete(mainWindow)
+    quitCloseRequestByWindow.delete(mainWindow)
+    requestCloseByWindow.delete(mainWindow)
     ipcMain.removeListener(confirmCloseChannel, onConfirmClose)
+    ipcMain.removeListener(cancelCloseChannel, onCancelClose)
     ipcMain.removeListener(closeRequestReceivedChannel, onCloseRequestReceived)
     ipcMain.removeListener(markdownFocusChannel, onMarkdownEditorFocused)
     ipcMain.removeListener(terminalInputFocusChannel, onTerminalInputFocused)

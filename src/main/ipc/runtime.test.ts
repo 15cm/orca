@@ -18,6 +18,26 @@ vi.mock('electron', () => ({
 
 import { registerRuntimeHandlers } from './runtime'
 import { TERMINAL_FIT_RESTORE_DEADLINE_MS } from '../../shared/terminal-fit-restore-deadline'
+import { registerMainWindow } from '../window/main-window-registry'
+
+type RuntimeSender = {
+  mainFrame: unknown
+}
+
+function registerSenderWindow(): RuntimeSender {
+  const sender: RuntimeSender = { mainFrame: {} }
+  const window = {
+    id: 17,
+    webContents: sender,
+    isDestroyed: vi.fn(() => false),
+    on: vi.fn(),
+    once: vi.fn(),
+    removeListener: vi.fn()
+  }
+  fromWebContentsMock.mockReturnValue(window)
+  registerMainWindow(window as never)
+  return sender
+}
 
 describe('registerRuntimeHandlers', () => {
   beforeEach(() => {
@@ -40,10 +60,9 @@ describe('registerRuntimeHandlers', () => {
     )
     expect(syncRegistration).toBeTruthy()
 
-    fromWebContentsMock.mockReturnValue({ id: 17 })
-
     const currentMainFrame = {}
-    const sender = { mainFrame: currentMainFrame }
+    const sender = registerSenderWindow()
+    sender.mainFrame = currentMainFrame
     const handler = syncRegistration![1]
     const graph = { tabs: [], leaves: [], rendererGeneration: 'renderer-1' }
     const result = handler({ sender, senderFrame: currentMainFrame }, graph)
@@ -62,8 +81,8 @@ describe('registerRuntimeHandlers', () => {
     const handler = handleMock.mock.calls.find(
       ([channel]) => channel === 'runtime:syncWindowGraph'
     )![1]
-    const sender = { mainFrame: { generation: 2 } }
-    fromWebContentsMock.mockReturnValue({ id: 17 })
+    const sender = registerSenderWindow()
+    sender.mainFrame = { generation: 2 }
 
     expect(() =>
       handler({ sender, senderFrame: { generation: 1 } }, { tabs: [], leaves: [] })
@@ -78,9 +97,8 @@ describe('registerRuntimeHandlers', () => {
       ([channel]) => channel === 'runtime:syncWindowGraph'
     )![1]
     const currentMainFrame = {}
-    const sender = { mainFrame: currentMainFrame }
-    fromWebContentsMock.mockReturnValue({ id: 17 })
-
+    const sender = registerSenderWindow()
+    sender.mainFrame = currentMainFrame
     expect(() =>
       handler({ sender, senderFrame: currentMainFrame }, { tabs: [], leaves: [] })
     ).toThrow('Runtime graph sync requires a renderer generation')
@@ -107,7 +125,7 @@ describe('registerRuntimeHandlers', () => {
     expect(callRegistration).toBeTruthy()
 
     const handler = callRegistration![1]
-    const result = await handler({ sender: {} }, { method: 'status.get' })
+    const result = await handler({ sender: registerSenderWindow() }, { method: 'status.get' })
 
     expect(result).toMatchObject({
       ok: true,
@@ -130,7 +148,10 @@ describe('registerRuntimeHandlers', () => {
     expect(callRegistration).toBeTruthy()
 
     const handler = callRegistration![1]
-    const result = await handler({ sender: {} }, { method: 'projectGroup.list' })
+    const result = await handler(
+      { sender: registerSenderWindow() },
+      { method: 'projectGroup.list' }
+    )
 
     expect(result).toMatchObject({
       ok: true,
@@ -150,7 +171,8 @@ describe('registerRuntimeHandlers', () => {
     const runtime = {
       syncWindowGraph: vi.fn(),
       getStatus: vi.fn(),
-      reclaimTerminalForDesktop
+      reclaimTerminalForDesktop,
+      resolveOwnerWindowIdForPtyId: vi.fn(() => 17)
     }
     registerRuntimeHandlers(runtime as never)
     const restoreRegistration = handleMock.mock.calls.find(
@@ -159,9 +181,10 @@ describe('registerRuntimeHandlers', () => {
     expect(restoreRegistration).toBeTruthy()
     const handler = restoreRegistration![1]
 
-    const first = handler({ sender: {} }, { ptyId: 'pty-1' })
-    const retry = handler({ sender: {} }, { ptyId: 'pty-1' })
-    const otherTerminal = handler({ sender: {} }, { ptyId: 'pty-2' })
+    const sender = registerSenderWindow()
+    const first = handler({ sender }, { ptyId: 'pty-1' })
+    const retry = handler({ sender }, { ptyId: 'pty-1' })
+    const otherTerminal = handler({ sender }, { ptyId: 'pty-2' })
 
     expect(reclaimTerminalForDesktop).toHaveBeenCalledTimes(2)
     expect(reclaimTerminalForDesktop).toHaveBeenNthCalledWith(1, 'pty-1')
@@ -173,7 +196,7 @@ describe('registerRuntimeHandlers', () => {
     await expect(retry).resolves.toEqual({ restored: true })
     expect(reclaimTerminalForDesktop).toHaveBeenCalledTimes(2)
 
-    const afterSettlement = handler({ sender: {} }, { ptyId: 'pty-1' })
+    const afterSettlement = handler({ sender }, { ptyId: 'pty-1' })
     expect(reclaimTerminalForDesktop).toHaveBeenCalledTimes(3)
     finishRestoreByPtyId.get('pty-1')?.(false)
     await expect(afterSettlement).resolves.toEqual({ restored: false })
@@ -192,22 +215,24 @@ describe('registerRuntimeHandlers', () => {
       registerRuntimeHandlers({
         syncWindowGraph: vi.fn(),
         getStatus: vi.fn(),
-        reclaimTerminalForDesktop
+        reclaimTerminalForDesktop,
+        resolveOwnerWindowIdForPtyId: vi.fn(() => 17)
       } as never)
       const handler = handleMock.mock.calls.find(
         ([channel]) => channel === 'runtime:restoreTerminalFit'
       )![1]
 
-      const first = handler({ sender: {} }, { ptyId: 'pty-wedged' })
+      const sender = registerSenderWindow()
+      const first = handler({ sender }, { ptyId: 'pty-wedged' })
       await vi.advanceTimersByTimeAsync(TERMINAL_FIT_RESTORE_DEADLINE_MS)
       await expect(first).resolves.toEqual({ restored: false })
 
-      const retry = handler({ sender: {} }, { ptyId: 'pty-wedged' })
+      const retry = handler({ sender }, { ptyId: 'pty-wedged' })
       expect(reclaimTerminalForDesktop).toHaveBeenCalledTimes(1)
       finishRestore(true)
       await expect(retry).resolves.toEqual({ restored: true })
 
-      const afterSettlement = handler({ sender: {} }, { ptyId: 'pty-wedged' })
+      const afterSettlement = handler({ sender }, { ptyId: 'pty-wedged' })
       expect(reclaimTerminalForDesktop).toHaveBeenCalledTimes(2)
       finishRestore(false)
       await expect(afterSettlement).resolves.toEqual({ restored: false })

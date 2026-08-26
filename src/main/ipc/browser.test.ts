@@ -6,6 +6,7 @@ const {
   registerGuestMock,
   attachGuestPoliciesMock,
   unregisterGuestMock,
+  getRendererWebContentsIdMock,
   getGuestWebContentsIdMock,
   getWebContentsIdByTabIdMock,
   getWorktreeIdForTabMock,
@@ -23,6 +24,7 @@ const {
   registerGuestMock: vi.fn(),
   attachGuestPoliciesMock: vi.fn(),
   unregisterGuestMock: vi.fn(),
+  getRendererWebContentsIdMock: vi.fn(),
   getGuestWebContentsIdMock: vi.fn(),
   getWebContentsIdByTabIdMock: vi.fn(() => new Map()),
   getWorktreeIdForTabMock: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('../browser/browser-manager', () => ({
     registerGuest: registerGuestMock,
     attachGuestPolicies: attachGuestPoliciesMock,
     unregisterGuest: unregisterGuestMock,
+    getRendererWebContentsId: getRendererWebContentsIdMock,
     getGuestWebContentsId: getGuestWebContentsIdMock,
     getWebContentsIdByTabId: getWebContentsIdByTabIdMock,
     getWorktreeIdForTab: getWorktreeIdForTabMock,
@@ -84,6 +87,8 @@ describe('registerBrowserHandlers', () => {
     registerGuestMock.mockReturnValue(true)
     attachGuestPoliciesMock.mockReset()
     unregisterGuestMock.mockReset()
+    getRendererWebContentsIdMock.mockReset()
+    getRendererWebContentsIdMock.mockReturnValue(91)
     getGuestWebContentsIdMock.mockReset()
     getWebContentsIdByTabIdMock.mockReset()
     getWebContentsIdByTabIdMock.mockReturnValue(new Map())
@@ -118,6 +123,7 @@ describe('registerBrowserHandlers', () => {
     const result = registerHandler(
       {
         sender: {
+          id: 91,
           isDestroyed: () => false,
           getType: () => 'webview',
           getURL: () => 'http://localhost:5173/'
@@ -368,6 +374,7 @@ describe('registerBrowserHandlers', () => {
     const result = activeTabChangedHandler(
       {
         sender: {
+          id: 91,
           isDestroyed: () => false,
           getType: () => 'window',
           getURL: () => 'file:///renderer/index.html'

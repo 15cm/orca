@@ -51,6 +51,7 @@ export type BrowserPageWebviewGuestSession = {
   handleDidAttach: () => void
   handleDomReady: () => void
   handleGuestDestroyed: () => void
+  dispose: () => void
 }
 
 export function createBrowserPageWebviewGuestSession({
@@ -80,6 +81,38 @@ export function createBrowserPageWebviewGuestSession({
     webContentsId: number
     promise: Promise<boolean | null>
   } | null = null
+  let registrationRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearRegistrationRetry = (): void => {
+    if (registrationRetryTimer !== null) {
+      clearTimeout(registrationRetryTimer)
+      registrationRetryTimer = null
+    }
+  }
+
+  const scheduleRegistrationRetry = (webContentsId: number): void => {
+    clearRegistrationRetry()
+    registrationRetryTimer = setTimeout(() => {
+      registrationRetryTimer = null
+      if (webviewRef.current !== webview) {
+        return
+      }
+      try {
+        if (webview.getWebContentsId() !== webContentsId) {
+          return
+        }
+      } catch {
+        return
+      }
+      void registerGuest().then((registered) => {
+        if (registered === true) {
+          guestRecovery.confirmRegistration()
+        }
+        syncBrowserAnnotationViewportBridge()
+      })
+    }, 1_000)
+  }
+
   const registerGuest = (): Promise<boolean | null> => {
     let webContentsId: number
     try {
@@ -100,9 +133,11 @@ export function createBrowserPageWebviewGuestSession({
       })
       .then((registered) => {
         if (registered) {
+          clearRegistrationRetry()
           registeredWebContentsIds.set(browserTabId, webContentsId)
           return true
         }
+        scheduleRegistrationRetry(webContentsId)
         return null
       })
       // Why: registration rejection can be an attach-policy race; only validation of an identified guest proves loss.
@@ -151,13 +186,20 @@ export function createBrowserPageWebviewGuestSession({
       if (registered) {
         return true
       }
-      return window.api.browser.repairGuestRegistration({
-        browserPageId: browserTabId,
-        workspaceId,
-        worktreeId,
-        sessionProfileId,
-        webContentsId
-      })
+      return window.api.browser
+        .repairGuestRegistration({
+          browserPageId: browserTabId,
+          workspaceId,
+          worktreeId,
+          sessionProfileId,
+          webContentsId
+        })
+        .then((repaired) => {
+          if (!repaired) {
+            scheduleRegistrationRetry(webContentsId)
+          }
+          return repaired
+        })
     },
     replaceGuest: () => replacePersistentWebview(browserTabId),
     onReplacementReady: () => setGuestRecoveryGeneration((generation) => generation + 1),
@@ -252,10 +294,15 @@ export function createBrowserPageWebviewGuestSession({
     }
   }
 
+  const dispose = (): void => {
+    clearRegistrationRetry()
+  }
+
   return {
     guestRecovery,
     handleDidAttach,
     handleDomReady,
-    handleGuestDestroyed
+    handleGuestDestroyed,
+    dispose
   }
 }

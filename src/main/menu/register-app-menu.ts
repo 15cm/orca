@@ -1,4 +1,4 @@
-import { BrowserWindow, Menu, app } from 'electron'
+import { Menu, app } from 'electron'
 import {
   formatKeybindingList,
   getEffectiveKeybindingsForAction,
@@ -8,6 +8,7 @@ import {
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import { translateMain } from '../i18n/main-i18n'
 import { createAppMenuSelectionItem } from './app-menu-selection-item'
+import { getMenuTargetWebContents, reloadMenuTarget } from './menu-target-web-contents'
 
 export type AppearanceMenuState = {
   showTasksButton: boolean
@@ -24,18 +25,20 @@ export function getNextDefaultOnAppearanceSettingValue(current: boolean | undefi
 }
 
 type RegisterAppMenuOptions = {
-  onOpenSettings: () => void
+  multiWindowEnabled?: boolean
+  onNewWindow?: () => void
+  onOpenSettings: (window?: Electron.BaseWindow | null) => void
   onOpenSetupGuide: (window?: Electron.BaseWindow | null) => void
   onOpenFeatureTour: (window?: Electron.BaseWindow | null) => void
   onOpenCrashReport: (window?: Electron.BaseWindow | null) => void
   onCheckForUpdates: (options: UpdateCheckOptions) => void
   onBeforeReload?: (options: { ignoreCache: boolean; webContentsId: number }) => void
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onZoomReset: () => void
-  onToggleLeftSidebar: () => void
-  onToggleRightSidebar: () => void
-  onToggleAppearance: (key: AppearanceMenuKey) => void
+  onZoomIn: (window?: Electron.BaseWindow | null) => void
+  onZoomOut: (window?: Electron.BaseWindow | null) => void
+  onZoomReset: (window?: Electron.BaseWindow | null) => void
+  onToggleLeftSidebar: (window?: Electron.BaseWindow | null) => void
+  onToggleRightSidebar: (window?: Electron.BaseWindow | null) => void
+  onToggleAppearance: (key: AppearanceMenuKey, window?: Electron.BaseWindow | null) => void
   getAppearanceState: () => AppearanceMenuState
   getKeybindings?: () => KeybindingOverrides | undefined
   // Why: the macOS app-menu title. Passed the per-branch dev label since
@@ -46,6 +49,8 @@ type RegisterAppMenuOptions = {
 function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   const {
     onOpenSettings,
+    onNewWindow,
+    multiWindowEnabled,
     onOpenSetupGuide,
     onOpenFeatureTour,
     onOpenCrashReport,
@@ -70,22 +75,6 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
       getKeybindings?.()
     )
     return formatKeybindingList(bindings, process.platform)
-  }
-
-  const reloadFocusedWindow = (ignoreCache: boolean): void => {
-    const webContents = BrowserWindow.getFocusedWindow()?.webContents
-    if (!webContents) {
-      return
-    }
-
-    onBeforeReload?.({ ignoreCache, webContentsId: webContents.id })
-
-    if (ignoreCache) {
-      webContents.reloadIgnoringCache()
-      return
-    }
-
-    webContents.reload()
   }
 
   // Why: modifier-click update checks are hidden power-user affordances.
@@ -115,7 +104,12 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const settingsItem: Electron.MenuItemConstructorOptions = {
     label: `${translateMain('menu.settings', 'Settings')}\t${shortcutLabel('app.settings')}`,
-    click: () => onOpenSettings()
+    click: (_menuItem, window) => onOpenSettings(window)
+  }
+
+  const newWindowItem: Electron.MenuItemConstructorOptions = {
+    label: translateMain('menu.newWindow', 'New Window'),
+    click: () => onNewWindow?.()
   }
 
   const featureTourItem: Electron.MenuItemConstructorOptions = {
@@ -161,6 +155,9 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     // Quit live under File — matching the common platform convention and
     // keeping all user-facing actions reachable from the in-window menu bar.
     submenu: [
+      ...(multiWindowEnabled === true
+        ? ([newWindowItem, { type: 'separator' }] satisfies Electron.MenuItemConstructorOptions[])
+        : []),
       settingsItem,
       { type: 'separator' },
       { role: 'quit', label: translateMain('menu.exit', 'Exit') }
@@ -186,12 +183,12 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
       {
         label: translateMain('menu.paste', 'Paste'),
         accelerator: 'CmdOrCtrl+V',
-        click: () => {
+        click: (_menuItem, window) => {
           // Why: a focused terminal/native-chat pane is not a native editable
           // control, so raw Electron paste cannot know which Orca surface owns it.
-          const focusedWindow = BrowserWindow.getFocusedWindow()
-          if (focusedWindow) {
-            focusedWindow.webContents.send('ui:appMenuPaste')
+          const targetWebContents = getMenuTargetWebContents(window)
+          if (targetWebContents) {
+            targetWebContents.send('ui:appMenuPaste')
             return
           }
 
@@ -228,43 +225,43 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
         // fire. Sidebar open/closed lives in the renderer store (non-persisted),
         // so we forward a toggle request rather than mirroring state in main.
         label: `${translateMain('menu.toggleLeftSidebar', 'Toggle Left Sidebar')}\t${shortcutLabel('sidebar.left.toggle')}`,
-        click: () => onToggleLeftSidebar()
+        click: (_menuItem, window) => onToggleLeftSidebar(window)
       },
       {
         // Why: display-only shortcut hint for the same reason as above.
         label: `${translateMain('menu.toggleRightSidebar', 'Toggle Right Sidebar')}\t${shortcutLabel('sidebar.right.toggle')}`,
-        click: () => onToggleRightSidebar()
+        click: (_menuItem, window) => onToggleRightSidebar(window)
       },
       {
         label: translateMain('menu.showStatusBar', 'Show Status Bar'),
         type: 'checkbox',
         checked: appearance.statusBarVisible,
-        click: () => onToggleAppearance('statusBarVisible')
+        click: (_menuItem, window) => onToggleAppearance('statusBarVisible', window)
       },
       { type: 'separator' },
       {
         label: translateMain('menu.showTasksButton', 'Show Tasks Button'),
         type: 'checkbox',
         checked: appearance.showTasksButton,
-        click: () => onToggleAppearance('showTasksButton')
+        click: (_menuItem, window) => onToggleAppearance('showTasksButton', window)
       },
       {
         label: translateMain('menu.showAutomationsButton', 'Show Automations Button'),
         type: 'checkbox',
         checked: appearance.showAutomationsButton,
-        click: () => onToggleAppearance('showAutomationsButton')
+        click: (_menuItem, window) => onToggleAppearance('showAutomationsButton', window)
       },
       {
         label: translateMain('menu.showMobileButton', 'Show Orca Mobile Button'),
         type: 'checkbox',
         checked: appearance.showMobileButton,
-        click: () => onToggleAppearance('showMobileButton')
+        click: (_menuItem, window) => onToggleAppearance('showMobileButton', window)
       },
       {
         label: translateMain('menu.showTitlebarAppName', 'Show Titlebar App Name'),
         type: 'checkbox',
         checked: appearance.showTitlebarAppName,
-        click: () => onToggleAppearance('showTitlebarAppName')
+        click: (_menuItem, window) => onToggleAppearance('showTitlebarAppName', window)
       }
     ]
   }
@@ -274,25 +271,25 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     submenu: [
       {
         label: translateMain('menu.reload', 'Reload'),
-        click: () => reloadFocusedWindow(false)
+        click: (_menuItem, window) => reloadMenuTarget(window, false, onBeforeReload)
       },
       {
         label: `${translateMain('menu.forceReload', 'Force Reload')}\t${shortcutLabel('app.forceReload')}`,
-        click: () => reloadFocusedWindow(true)
+        click: (_menuItem, window) => reloadMenuTarget(window, true, onBeforeReload)
       },
       { role: 'toggleDevTools' },
       { type: 'separator' },
       {
         label: `${translateMain('menu.resetSize', 'Reset Size')}\t${shortcutLabel('zoom.reset')}`,
-        click: () => onZoomReset()
+        click: (_menuItem, window) => onZoomReset(window)
       },
       {
         label: `${translateMain('menu.zoomIn', 'Zoom In')}\t${shortcutLabel('zoom.in')}`,
-        click: () => onZoomIn()
+        click: (_menuItem, window) => onZoomIn(window)
       },
       {
         label: `${translateMain('menu.zoomOut', 'Zoom Out')}\t${shortcutLabel('zoom.out')}`,
-        click: () => onZoomOut()
+        click: (_menuItem, window) => onZoomOut(window)
       },
       { type: 'separator' },
       {
@@ -334,7 +331,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [macAppMenu] : []),
-    ...(isMac ? [] : [fileMenu]),
+    ...(isMac && multiWindowEnabled !== true ? [] : [fileMenu]),
     editMenu,
     viewMenu,
     windowMenu,

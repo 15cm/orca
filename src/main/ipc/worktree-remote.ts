@@ -64,6 +64,7 @@ import type { SshGitProvider } from '../providers/ssh-git-provider'
 import { TUI_AGENT_CONFIG, isTuiAgent } from '../../shared/tui-agent-config'
 import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { runWorktreeChangeInvalidators } from './worktree-change-invalidators'
+import { getRuntimeDesktopSurface } from '../runtime/runtime-desktop-surface'
 import {
   registerOptionalSshWorktreeCreateRoots,
   registerRequiredSshWorktreeCreateRoots
@@ -1483,8 +1484,10 @@ async function getRemoteLocalBaseRefUpdateSuggestionForWorktreeCreate(
 export function notifyWorktreesChanged(mainWindow: BrowserWindow, repoId: string): void {
   // Why: invalidate detected-worktree caches before renderer observers react, so follow-up listDetected sees post-change state.
   runWorktreeChangeInvalidators(repoId)
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('worktrees:changed', { repoId })
+  const desktop = getRuntimeDesktopSurface()
+  desktop.broadcastMainWindows('worktrees:changed', { repoId })
+  if (desktop.getMainWindowCount() === 0 && !mainWindow.isDestroyed()) {
+    desktop.sendToMainWindow(mainWindow, 'worktrees:changed', { repoId })
   }
 }
 
@@ -1493,8 +1496,10 @@ export function notifyWorktreeGitStatusMetadataChanged(
   repoId: string
 ): void {
   // Why: index churn is a Source Control freshness hint, not a graph mutation; leave structural caches and runtime/mobile events untouched.
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('worktrees:gitStatusMetadataChanged', { repoId })
+  const desktop = getRuntimeDesktopSurface()
+  desktop.broadcastMainWindows('worktrees:gitStatusMetadataChanged', { repoId })
+  if (desktop.getMainWindowCount() === 0 && !mainWindow.isDestroyed()) {
+    desktop.sendToMainWindow(mainWindow, 'worktrees:gitStatusMetadataChanged', { repoId })
   }
 }
 
@@ -1504,8 +1509,13 @@ export function notifyWorktreeHeadIdentitiesChanged(
   identities: WorktreeHeadIdentity[]
 ): void {
   // Why: background worktrees have no active status refresh, so metadata-detected head moves ride this targeted event instead of the structural fanout.
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('worktrees:headIdentitiesChanged', { repoId, identities })
+  const desktop = getRuntimeDesktopSurface()
+  desktop.broadcastMainWindows('worktrees:headIdentitiesChanged', { repoId, identities })
+  if (desktop.getMainWindowCount() === 0 && !mainWindow.isDestroyed()) {
+    desktop.sendToMainWindow(mainWindow, 'worktrees:headIdentitiesChanged', {
+      repoId,
+      identities
+    })
   }
 }
 
@@ -1515,9 +1525,10 @@ export function emitCreateWorktreeProgress(
   phase: 'fetching' | 'creating',
   creationId?: string
 ): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('createWorktree:progress', { creationId, phase })
-  }
+  getRuntimeDesktopSurface().sendToMainWindow(mainWindow, 'createWorktree:progress', {
+    creationId,
+    phase
+  })
 }
 
 export async function createRemoteWorktree(

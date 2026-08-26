@@ -67,7 +67,7 @@ export function bindBrowserPageWebviewListeners({
     setFindOpen
   } = args
 
-  const { guestRecovery, handleDidAttach, handleDomReady, handleGuestDestroyed } =
+  const { guestRecovery, handleDidAttach, handleDomReady, handleGuestDestroyed, dispose } =
     createBrowserPageWebviewGuestSession({
       webview,
       browserTabId,
@@ -197,6 +197,7 @@ export function bindBrowserPageWebviewListeners({
     container.removeEventListener('dragover', onContainerDragOver)
     container.removeEventListener('drop', onContainerDrop)
     unsubscribeSystemResumed()
+    dispose()
     guestRecovery.dispose()
     if (validateVisibleGuestRegistrationRef.current === guestRecovery.validateAfterResume) {
       validateVisibleGuestRegistrationRef.current = () => {}

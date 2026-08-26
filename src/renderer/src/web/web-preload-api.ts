@@ -2916,6 +2916,7 @@ function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     popupMenu: () => {},
     onWindowCloseRequested: () => noopUnsubscribe,
     confirmWindowClose: () => {},
+    cancelWindowClose: () => {},
     notifyWindowRevealed: () => {}
   }
 }

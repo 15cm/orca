@@ -60,7 +60,7 @@ describe('repos folder pickers', () => {
     if (!handler) {
       throw new Error('repos:pickFolders handler was never registered')
     }
-    return handler(null, undefined) as Promise<string[]>
+    return handler({ sender: mockWindow.webContents }, undefined) as Promise<string[]>
   }
 
   const callPickDirectory = (): Promise<string | null> => {
@@ -68,7 +68,7 @@ describe('repos folder pickers', () => {
     if (!handler) {
       throw new Error('repos:pickDirectory handler was never registered')
     }
-    return handler(null, undefined) as Promise<string | null>
+    return handler({ sender: mockWindow.webContents }, undefined) as Promise<string | null>
   }
 
   beforeEach(() => {

@@ -31,6 +31,10 @@ type BrowserGuestRegistrationArgs = {
   webContentsId: number
 }
 
+function ownsBrowserPage(sender: Electron.WebContents, browserPageId: string): boolean {
+  return browserManager.getRendererWebContentsId(browserPageId) === sender.id
+}
+
 export function setAgentBrowserBridgeRef(bridge: AgentBrowserBridge | null): void {
   agentBrowserBridgeRef = bridge
 }
@@ -59,6 +63,16 @@ export function registerBrowserHandlers(): void {
       typeof args.workspaceId !== 'string' ||
       typeof args.worktreeId !== 'string' ||
       typeof args.webContentsId !== 'number'
+    ) {
+      return false
+    }
+    const existingRendererWebContentsId = browserManager.getRendererWebContentsId(
+      args.browserPageId
+    )
+    if (
+      existingRendererWebContentsId !== null &&
+      existingRendererWebContentsId !== event.sender.id &&
+      isLiveBrowserWebContentsId(browserManager.getGuestWebContentsId(args.browserPageId))
     ) {
       return false
     }
@@ -113,6 +127,9 @@ export function registerBrowserHandlers(): void {
       ) {
         return false
       }
+      if (!ownsBrowserPage(event.sender, args.browserPageId)) {
+        return false
+      }
       return (
         browserManager.getGuestWebContentsId(args.browserPageId) === args.webContentsId &&
         isLiveBrowserWebContentsId(args.webContentsId)
@@ -122,6 +139,9 @@ export function registerBrowserHandlers(): void {
 
   ipcMain.handle('browser:unregisterGuest', (event, args: { browserPageId: string }) => {
     if (!isTrustedBrowserRenderer(event.sender)) {
+      return false
+    }
+    if (!ownsBrowserPage(event.sender, args.browserPageId)) {
       return false
     }
     // Why: notify bridge before unregistering so it can destroy the session
@@ -159,6 +179,9 @@ export function registerBrowserHandlers(): void {
       ) {
         return { ok: false, reason: 'missing' }
       }
+      if (!ownsBrowserPage(event.sender, args.browserPageId)) {
+        return { ok: false, reason: 'missing' }
+      }
       return browserCertificateTrustController.proceed(args.browserPageId, args.challengeId)
     }
   )
@@ -168,6 +191,9 @@ export function registerBrowserHandlers(): void {
   // on the previous tab, which is confusing.
   ipcMain.handle('browser:activeTabChanged', (event, args: { browserPageId: string }) => {
     if (!isTrustedBrowserRenderer(event.sender)) {
+      return false
+    }
+    if (!ownsBrowserPage(event.sender, args.browserPageId)) {
       return false
     }
     if (!agentBrowserBridgeRef) {

@@ -184,7 +184,8 @@ describe('updater linux package recovery IPC handlers', () => {
     const event = senderEvent(webContents({}))
     void getHandler(RECOVERY_CHANNELS[0])(event)
 
-    // The main window was replaced between calls; the previously served sender is now stale.
+    // Window teardown removes its renderer from the multi-window trust set.
+    actualUi.clearTrustedUIRendererWebContentsId(TRUSTED_ID)
     actualUi.setTrustedUIRendererWebContentsId(TRUSTED_ID + 1)
 
     expect(() => getHandler(RECOVERY_CHANNELS[0])(event)).toThrow(UNAUTHORIZED)

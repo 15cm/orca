@@ -500,9 +500,20 @@ function Terminal(): React.JSX.Element | null {
 
   // Window close confirmation, shown for local terminals with running children (SSH terminals detach/persist via the relay).
   const [windowCloseDialogOpen, setWindowCloseDialogOpen] = useState(false)
+  const handleWindowCloseDialogCancel = useCallback(() => {
+    setWindowCloseDialogOpen(false)
+    window.api.ui.cancelWindowClose()
+  }, [])
 
   // Why: defer confirmWindowClose() while tabs are dirty — the beforeunload guard preventDefault()s, so an immediate confirm leaves the window open with no UI.
   const windowCloseAfterDirtyRef = useRef<{ isQuitting: boolean } | null>(null)
+  const cancelPendingWindowClose = useCallback(() => {
+    if (!windowCloseAfterDirtyRef.current) {
+      return
+    }
+    windowCloseAfterDirtyRef.current = null
+    window.api.ui.cancelWindowClose()
+  }, [])
 
   const confirmNativeWindowClose = useCallback(() => {
     // Why: capture only after every close guard has committed. A canceled child-
@@ -703,6 +714,7 @@ function Terminal(): React.JSX.Element | null {
           'Save timed out or failed. Fix errors before closing.'
         )
       )
+      cancelPendingWindowClose()
       setSaveDialogFileId(fileId)
       // Why: on a genuine timeout the user stays on the same dialog, so release the guard now — a new click is a deliberate retry.
       isClosingRef.current = false
@@ -715,6 +727,7 @@ function Terminal(): React.JSX.Element | null {
     releaseCloseDialogGuardAfterDebounce()
   }, [
     advanceEditorCloseQueue,
+    cancelPendingWindowClose,
     releaseCloseDialogGuardAfterDebounce,
     saveDialogFileId,
     waitForFileClosed
@@ -761,10 +774,10 @@ function Terminal(): React.JSX.Element | null {
     }
     isClosingRef.current = true
     pendingEditorCloseQueueRef.current = []
-    windowCloseAfterDirtyRef.current = null
+    cancelPendingWindowClose()
     setSaveDialogFileId(null)
     releaseCloseDialogGuardAfterDebounce()
-  }, [releaseCloseDialogGuardAfterDebounce])
+  }, [cancelPendingWindowClose, releaseCloseDialogGuardAfterDebounce])
 
   useEffect(() => {
     const onRequestEditorClose = (event: Event): void => {
@@ -2763,7 +2776,7 @@ function Terminal(): React.JSX.Element | null {
         open={windowCloseDialogOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setWindowCloseDialogOpen(false)
+            handleWindowCloseDialogCancel()
           }
         }}
       >
@@ -2784,7 +2797,7 @@ function Terminal(): React.JSX.Element | null {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setWindowCloseDialogOpen(false)}
+              onClick={handleWindowCloseDialogCancel}
             >
               {translate('auto.components.Terminal.f82e9f02df', 'Cancel')}
             </Button>

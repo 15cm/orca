@@ -67,6 +67,11 @@ import {
 import { advertisedUrlWatcher } from '../ports/advertised-url-watcher'
 import { requestCredential, registerCredentialHandler } from './ssh-passphrase'
 import {
+  broadcastToMainWindows,
+  getMainWindows,
+  sendToWindow
+} from '../window/main-window-registry'
+import {
   clearProviderPtyState,
   deletePtyOwnership,
   getPtyIdsForConnection,
@@ -420,9 +425,12 @@ function broadcastSshState(
     return
   }
   const enrichedState = withSshRemotePlatform(targetId, state)
-  const win = getMainWindow()
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('ssh:state-changed', { targetId, state: enrichedState })
+  broadcastToMainWindows('ssh:state-changed', { targetId, state: enrichedState })
+  if (getMainWindows().length === 0) {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      sendToWindow(win, 'ssh:state-changed', { targetId, state: enrichedState })
+    }
   }
   // Why: paired remote clients have no ssh:state-changed IPC; without this their terminals keep a stale reconnect overlay.
   currentRuntime?.notifySshStateChanged?.(targetId, enrichedState)
@@ -467,14 +475,17 @@ function getPublicSshState(targetId: string): SshConnectionState | undefined {
 }
 
 function broadcastPortForwards(getMainWindow: () => BrowserWindow | null, targetId: string): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed()) {
-    return
-  }
-  win.webContents.send('ssh:port-forwards-changed', {
+  const payload = {
     targetId,
     forwards: listForwardsEnriched(targetId)
-  })
+  }
+  broadcastToMainWindows('ssh:port-forwards-changed', payload)
+  if (getMainWindows().length === 0) {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      sendToWindow(win, 'ssh:port-forwards-changed', payload)
+    }
+  }
 }
 
 function broadcastDetectedPorts(
@@ -483,14 +494,17 @@ function broadcastDetectedPorts(
   ports: DetectedPort[],
   options?: Parameters<typeof enrichSshDetectedPorts>[3]
 ): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed()) {
-    return
-  }
-  win.webContents.send('ssh:detected-ports-changed', {
+  const payload = {
     targetId,
     ports: enrichDetected(targetId, ports, options)
-  })
+  }
+  broadcastToMainWindows('ssh:detected-ports-changed', payload)
+  if (getMainWindows().length === 0) {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      sendToWindow(win, 'ssh:detected-ports-changed', payload)
+    }
+  }
 }
 
 function listForwardsEnriched(targetId: string): ReturnType<SshPortForwardManager['listForwards']> {
@@ -1010,9 +1024,12 @@ export function registerSshHandlers(
     )) {
       rotateSshProviderAuthority(targetId)
     }
-    const win = getCurrentMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('repos:changed')
+    broadcastToMainWindows('repos:changed')
+    if (getMainWindows().length === 0) {
+      const win = getCurrentMainWindow()
+      if (win && !win.isDestroyed()) {
+        sendToWindow(win, 'repos:changed')
+      }
     }
     return repoReadoptions
   }

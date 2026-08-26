@@ -524,10 +524,10 @@ describe('registerAppMenu', () => {
       .find((item) => item.label === 'Show Titlebar App Name')
       ?.click?.({} as never, {} as never, {} as never)
 
-    expect(options.onToggleAppearance).toHaveBeenCalledWith('showTasksButton')
-    expect(options.onToggleAppearance).toHaveBeenCalledWith('showAutomationsButton')
-    expect(options.onToggleAppearance).toHaveBeenCalledWith('showMobileButton')
-    expect(options.onToggleAppearance).toHaveBeenCalledWith('showTitlebarAppName')
+    expect(options.onToggleAppearance).toHaveBeenCalledWith('showTasksButton', {})
+    expect(options.onToggleAppearance).toHaveBeenCalledWith('showAutomationsButton', {})
+    expect(options.onToggleAppearance).toHaveBeenCalledWith('showMobileButton', {})
+    expect(options.onToggleAppearance).toHaveBeenCalledWith('showTitlebarAppName', {})
   })
 
   it('routes sidebar toggle items through their callbacks', () => {

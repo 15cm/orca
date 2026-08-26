@@ -6,10 +6,13 @@ export type MainWindowSpy = Mock<(...args: unknown[]) => unknown>
 
 export const menuPopupMock: MainWindowSpy = vi.fn()
 export const notificationShowMock: MainWindowSpy = vi.fn()
+export const browserWindowFromWebContentsMock: MainWindowSpy = vi.fn()
 /** Constructor spy: suites read the options object back off `mock.calls`. */
 export const browserWindowMock: Mock<
   (options: Electron.BrowserWindowConstructorOptions) => unknown
-> = vi.fn()
+> & { fromWebContents: MainWindowSpy } = Object.assign(vi.fn(), {
+  fromWebContents: browserWindowFromWebContentsMock
+})
 export const openExternalMock: MainWindowSpy = vi.fn()
 export const attachGuestPoliciesMock: MainWindowSpy = vi.fn()
 export const buildFromTemplateMock: Mock<(...args: unknown[]) => { popup: MainWindowSpy }> = vi.fn(
@@ -32,8 +35,18 @@ type IpcMainMock = {
   removeHandler: MainWindowSpy
 }
 
+const registeredIpcListeners = new Map<string, unknown>()
+
+function recordIpcListener(...args: unknown[]): unknown {
+  const [channel, handler] = args
+  if (typeof channel === 'string') {
+    registeredIpcListeners.set(channel, handler)
+  }
+  return ipcMainMock
+}
+
 const ipcMainMock: IpcMainMock = {
-  on: vi.fn(),
+  on: vi.fn(recordIpcListener),
   removeListener: vi.fn(),
   handle: vi.fn(),
   removeHandler: vi.fn()
@@ -109,6 +122,7 @@ export function browserManagerMock(): BrowserManagerModuleMock {
 
 export function resetMainWindowMocks(): void {
   browserWindowMock.mockReset()
+  browserWindowFromWebContentsMock.mockReset()
   openExternalMock.mockReset()
   attachGuestPoliciesMock.mockReset()
   buildFromTemplateMock.mockClear()
@@ -120,9 +134,14 @@ export function resetMainWindowMocks(): void {
   isMock.dev = false
   macosTahoeMock.value = false
   ipcMainMock.on.mockReset()
+  ipcMainMock.on.mockImplementation(recordIpcListener)
   ipcMainMock.removeListener.mockReset()
   ipcMainMock.handle.mockReset()
   ipcMainMock.removeHandler.mockReset()
+}
+
+export function getRegisteredIpcMainListener(channel: string): MainWindowSpy | undefined {
+  return registeredIpcListeners.get(channel) as MainWindowSpy | undefined
 }
 
 export function withPlatform<T>(platform: NodeJS.Platform, run: () => T): T {

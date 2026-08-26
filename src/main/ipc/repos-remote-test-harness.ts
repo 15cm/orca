@@ -205,7 +205,9 @@ export function createRepoHandlerHarness(): RepoHandlerHarness {
     handlers.clear()
     handleMock.mockReset()
     handleMock.mockImplementation((channel: string, handler: (...a: unknown[]) => unknown) => {
-      handlers.set(channel, handler)
+      handlers.set(channel, (event, args) =>
+        handler(event ?? { sender: mockWindow.webContents }, args)
+      )
     })
   }
   return { handlers, mockWindow, captureHandlers }

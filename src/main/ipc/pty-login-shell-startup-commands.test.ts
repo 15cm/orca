@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  loginPreflightExecFileMock,
-  spawnMock,
-  openCodeBuildPtyEnvMock
-} from './pty-ipc-mock-registry'
+import { spawnMock, openCodeBuildPtyEnvMock } from './pty-ipc-mock-registry'
 import { posixOnlyIt } from './pty-ipc-test-constants'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { userInfo } from 'node:os'
@@ -12,6 +8,10 @@ import { registerPtyHandlers } from './pty'
 import { join } from 'node:path'
 // Why resolved rather than hardcoded: the wrapper tree is content-addressed.
 import { getShellReadyWrapperRoot } from '../providers/local-pty-shell-ready-wrapper-root'
+
+const { runProcessMock } = vi.hoisted(() => ({ runProcessMock: vi.fn() }))
+
+vi.mock('../../shared/child-process/run-process', () => ({ runProcess: runProcessMock }))
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -61,21 +61,22 @@ describe('registerPtyHandlers', () => {
   const { handlers, mainWindow, createMockProc, spawnAndGetCall } = setupPtyIpcSuite()
 
   posixOnlyIt('wraps macOS spawns in login(1) with SHELL restored by the trampoline', async () => {
+    const originalPlatform = process.platform
     const originalShell = process.env.SHELL
+    Object.defineProperty(process, 'platform', {
+      configurable: true,
+      value: 'darwin'
+    })
     // Re-enable the TCC login wrapper the suite-level beforeEach disables.
     delete process.env.ORCA_DISABLE_MACOS_LOGIN_SHELL
     process.env.SHELL = '/bin/zsh'
-    loginPreflightExecFileMock.mockImplementation(
-      (
-        _file: string,
-        _args: string[],
-        _options: unknown,
-        callback: (error: Error | null, stdout: string, stderr: string) => void
-      ) => {
-        callback(null, 'ORCA_LOGIN_PREFLIGHT_OK', '')
-        return { stdin: { end: vi.fn() } }
-      }
-    )
+    runProcessMock.mockResolvedValue({
+      code: 0,
+      signal: null,
+      stdout: 'ORCA_LOGIN_PREFLIGHT_OK',
+      stderr: '',
+      timedOut: false
+    })
     resetMacosLoginShellPreflightForTests()
 
     try {
@@ -105,6 +106,10 @@ describe('registerPtyHandlers', () => {
       } else {
         process.env.SHELL = originalShell
       }
+      Object.defineProperty(process, 'platform', {
+        configurable: true,
+        value: originalPlatform
+      })
     }
   })
   it('uses the POSIX shell wrapper so OpenCode config survives shell startup files', async () => {

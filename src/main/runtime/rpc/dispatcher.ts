@@ -43,7 +43,11 @@ export class RpcDispatcher {
 
   async dispatch(
     request: RpcRequest,
-    options?: { signal?: AbortSignal; authenticatedCallerFingerprint?: string }
+    options?: {
+      signal?: AbortSignal
+      authenticatedCallerFingerprint?: string
+      senderWindowId?: number
+    }
   ): Promise<RpcResponse> {
     const meta = this.meta()
     const method = this.registry.get(request.method)
@@ -102,6 +106,7 @@ export class RpcDispatcher {
         return method.handler(effectiveParams, {
           runtime: this.runtime,
           signal: options?.signal,
+          senderWindowId: options?.senderWindowId,
           requestId: request.id,
           orchestrationCapability: request.orchestrationCapability,
           authenticatedCallerFingerprint:
@@ -195,6 +200,7 @@ export class RpcDispatcher {
           return method.handler(effectiveParams, {
             runtime: this.runtime,
             signal: options?.signal,
+            senderWindowId: options?.senderWindowId,
             requestId: request.id,
             connectionId: options?.connectionId,
             clientId: options?.clientId,
@@ -257,6 +263,7 @@ export class RpcDispatcher {
         {
           runtime: this.runtime,
           signal: options?.signal,
+          senderWindowId: options?.senderWindowId,
           requestId: request.id,
           connectionId: options?.connectionId,
           clientId: options?.clientId,

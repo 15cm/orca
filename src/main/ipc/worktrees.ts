@@ -261,6 +261,7 @@ import {
   recoverLocalWindowsWorktreeRemoval
 } from '../local-worktree-removal-recovery'
 import { deleteRemoteWorktreeHistory } from '../remote-worktree-history-cleanup'
+import { getMainWindowForWebContents } from '../window/main-window-registry'
 
 const NullableWorkspaceLinkedItemSchema = WorkspaceLinkedItemSchema.nullable()
 const NullableTaskSourceContextSchema = TaskSourceContextSchema.nullable()
@@ -1851,6 +1852,8 @@ export function registerWorktreeHandlers(
   options?: { onWorktreeLifecycle?: (event: RuntimeWorktreeLifecycleEvent) => void }
 ): void {
   const detectedWorktreeCancellations = createSenderScopedRequestCancellations()
+  const getTargetWindow = (event: Electron.IpcMainInvokeEvent | null | undefined): BrowserWindow =>
+    event?.sender ? (getMainWindowForWebContents(event.sender) ?? mainWindow) : mainWindow
   // Remove previously registered handlers so re-register works when macOS re-activates and creates a new window.
   ipcMain.removeHandler('worktrees:listAll')
   ipcMain.removeHandler('worktrees:list')
@@ -2247,7 +2250,7 @@ export function registerWorktreeHandlers(
 
   ipcMain.handle(
     'worktrees:create',
-    async (_event, rawArgs: CreateWorktreeArgs): Promise<CreateWorktreeResult> => {
+    async (event, rawArgs: CreateWorktreeArgs): Promise<CreateWorktreeResult> => {
       const args = normalizeLinkedWorkItemFields(rawArgs)
       // Why span here: parent the child git spans for the trace tree; don't attach branch name/remote URL (user content) — repo ID is the safer correlator.
       return withWorktreeSpan({ stage: 'create' }, async () => {
@@ -2276,8 +2279,8 @@ export function registerWorktreeHandlers(
           result = isFolderRepo(repo)
             ? createFolderWorkspace(createArgs, repo, store)
             : repo.connectionId
-              ? await createRemoteWorktree(createArgs, repo, store, mainWindow)
-              : await createLocalWorktree(createArgs, repo, store, mainWindow, runtime)
+              ? await createRemoteWorktree(createArgs, repo, store, getTargetWindow(event))
+              : await createLocalWorktree(createArgs, repo, store, getTargetWindow(event), runtime)
         } catch (error) {
           releaseAutomationWorkspaceProvenanceRequest(args.automationProvenanceRequest)
           track('workspace_create_failed', {

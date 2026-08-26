@@ -27,10 +27,13 @@ import {
 } from '../crash-reporting/crash-breadcrumb-store'
 import {
   browserWindowMock,
+  browserWindowFromWebContentsMock,
+  getRegisteredIpcMainListener,
   notificationMock,
   notificationShowMock,
   resetMainWindowMocks
 } from './createMainWindow-test-harness'
+import { registerMainWindow } from './main-window-registry'
 
 describe('createMainWindow', () => {
   beforeEach(() => {
@@ -68,14 +71,20 @@ describe('createMainWindow', () => {
         id: 1
       }
       const instance = {
+        id: 1,
         webContents,
         on: vi.fn((event, handler) => {
           windowHandlers[event] = handler
         }),
+        once: vi.fn((event, handler) => {
+          windowHandlers[event] = handler
+        }),
+        removeListener: vi.fn(),
         isDestroyed: vi.fn(() => false),
         isMaximized: vi.fn(() => false),
         isFullScreen: vi.fn(() => false),
         isMinimized: vi.fn(() => false),
+        getBounds: vi.fn(() => ({ x: 0, y: 0, width: 1200, height: 800 })),
         getSize: vi.fn(() => [1200, 800]),
         setSize: vi.fn(),
         maximize: vi.fn(),
@@ -87,6 +96,8 @@ describe('createMainWindow', () => {
       browserWindowMock.mockImplementation(function () {
         return instance
       })
+      browserWindowFromWebContentsMock.mockReturnValue(instance)
+      registerMainWindow(instance as never)
       return { windowHandlers, webContents, instance }
     }
 
@@ -275,6 +286,10 @@ describe('createMainWindow', () => {
     // quit instead of hiding because the guard only covered the native event.
     function captureIpcHandlers(): Record<string, (...args: any[]) => void> {
       const ipcHandlers: Record<string, (...args: any[]) => void> = {}
+      const requestCloseHandler = getRegisteredIpcMainListener('window:request-close')
+      if (requestCloseHandler) {
+        ipcHandlers['window:request-close'] = requestCloseHandler as (...args: any[]) => void
+      }
       vi.mocked(ipcMain.on).mockImplementation((channel, handler) => {
         ipcHandlers[channel] = handler as (...args: any[]) => void
         return ipcMain
@@ -289,7 +304,7 @@ describe('createMainWindow', () => {
       const store = makeStore(true, true)
 
       createMainWindow(store as never, { getIsQuitting: () => false })
-      ipcHandlers['window:request-close']?.()
+      ipcHandlers['window:request-close']?.({ sender: webContents })
 
       expect(instance.hide).toHaveBeenCalledTimes(1)
       expect(webContents.send).not.toHaveBeenCalledWith('window:close-requested', expect.anything())
@@ -302,7 +317,7 @@ describe('createMainWindow', () => {
       const store = makeStore(false, true)
 
       createMainWindow(store as never, { getIsQuitting: () => false })
-      ipcHandlers['window:request-close']?.()
+      ipcHandlers['window:request-close']?.({ sender: webContents })
 
       expect(instance.hide).not.toHaveBeenCalled()
       expect(webContents.send).toHaveBeenCalledWith('window:close-requested', {

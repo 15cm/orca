@@ -4416,6 +4416,10 @@ const api = {
     confirmWindowClose: (): void => {
       ipcRenderer.send('window:confirm-close')
     },
+    /** Tell main that renderer-side close confirmation was canceled. */
+    cancelWindowClose: (): void => {
+      ipcRenderer.send('window:cancel-close')
+    },
     /** Report a genuine hidden→visible reveal so main can recover a stale (throttled) layout/compositor surface. */
     notifyWindowRevealed: (): void => {
       ipcRenderer.send('ui:window-revealed')

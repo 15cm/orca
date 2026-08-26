@@ -1442,6 +1442,23 @@ export class BrowserManager {
     return this.webContentsIdByTabId.get(browserTabId) ?? null
   }
 
+  getRendererWebContentsId(browserTabId: string): number | null {
+    return this.rendererWebContentsIdByTabId.get(browserTabId) ?? null
+  }
+
+  unregisterGuestsForRenderer(rendererWebContentsId: number): void {
+    for (const [browserTabId, ownerRendererWebContentsId] of this.rendererWebContentsIdByTabId) {
+      if (ownerRendererWebContentsId === rendererWebContentsId) {
+        this.unregisterGuest(browserTabId)
+      }
+    }
+    for (const [downloadId, download] of this.downloadsById) {
+      if (download.rendererWebContentsId === rendererWebContentsId) {
+        this.cancelDownloadInternal(downloadId, 'Owning Orca window closed.')
+      }
+    }
+  }
+
   getWebContentsIdByTabId(): Map<string, number> {
     return this.webContentsIdByTabId
   }

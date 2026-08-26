@@ -88,6 +88,12 @@ import { getSshFilesystemProvider } from '../providers/ssh-filesystem-dispatch'
 import { getSshGitUsername, resolveLocalGitUsername } from '../git/git-username'
 import { enrichRepoGitUsernames } from '../repo-git-username-enrichment'
 import { getActiveMultiplexer } from './ssh'
+import {
+  broadcastToMainWindows,
+  getMainWindowForWebContents,
+  getMainWindows,
+  sendToWindow
+} from '../window/main-window-registry'
 import { normalizeSparseDirectories } from './sparse-checkout-directories'
 import { track } from '../telemetry/client'
 import { scheduleCurrentWorktreeBaseDirectoryWatcherSync } from './worktree-base-directory-watcher'
@@ -794,8 +800,8 @@ const GIT_AVAILABILITY_TIMEOUT_MS = 1500
 function emitCloneProgressFromText(mainWindow: BrowserWindow, text: string): void {
   for (const line of text.split(/[\r\n]+/)) {
     const match = line.match(/^([\w\s]+):\s+(\d+)%/)
-    if (match && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('repos:clone-progress', {
+    if (match) {
+      sendToWindow(mainWindow, 'repos:clone-progress', {
         phase: match[1].trim(),
         percent: Number.parseInt(match[2], 10)
       })
@@ -1279,6 +1285,8 @@ async function runNestedRepoScanForIpc(
 }
 
 export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): void {
+  const getTargetWindow = (event: IpcMainInvokeEvent): BrowserWindow =>
+    getMainWindowForWebContents(event.sender) ?? mainWindow
   // Remove previously registered handlers so we can re-register on macOS app re-activation (new window).
   ipcMain.removeHandler('repos:list')
   ipcMain.removeHandler('repos:listForExecutionHost')
@@ -2344,8 +2352,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     notifySparsePresetsChanged(mainWindow, args.repoId)
   })
 
-  ipcMain.handle('repos:pickFolder', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+  ipcMain.handle('repos:pickFolder', async (event) => {
+    const result = await dialog.showOpenDialog(getTargetWindow(event), {
       properties: ['openDirectory']
     })
     if (result.canceled || result.filePaths.length === 0) {
@@ -2354,8 +2362,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
     return result.filePaths[0]
   })
 
-  ipcMain.handle('repos:pickFolders', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+  ipcMain.handle('repos:pickFolders', async (event) => {
+    const result = await dialog.showOpenDialog(getTargetWindow(event), {
       properties: ['openDirectory', 'multiSelections']
     })
     if (result.canceled || result.filePaths.length === 0) {
@@ -2365,8 +2373,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
   })
 
   // Why: generic folder picker, separate from pickFolder's add-project flow; a clone destination may not be a git repo yet.
-  ipcMain.handle('repos:pickDirectory', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, {
+  ipcMain.handle('repos:pickDirectory', async (event) => {
+    const result = await dialog.showOpenDialog(getTargetWindow(event), {
       // Why: macOS materializes typed partial paths with directory creation on; clone/create make the final path on submit.
       properties: ['openDirectory']
     })
@@ -2396,7 +2404,8 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
 
   ipcMain.handle(
     'repos:clone',
-    async (_event, args: { url: string; destination: string }): Promise<Repo> => {
+    async (event, args: { url: string; destination: string }): Promise<Repo> => {
+      const targetWindow = getTargetWindow(event)
       // Why: derive the repo folder name from the URL's last segment, matching default git clone behavior.
       const clonePath = deriveValidatedClonePath(args)
       const clonePathKey = getClonePathComparisonKey(clonePath)
@@ -2463,7 +2472,7 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
             stderrTail = (stderrTail + text).slice(-4096)
 
             // Why: git progress lines use \r to overwrite in-place; parse fragments the same as SSH clone.
-            emitCloneProgressFromText(mainWindow, text)
+            emitCloneProgressFromText(targetWindow, text)
           })
 
           const finishClone = async (
@@ -2570,10 +2579,10 @@ export function registerRepoHandlers(mainWindow: BrowserWindow, store: Store): v
   ipcMain.handle(
     'repos:cloneRemote',
     async (
-      _event,
+      event,
       args: { connectionId: string; url: string; destination: string }
     ): Promise<Repo> => {
-      const repo = await cloneRemoteRepo(store, mainWindow, args)
+      const repo = await cloneRemoteRepo(store, getTargetWindow(event), args)
       notifyReposChanged(mainWindow)
       return repo
     }
@@ -2773,8 +2782,9 @@ function getRepoForExecutionHost(
 
 export function notifyReposChanged(mainWindow: BrowserWindow): void {
   wakeFolderRepoGitUpgradeWatch()
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('repos:changed')
+  broadcastToMainWindows('repos:changed')
+  if (getMainWindows().length === 0 && !mainWindow.isDestroyed()) {
+    sendToWindow(mainWindow, 'repos:changed')
   }
   // Why: paired clients only refetch a remote catalog on this event; without it a
   // host-side delete or rename stays invisible to them indefinitely (#11994).
@@ -2788,8 +2798,9 @@ export function notifyReposChanged(mainWindow: BrowserWindow): void {
 }
 
 function notifySparsePresetsChanged(mainWindow: BrowserWindow, repoId: string): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('sparsePresets:changed', { repoId })
+  broadcastToMainWindows('sparsePresets:changed', { repoId })
+  if (getMainWindows().length === 0 && !mainWindow.isDestroyed()) {
+    sendToWindow(mainWindow, 'sparsePresets:changed', { repoId })
   }
 }
 

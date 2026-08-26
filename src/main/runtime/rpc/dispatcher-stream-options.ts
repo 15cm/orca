@@ -4,6 +4,7 @@ import type { PairingRpcContext } from './core'
 
 export type RpcDispatchStreamingOptions = {
   authenticatedCallerFingerprint?: string
+  senderWindowId?: number
   connectionId?: string
   signal?: AbortSignal
   clientId?: string

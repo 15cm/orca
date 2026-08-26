@@ -20,6 +20,16 @@ export type RuntimeDesktopSurface = {
   showNotification(input: { title: string; body: string }): boolean
   /** The renderer window with this id, or null when there is no desktop. */
   findWindowById(id: number): BrowserWindow | null
+  /** The preferred renderer window for commands without an owning tab. */
+  getPreferredRendererWindow?(): BrowserWindow | null
+  /** Resolve a browser page's renderer window when graph ownership is unavailable. */
+  findBrowserPageRendererWindow?(browserPageId: string): BrowserWindow | null
+  /** Send a renderer event to every registered desktop window. */
+  broadcastMainWindows(channel: string, ...args: unknown[]): void
+  /** Number of registered desktop windows. */
+  getMainWindowCount(): number
+  /** Send a renderer event to one desktop window. */
+  sendToMainWindow(window: BrowserWindow, channel: string, ...args: unknown[]): void
   onIpc(channel: string, listener: (event: IpcMainEvent, ...args: never[]) => void): void
   removeIpcListener(channel: string, listener: (...args: never[]) => void): void
 }
@@ -27,6 +37,13 @@ export type RuntimeDesktopSurface = {
 const inertDesktopSurface: RuntimeDesktopSurface = {
   showNotification: () => false,
   findWindowById: () => null,
+  broadcastMainWindows: () => {},
+  getMainWindowCount: () => 0,
+  sendToMainWindow: (window, channel, ...args) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send(channel, ...args)
+    }
+  },
   onIpc: () => {},
   removeIpcListener: () => {}
 }
