@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { pruneEmptyProjectGroupHeaders } from '../grouping/prune-empty-project-group-headers'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
@@ -141,7 +142,7 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
     [hostOptions]
   )
 
-  const rows: Row[] = useMemo(
+  const builtRows: Row[] = useMemo(
     () =>
       buildRows(
         args.groupBy,
@@ -191,6 +192,13 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       args.pinnedDisplayPolicy
     ]
   )
+  // Why: a group the filter emptied still emits its header, so narrowing to one
+  // group left every other group's title on screen with nothing under it.
+  const rows = useMemo(
+    () => pruneEmptyProjectGroupHeaders(builtRows, args.filterRepoIds.length > 0),
+    [builtRows, args.filterRepoIds]
+  )
+
   const orderedHostOptions = useMemo(
     () => orderHostSectionOptions(hostOptions, workspaceHostOrder),
     [hostOptions, workspaceHostOrder]
