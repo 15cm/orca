@@ -2,6 +2,20 @@
 
 All UI work — layout, color, typography, spacing, component selection, UX behavior — must follow [`docs/STYLEGUIDE.md`](./docs/STYLEGUIDE.md). Use the tokens defined in `src/renderer/src/assets/main.css` (the canonical source) and the shadcn primitives in `src/renderer/src/components/ui/`. Don't invent new color values, font sizes, or shadow tiers when a documented one already covers the role. When STYLEGUIDE.md is silent, follow the resolution order in its final section.
 
+# Feature Development Workflow
+
+Use the following gated workflow for feature development:
+
+1. **Plan with `cx-sol-high`.** Start in planning mode. Align with the human on requirements, acceptance criteria, non-goals, design, risks, and validation before implementation. Resolve material ambiguity with the human instead of delegating it to the implementer.
+2. **Define validation up front.** Every validation plan must include the repository's complete test suite. For any UI change, it must also include isolated rendered-UI verification with the `$gui-sandbox` skill; inside that sandbox, follow the Electron UI validation rules below.
+3. **Wait for approval.** Do not implement until the human explicitly approves the design and validation plan.
+4. **Persist the approved contract.** After approval, write the requirements, design, validation plan, and ordered execution plan to a Markdown file under the root repository's `docs/` directory. Include acceptance criteria, non-goals, affected areas, risks, test commands, and UI scenarios when applicable.
+5. **Execute with `cx-luna-medium`.** Hand off the approved plan file to `cx-luna-medium`. Luna must implement against that file, keep changes within scope, run the planned validation, and report changed files, commands run, results, and any deviations. Any necessary design or scope change returns to the human and `cx-sol-high` for approval before implementation continues.
+6. **Review with `cx-sol-high`.** After Luna finishes, hand the approved plan, Luna's report, and the complete diff to a fresh `cx-sol-high` review pass. Sol must review requirements coverage, design conformance, correctness, regressions, test quality, and validation evidence. Findings must be actionable and include severity plus file/line references where possible. Sol reviews only; Luna owns fixes.
+7. **Iterate to closure.** Hand review findings back to the same Luna execution thread. Luna fixes them and reruns affected validation, then Sol re-reviews the complete updated diff. Repeat until Sol reports no blocking findings and every approved validation step passes. Escalate conflicting feedback, changed requirements, or design changes to the human.
+
+For Git workspaces, "complete diff" includes branch commits relative to the agreed base, staged changes, unstaged changes, and relevant untracked files. For folder workspaces, use Luna's changed-file inventory and inspect every listed file. Keep the approved plan as the source of truth and append material approved decisions or deviations so later review passes retain context.
+
 ## Electron UI Validation
 
 Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not use computer-use for Orca UI validation.
