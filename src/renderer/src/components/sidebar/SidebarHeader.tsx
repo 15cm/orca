@@ -6,7 +6,8 @@ import { SidebarHeaderActions } from './sidebar-header-actions'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverAnchor, PopoverArrow, PopoverContent } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Sparkles, Bell } from 'lucide-react'
+import { Sparkles, Bell, FolderTree } from 'lucide-react'
+import { useWindowScopeProject } from './use-window-scope-project'
 import { cn } from '@/lib/utils'
 
 type SidebarHeaderProps = {
@@ -22,6 +23,7 @@ const SidebarHeader = React.memo(function SidebarHeader({
   useTranslation()
   const sidebarBody = useAppStore((s) => s.sidebarBody ?? 'workspaces')
   const groupBy = useAppStore((s) => s.groupBy)
+  const scopedProject = useWindowScopeProject()
   const setSidebarBody = useAppStore((s) => s.setSidebarBody)
   const updateSettings = useAppStore((s) => s.updateSettings)
   const agentsViewActive = sidebarBody === 'agents'
@@ -48,14 +50,31 @@ const SidebarHeader = React.memo(function SidebarHeader({
   return (
     <div className="mt-2 flex h-8 min-w-0 items-center justify-between gap-1.5 px-2">
       <div className="flex min-w-0 items-center gap-1">
-        <span
-          // Why truncate: the action cluster is shrink-0, so a long localized title
-          // (es "Espacios de trabajo") otherwise wraps out of the h-8 row.
-          className="min-w-0 truncate select-none pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80"
-          data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
-        >
-          {sidebarTitle}
-        </span>
+        {scopedProject.scope ? (
+          <span
+            className="flex min-w-0 items-center gap-1.5 pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80 select-none"
+            data-sidebar-section-title="project-window"
+            data-sidebar-project-window={scopedProject.scope.projectGroupId}
+          >
+            <FolderTree className="size-3.5 shrink-0" strokeWidth={2.25} />
+            <span className={scopedProject.group ? 'truncate text-foreground' : 'truncate italic'}>
+              {scopedProject.group?.name ??
+                translate(
+                  'auto.components.sidebar.SidebarHeader.loadingProject',
+                  'Loading project…'
+                )}
+            </span>
+          </span>
+        ) : (
+          <span
+            // Why truncate: the action cluster is shrink-0, so a long localized title
+            // (es "Espacios de trabajo") otherwise wraps out of the h-8 row.
+            className="min-w-0 truncate select-none pl-2 pr-0.5 text-xs font-semibold text-muted-foreground/80"
+            data-sidebar-section-title={groupBy === 'repo' ? 'projects' : 'workspaces'}
+          >
+            {sidebarTitle}
+          </span>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Popover

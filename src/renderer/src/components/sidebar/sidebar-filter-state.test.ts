@@ -109,6 +109,21 @@ describe('sidebarHasActiveFilters', () => {
     expect(sidebarHasActiveFilters(filterState({ showSleepingWorkspaces: false }))).toBe(true)
   })
 
+  it('prefers the window-aware project flag over the effective repo list when provided', () => {
+    // Why: a project window always carries its group's repos; only picks beyond that baseline
+    // are filters, while an unresolved group id is one even though it expands to nothing.
+    expect(
+      sidebarHasActiveFilters(filterState({ filterRepoIds: ['pay'], projectFilterActive: false }))
+    ).toBe(false)
+    expect(
+      sidebarHasActiveFilters(filterState({ filterRepoIds: [], projectFilterActive: true }))
+    ).toBe(true)
+    expect(
+      computeClearFilterActions(filterState({ filterRepoIds: ['pay'], projectFilterActive: false }))
+        .resetFilterRepoIds
+    ).toBe(false)
+  })
+
   it('returns true when only filterRepoIds is non-empty', () => {
     expect(sidebarHasActiveFilters(filterState({ filterRepoIds: ['repo1'] }))).toBe(true)
   })

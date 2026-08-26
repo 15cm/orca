@@ -24,6 +24,7 @@ const {
   registerPetHandlersMock,
   registerSessionHandlersMock,
   registerUIHandlersMock,
+  registerUIWindowScopeHandlersMock,
   setTrustedUIRendererWebContentsIdMock,
   registerFilesystemHandlersMock,
   registerRuntimeHandlersMock,
@@ -90,6 +91,7 @@ const {
   registerPetHandlersMock: vi.fn(),
   registerSessionHandlersMock: vi.fn(),
   registerUIHandlersMock: vi.fn(),
+  registerUIWindowScopeHandlersMock: vi.fn(),
   setTrustedUIRendererWebContentsIdMock: vi.fn(),
   registerFilesystemHandlersMock: vi.fn(),
   registerRuntimeHandlersMock: vi.fn(),
@@ -273,6 +275,10 @@ vi.mock('../ui', () => ({
   setTrustedUIRendererWebContentsId: setTrustedUIRendererWebContentsIdMock
 }))
 
+vi.mock('../ui-window-scope-handlers', () => ({
+  registerUIWindowScopeHandlers: registerUIWindowScopeHandlersMock
+}))
+
 vi.mock('../emulator-frame-stream', () => ({
   registerEmulatorFrameStreamHandlers: registerEmulatorFrameStreamHandlersMock
 }))
@@ -416,6 +422,7 @@ describe('registerCoreHandlers', () => {
     registerPetHandlersMock.mockReset()
     registerSessionHandlersMock.mockReset()
     registerUIHandlersMock.mockReset()
+    registerUIWindowScopeHandlersMock.mockReset()
     setTrustedUIRendererWebContentsIdMock.mockReset()
     registerFilesystemHandlersMock.mockReset()
     registerRuntimeHandlersMock.mockReset()

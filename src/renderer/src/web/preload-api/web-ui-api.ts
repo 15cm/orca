@@ -244,6 +244,12 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     setShortcutRecorderFocused: () => {},
     onRichMarkdownContextCommand: () => noopUnsubscribe,
     onFullscreenChanged: () => noopUnsubscribe,
+    // Why: the paired web client is one implicit window; project-scoped windows are desktop-only.
+    getWindowScope: async () => ({ scope: null, scopedWindowsEnabled: false }),
+    openProjectGroupWindow: async () => ({ status: 'unavailable' as const }),
+    setWindowScope: async () => ({ status: 'unavailable' as const }),
+    setWindowScopeLabel: () => {},
+    onWindowScopeChanged: () => noopUnsubscribe,
     minimize: () => {},
     maximize: () => {},
     onMaximizeChanged: () => noopUnsubscribe,

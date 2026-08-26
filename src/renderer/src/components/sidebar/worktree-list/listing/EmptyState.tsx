@@ -5,11 +5,25 @@ import { translate } from '@/i18n/i18n'
 
 export function SidebarWorktreeListEmptyState({
   hasFilters,
-  onClearFilters
+  onClearFilters,
+  projectLoading = false
 }: {
   hasFilters: boolean
   onClearFilters: () => void
+  /** A project window whose group has not resolved yet: nothing to clear, the catalog is still loading. */
+  projectLoading?: boolean
 }): React.JSX.Element {
+  if (projectLoading) {
+    return (
+      <div data-worktree-sidebar-container className="relative min-h-0 flex-1">
+        <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-[11px] text-muted-foreground">
+          <span>
+            {translate('auto.components.sidebar.WorktreeList.loadingProject', 'Loading project…')}
+          </span>
+        </div>
+      </div>
+    )
+  }
   return (
     <div
       data-worktree-sidebar-container

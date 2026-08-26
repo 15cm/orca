@@ -109,6 +109,29 @@ describe('resolveEffectiveFilterRepoIds', () => {
     ).toBe(filterRepoIds)
   })
 
+  it('keeps a project window empty while its group has not resolved, instead of failing open', () => {
+    // Why: a remote host's group only exists once its catalog loads; the window is bound to
+    // exactly that group, so "loading" must not show every other project in the meantime.
+    expect(
+      resolveEffectiveFilterRepoIds({
+        filterRepoIds: [],
+        filterGroupIds: ['remote-group'],
+        repos: REPOS,
+        projectGroups: GROUPS,
+        windowScope: { type: 'project-group', projectGroupId: 'remote-group' }
+      })
+    ).toEqual([EMPTY_PROJECT_GROUP_FILTER_REPO_ID])
+    expect(
+      resolveEffectiveFilterRepoIds({
+        filterRepoIds: ['cli'],
+        filterGroupIds: ['remote-group'],
+        repos: REPOS,
+        projectGroups: GROUPS,
+        windowScope: { type: 'project-group', projectGroupId: 'remote-group' }
+      })
+    ).toEqual(['cli'])
+  })
+
   it('falls back to no filter while catalogs are still empty at startup', () => {
     expect(
       resolveEffectiveFilterRepoIds({
@@ -187,6 +210,19 @@ describe('clearProjectFilterHidingRepo', () => {
     clearProjectFilterHidingRepo(state, 'cli')
     expect(state.setFilterRepoIds).toHaveBeenCalledWith([])
     expect(state.setFilterGroupIds).toHaveBeenCalledWith([])
+  })
+
+  it('widens a project window to admit the repo instead of dropping its project', () => {
+    const state = {
+      ...makeState({ filterRepoIds: ['loose'], filterGroupIds: ['services'] }),
+      windowScope: {
+        type: 'project-group' as const,
+        projectGroupId: 'services'
+      }
+    }
+    clearProjectFilterHidingRepo(state, 'cli')
+    expect(state.setFilterRepoIds).toHaveBeenCalledWith(['loose', 'cli'])
+    expect(state.setFilterGroupIds).not.toHaveBeenCalled()
   })
 })
 

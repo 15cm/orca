@@ -4,8 +4,12 @@ import {
   bindWindowIdToWebContents,
   createWindowId,
   ensureWindowViewState,
+  getWebContentsIdsForWindowId,
   getWindowViewState,
+  rebindWebContentsToWindowId,
   resolveWindowIdForWebContents,
+  resolveWindowScopeForWebContents,
+  setScopedWindowsEnabled,
   unbindWindowIdFromWebContents,
   updateWindowViewState
 } from './window-view-state-registry'
@@ -66,5 +70,62 @@ describe('window view state registry', () => {
     unbindWindowIdFromWebContents(17)
 
     expect(getWindowViewState('win-a')).toBeNull()
+  })
+
+  describe('project-scoped windows', () => {
+    it('derives a scoped window view-state from its id instead of the persisted seed', () => {
+      setScopedWindowsEnabled(true)
+      bindWindowIdToWebContents(17, 'group:perc')
+
+      expect(ensureWindowViewState('group:perc', seed)).toEqual({
+        filterRepoIds: [],
+        filterGroupIds: ['perc']
+      })
+      expect(resolveWindowScopeForWebContents(17)).toEqual({
+        type: 'project-group',
+        projectGroupId: 'perc'
+      })
+    })
+
+    it('treats a scope key as a plain id while multi-window is off', () => {
+      // Why: with the flag off every open path collapses to the single window, so a derived
+      // filter would leave the user filtered with no UI to undo it.
+      setScopedWindowsEnabled(false)
+      bindWindowIdToWebContents(17, 'group:perc')
+
+      expect(ensureWindowViewState('group:perc', seed)).toEqual({
+        filterRepoIds: ['seed-repo'],
+        filterGroupIds: []
+      })
+      expect(resolveWindowScopeForWebContents(17)).toBeNull()
+    })
+
+    it('lets a scoped window widen its picks but never detach its group', () => {
+      setScopedWindowsEnabled(true)
+
+      const next = updateWindowViewState(
+        'group:perc',
+        { filterRepoIds: ['cli'], filterGroupIds: [] },
+        seed
+      )
+
+      expect(next).toEqual({
+        filterRepoIds: ['cli'],
+        filterGroupIds: ['perc']
+      })
+    })
+
+    it('re-keys a webContents and drops the state left under the old id', () => {
+      setScopedWindowsEnabled(true)
+      bindWindowIdToWebContents(17, 'win-a')
+      updateWindowViewState('win-a', { filterRepoIds: ['perc'] }, seed)
+
+      rebindWebContentsToWindowId(17, 'group:perc')
+
+      expect(resolveWindowIdForWebContents(17)).toBe('group:perc')
+      expect(getWebContentsIdsForWindowId('group:perc')).toEqual([17])
+      expect(getWindowViewState('win-a')).toBeNull()
+      expect(ensureWindowViewState('group:perc', seed).filterGroupIds).toEqual(['perc'])
+    })
   })
 })

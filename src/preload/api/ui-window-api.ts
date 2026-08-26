@@ -5,6 +5,18 @@ import type {
   RichMarkdownContextMenuCommandPayload,
   RichMarkdownContextMenuTableTarget
 } from '../../shared/rich-markdown-context-menu'
+import type {
+  ProjectGroupWindowOpenResult,
+  WindowScopeChangedPayload,
+  WindowScopeChangeResult,
+  WindowScopeSnapshot
+} from '../../shared/window-scope'
+
+/** Project group a window is (or is asked to be) bound to; the label feeds the window title. */
+export type ProjectGroupWindowArgs = {
+  projectGroupId: string
+  projectLabel?: string | null
+}
 
 export type UiWindowApi = {
   readClipboardText: (options?: ReadClipboardTextOptions) => Promise<string>
@@ -51,4 +63,12 @@ export type UiWindowApi = {
   confirmWindowClose: () => void
   cancelWindowClose: () => void
   notifyWindowRevealed: () => void
+  /** Main is the authority on the window's scope (shared/window-scope); never derive it from argv. */
+  getWindowScope: () => Promise<WindowScopeSnapshot>
+  /** One window per project: reveals the existing window instead of opening a second. */
+  openProjectGroupWindow: (args: ProjectGroupWindowArgs) => Promise<ProjectGroupWindowOpenResult>
+  /** Re-keys this window onto a project group, or null to make it a free window again. */
+  setWindowScope: (args: ProjectGroupWindowArgs | null) => Promise<WindowScopeChangeResult>
+  setWindowScopeLabel: (label: string | null) => void
+  onWindowScopeChanged: (callback: (payload: WindowScopeChangedPayload) => void) => () => void
 }

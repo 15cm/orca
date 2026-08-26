@@ -1,24 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import {
   CalendarClock,
-  Check,
   FolderPlus,
   GitBranch,
   GitCommitHorizontal,
   ListFilter,
   Moon,
-  Server,
   SquareTerminal
 } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList
-} from '@/components/ui/command'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,14 +17,19 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
 import { useProjectFilterSelection } from './use-project-filter-selection'
 import { FilterToggleRow } from './FilterToggleRow'
+import { SidebarFilterProjectPicker } from './SidebarFilterProjectPicker'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
-import { searchRepos } from '@/lib/repo-search'
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../shared/constants'
 import { isSleepingSweepExemptionNarrowingList } from './visible-worktrees'
 import { translate } from '@/i18n/i18n'
+import { SidebarScopedProjectMenuItems } from './SidebarScopedProjectMenuItems'
+import { useWindowScopeProject } from './use-window-scope-project'
+import {
+  isProjectFilterActive,
+  resetProjectFilterToWindowBaseline
+} from './window-scope-project-filter'
 
 type SidebarFilterProps = {
   preserveWorkspaceBoardOpen?: boolean
@@ -69,21 +65,18 @@ const SidebarFilter = React.memo(function SidebarFilter({
   )
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
   const setFilterRepoIds = useAppStore((s) => s.setFilterRepoIds)
+  const filterGroupIds = useAppStore((s) => s.filterGroupIds)
   const setFilterGroupIds = useAppStore((s) => s.setFilterGroupIds)
   const repos = useAppStore((s) => s.repos)
   const addRepo = useAppStore((s) => s.addRepo)
+  const scopedProject = useWindowScopeProject()
 
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const [commandValueOverride, setCommandValueOverride] = useState<string | null>(null)
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next)
       onMenuOpenChange?.(next)
-      if (!next) {
-        setQuery('')
-      }
     },
     [onMenuOpenChange]
   )
@@ -106,8 +99,13 @@ const SidebarFilter = React.memo(function SidebarFilter({
     [projectFilter.selectedRepos]
   )
   const selectedCount = selectedRepoIdSet.size
-  // Why: groups picked in the sidebar's Projects filter hide cards here too.
-  const hasRepoFilter = projectFilter.hasRepoFilter
+  // Why: groups picked in the sidebar's Projects filter hide cards here too — except the group a
+  // project window is bound to, which is that window's baseline rather than a filter.
+  const hasRepoFilter = isProjectFilterActive({
+    windowScope: scopedProject.scope,
+    filterRepoIds,
+    filterGroupIds
+  })
   const hasSleepingFilter = showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES
   // Why counted: turning the exemption off is the only way that row narrows the
   // list — but only while its parent row is on, which is also when it renders.
@@ -131,14 +129,22 @@ const SidebarFilter = React.memo(function SidebarFilter({
     (hideDetachedHeadWorkspaces ? 1 : 0) +
     (hasSleepingExemptionFilter ? 1 : 0) +
     selectedCount +
-    projectFilter.selectedGroups.length
+    (scopedProject.scope ? 0 : projectFilter.selectedGroups.length)
 
-  const filteredRepos = useMemo(() => searchRepos(repos, query), [repos, query])
-  const commandValue =
-    commandValueOverride && filteredRepos.some((repo) => repo.id === commandValueOverride)
-      ? commandValueOverride
-      : (filteredRepos[0]?.id ?? '')
   const allSelected = canFilterRepos && selectedCount === repos.length
+
+  // Why: "clear" means the window's baseline — empty in a free window, the bound project in a scoped one.
+  const clearRepos = useCallback(
+    () =>
+      resetProjectFilterToWindowBaseline({
+        windowScope: scopedProject.scope,
+        filterRepoIds,
+        filterGroupIds,
+        setFilterRepoIds,
+        setFilterGroupIds
+      }),
+    [scopedProject.scope, filterRepoIds, filterGroupIds, setFilterRepoIds, setFilterGroupIds]
+  )
 
   const clearAll = useCallback(() => {
     setShowSleepingWorkspaces(DEFAULT_SHOW_SLEEPING_WORKSPACES)
@@ -147,8 +153,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideCliCreatedWorkspaces(false)
     setHideDetachedHeadWorkspaces(false)
     setAlwaysShowDefaultBranchWorkspace(true)
-    setFilterRepoIds([])
-    setFilterGroupIds([])
+    clearRepos()
   }, [
     setShowSleepingWorkspaces,
     setHideDefaultBranchWorkspace,
@@ -156,8 +161,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideCliCreatedWorkspaces,
     setHideDetachedHeadWorkspaces,
     setAlwaysShowDefaultBranchWorkspace,
-    setFilterRepoIds,
-    setFilterGroupIds
+    clearRepos
   ])
 
   // Why: derive ids from the live repos list at click time so a repo added
@@ -165,11 +169,6 @@ const SidebarFilter = React.memo(function SidebarFilter({
   const selectAllRepos = useCallback(() => {
     setFilterRepoIds(repos.map((r) => r.id))
   }, [repos, setFilterRepoIds])
-
-  const clearRepos = useCallback(() => {
-    setFilterRepoIds([])
-    setFilterGroupIds([])
-  }, [setFilterRepoIds, setFilterGroupIds])
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
@@ -281,99 +280,25 @@ const SidebarFilter = React.memo(function SidebarFilter({
           onChange={setHideDetachedHeadWorkspaces}
         />
 
-        {canFilterRepos && (
+        {scopedProject.scope ? (
           <>
             <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-[11px] font-semibold tracking-wide uppercase text-muted-foreground">
-                {translate('auto.components.sidebar.SidebarFilter.5f7085a077', 'Projects')}
-                {hasRepoFilter && (
-                  <span className="ml-1.5 normal-case tracking-normal font-medium text-foreground">
-                    · {projectFilter.effectiveRepoCount}
-                  </span>
-                )}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={selectAllRepos}
-                  className="rounded-full px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:hover:bg-transparent"
-                  disabled={allSelected}
-                >
-                  {translate('auto.components.sidebar.SidebarFilter.139877b384', 'Select all')}
-                </button>
-                <button
-                  type="button"
-                  onClick={clearRepos}
-                  className="rounded-full px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:hover:bg-transparent"
-                  disabled={!hasRepoFilter}
-                >
-                  {translate('auto.components.sidebar.SidebarFilter.779b7ba05d', 'Clear')}
-                </button>
-              </div>
-            </div>
-
-            <Command
-              shouldFilter={false}
-              value={commandValue}
-              onValueChange={setCommandValueOverride}
-              className="bg-transparent"
-            >
-              <CommandInput
-                autoFocus
-                placeholder={translate(
-                  'auto.components.sidebar.SidebarFilter.489d1c8c9f',
-                  'Search projects...'
-                )}
-                value={query}
-                onValueChange={(nextQuery) => {
-                  // Why: typing creates a new filtered list, so keyboard
-                  // selection should return to the derived first match.
-                  setCommandValueOverride(null)
-                  setQuery(nextQuery)
-                }}
-                onKeyDown={(event) => event.stopPropagation()}
-                className="h-8 py-2 text-xs"
-                wrapperClassName="mx-1 rounded-[7px] border border-border/70 px-2"
-                iconClassName="h-3.5 w-3.5"
-              />
-              <CommandList className="max-h-64 py-1">
-                <CommandEmpty className="py-4 text-[11px]">
-                  {translate(
-                    'auto.components.sidebar.SidebarFilter.b9e8802e73',
-                    'No projects match'
-                  )}
-                </CommandEmpty>
-                {filteredRepos.map((r) => {
-                  const checked = selectedRepoIdSet.has(r.id)
-                  return (
-                    <CommandItem
-                      key={r.id}
-                      value={r.id}
-                      onSelect={() => handleToggleRepo(r.id)}
-                      className="mx-1 my-0.5 items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] leading-5 font-medium data-[selected=true]:bg-black/8 dark:data-[selected=true]:bg-white/14"
-                    >
-                      <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
-                        <RepoBadgeLabel
-                          name={r.displayName}
-                          color={r.badgeColor}
-                          className="max-w-full"
-                        />
-                        {r.connectionId && (
-                          <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
-                            <Server className="size-2.5" />
-                            {translate('auto.components.sidebar.SidebarFilter.81ded53722', 'SSH')}
-                          </span>
-                        )}
-                      </span>
-                      {checked && (
-                        <Check className="size-3 shrink-0 text-primary" strokeWidth={3} />
-                      )}
-                    </CommandItem>
-                  )
-                })}
-              </CommandList>
-            </Command>
+            <SidebarScopedProjectMenuItems project={scopedProject} />
+          </>
+        ) : null}
+        {canFilterRepos && !scopedProject.scope && (
+          <>
+            <DropdownMenuSeparator />
+            <SidebarFilterProjectPicker
+              repos={repos}
+              selectedRepoIdSet={selectedRepoIdSet}
+              effectiveRepoCount={projectFilter.effectiveRepoCount}
+              hasRepoFilter={hasRepoFilter}
+              allSelected={allSelected}
+              onToggleRepo={handleToggleRepo}
+              onSelectAll={selectAllRepos}
+              onClear={clearRepos}
+            />
           </>
         )}
 

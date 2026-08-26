@@ -9,10 +9,16 @@ import type { SidebarFilterState } from './visible-worktree-kinds'
  * about the filter CHROME, not about which rows survive filtering.
  */
 
+// Why: a scoped window always carries its group in the filter; only picks beyond that
+// baseline count, and a group id that has not resolved yet still counts as a filter.
+function hasProjectFilter(state: SidebarFilterState): boolean {
+  return state.projectFilterActive ?? state.filterRepoIds.length > 0
+}
+
 export function sidebarHasActiveFilters(state: SidebarFilterState): boolean {
   return (
     state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES ||
-    state.filterRepoIds.length > 0 ||
+    hasProjectFilter(state) ||
     state.hideDefaultBranchWorkspace ||
     state.hideAutomationGeneratedWorkspaces ||
     state.hideCliCreatedWorkspaces ||
@@ -53,7 +59,7 @@ export type ClearFilterActions = {
 export function computeClearFilterActions(state: SidebarFilterState): ClearFilterActions {
   return {
     resetShowSleepingWorkspaces: state.showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES,
-    resetFilterRepoIds: state.filterRepoIds.length > 0,
+    resetFilterRepoIds: hasProjectFilter(state),
     resetHideDefaultBranchWorkspace: state.hideDefaultBranchWorkspace,
     resetHideAutomationGeneratedWorkspaces: state.hideAutomationGeneratedWorkspaces,
     resetHideCliCreatedWorkspaces: state.hideCliCreatedWorkspaces,

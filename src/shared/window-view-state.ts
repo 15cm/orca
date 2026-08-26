@@ -1,57 +1,74 @@
 import type { PersistedUIState } from './persisted-ui-state-types'
+import type { WindowScope } from './window-scope'
 
 /**
  * View-state a single window owns instead of the profile: today the project filter.
  *
  * Kept a plain, serializable subset of PersistedUIState on purpose. A window holds it in memory
- * for its lifetime; a future window profile becomes the durable owner of exactly this shape, so
- * adding a field here is what makes it per-window everywhere (ui:set routing, ui:get overlay,
- * sync-broadcast hydration).
+ * for its lifetime; a scoped window derives it from its project group instead. Adding a field
+ * means one row in WINDOW_VIEW_STATE_FIELDS — pick, merge, split and the ui:get overlay follow.
  */
 export type WindowViewState = {
   filterRepoIds: string[]
   filterGroupIds: string[]
 }
 
-export const WINDOW_VIEW_STATE_KEYS = [
-  'filterRepoIds',
-  'filterGroupIds'
-] as const satisfies readonly (keyof WindowViewState)[]
-
-const WINDOW_VIEW_STATE_KEY_SET: ReadonlySet<string> = new Set(WINDOW_VIEW_STATE_KEYS)
-
-export function isWindowViewStateKey(key: string): key is keyof WindowViewState {
-  return WINDOW_VIEW_STATE_KEY_SET.has(key)
+type WindowViewStateField<K extends keyof WindowViewState> = {
+  key: K
+  /** Normalizes an untrusted value (persisted blob, ui:set payload) into the field's shape. */
+  read: (value: unknown) => WindowViewState[K]
 }
 
 function copyIdList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
 }
 
-/** Copies the per-window subset out of a UI snapshot; the seed for a window that has none yet. */
-export function pickWindowViewState(
-  ui: Pick<PersistedUIState, 'filterRepoIds' | 'filterGroupIds'>
-): WindowViewState {
-  return {
-    filterRepoIds: copyIdList(ui.filterRepoIds),
-    filterGroupIds: copyIdList(ui.filterGroupIds)
+export const WINDOW_VIEW_STATE_FIELDS = [
+  { key: 'filterRepoIds', read: copyIdList },
+  { key: 'filterGroupIds', read: copyIdList }
+] as const satisfies readonly WindowViewStateField<keyof WindowViewState>[]
+
+export const WINDOW_VIEW_STATE_KEYS = WINDOW_VIEW_STATE_FIELDS.map(
+  (field) => field.key
+) as readonly (keyof WindowViewState)[]
+
+const WINDOW_VIEW_STATE_FIELD_BY_KEY: ReadonlyMap<
+  string,
+  WindowViewStateField<keyof WindowViewState>
+> = new Map(WINDOW_VIEW_STATE_FIELDS.map((field) => [field.key, field]))
+
+export function isWindowViewStateKey(key: string): key is keyof WindowViewState {
+  return WINDOW_VIEW_STATE_FIELD_BY_KEY.has(key)
+}
+
+function buildWindowViewState(readField: (key: keyof WindowViewState) => unknown): WindowViewState {
+  const state = {} as WindowViewState
+  for (const field of WINDOW_VIEW_STATE_FIELDS) {
+    state[field.key] = field.read(readField(field.key))
   }
+  return state
+}
+
+/** Copies the per-window subset out of a UI snapshot; the seed for a free window that has none yet. */
+export function pickWindowViewState(
+  ui: Pick<PersistedUIState, keyof WindowViewState>
+): WindowViewState {
+  return buildWindowViewState((key) => ui[key])
 }
 
 export function mergeWindowViewState(
   current: WindowViewState,
   updates: Partial<WindowViewState>
 ): WindowViewState {
-  return {
-    filterRepoIds:
-      updates.filterRepoIds === undefined
-        ? current.filterRepoIds
-        : copyIdList(updates.filterRepoIds),
-    filterGroupIds:
-      updates.filterGroupIds === undefined
-        ? current.filterGroupIds
-        : copyIdList(updates.filterGroupIds)
-  }
+  return buildWindowViewState((key) => (updates[key] === undefined ? current[key] : updates[key]))
+}
+
+/**
+ * A scoped window's view-state is a pure function of its scope: nothing to persist, and the
+ * durability of the filter comes from the project group id already being durable.
+ */
+export function deriveWindowViewState(scope: WindowScope): WindowViewState {
+  return { filterRepoIds: [], filterGroupIds: [scope.projectGroupId] }
 }
 
 /**
@@ -67,9 +84,10 @@ export function splitWindowViewUpdates(updates: Partial<PersistedUIState>): {
   const global: Record<string, unknown> = {}
   let hasWindowViewKey = false
   for (const [key, value] of Object.entries(updates)) {
-    if (isWindowViewStateKey(key)) {
+    const field = WINDOW_VIEW_STATE_FIELD_BY_KEY.get(key)
+    if (field) {
       hasWindowViewKey = true
-      windowView[key] = copyIdList(value)
+      windowView[field.key] = field.read(value)
     } else {
       global[key] = value
     }

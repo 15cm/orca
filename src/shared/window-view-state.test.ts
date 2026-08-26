@@ -7,9 +7,11 @@ import {
   WINDOW_ID_ARGV_FLAG
 } from './window-identity'
 import {
+  isWindowViewStateKey,
   mergeWindowViewState,
   pickWindowViewState,
   splitWindowViewUpdates,
+  WINDOW_VIEW_STATE_FIELDS,
   WINDOW_VIEW_STATE_KEYS
 } from './window-view-state'
 
@@ -73,6 +75,19 @@ describe('window view state', () => {
     const merged = mergeWindowViewState(
       { filterRepoIds: ['repo-a'], filterGroupIds: ['group-1'] },
       { filterGroupIds: [] }
+    )
+
+    expect(merged).toEqual({ filterRepoIds: ['repo-a'], filterGroupIds: [] })
+  })
+
+  it('drives keys, membership and normalization from the one field table', () => {
+    expect(WINDOW_VIEW_STATE_KEYS).toEqual(WINDOW_VIEW_STATE_FIELDS.map((field) => field.key))
+    expect(isWindowViewStateKey('filterGroupIds')).toBe(true)
+    expect(isWindowViewStateKey('uiZoomLevel')).toBe(false)
+
+    const merged = mergeWindowViewState(
+      { filterRepoIds: [], filterGroupIds: [] },
+      { filterRepoIds: ['repo-a', 7, null] as never }
     )
 
     expect(merged).toEqual({ filterRepoIds: ['repo-a'], filterGroupIds: [] })

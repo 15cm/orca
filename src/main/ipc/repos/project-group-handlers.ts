@@ -4,6 +4,9 @@ import type { Store } from '../../persistence'
 import type { Repo } from '../../../shared/repo-types'
 import type { NestedRepoScanResult, ProjectGroup } from '../../../shared/project-group-types'
 import { notifyReposChanged } from './repos-changed-notification'
+import { getProjectGroupSubtreeIds } from '../../../shared/project-groups'
+import { pickWindowViewState } from '../../../shared/window-view-state'
+import { releaseWindowsScopedToProjectGroups } from '../../window/window-scope-binding'
 import {
   ProjectGroupCancelNestedScanArgs,
   ProjectGroupCreateArgs,
@@ -54,8 +57,11 @@ export function registerProjectGroupHandlers(mainWindow: BrowserWindow, store: S
       rawArgs,
       'invalid_project_group_delete_args'
     )
+    // Why: a window bound to a deleted group (or a cascaded subgroup) becomes a free window — never closed.
+    const deletedGroupIds = getProjectGroupSubtreeIds(store.getProjectGroups(), args.groupId)
     const deleted = store.deleteProjectGroup(args.groupId)
     if (deleted) {
+      releaseWindowsScopedToProjectGroups(deletedGroupIds, () => pickWindowViewState(store.getUI()))
       notifyReposChanged(mainWindow)
     }
     return deleted

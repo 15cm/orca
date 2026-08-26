@@ -1,11 +1,13 @@
-import React from 'react'
-import { Ellipsis, Plus } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { AppWindow, Ellipsis, Plus } from 'lucide-react'
+import { useAppStore } from '@/store'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -25,6 +27,7 @@ export function ProjectGroupHeaderMenu({
   groupId,
   hostId,
   label,
+  rowElementId,
   onRename,
   onDelete
 }: {
@@ -32,11 +35,27 @@ export function ProjectGroupHeaderMenu({
   /** Owner host of the group row, so rename/delete route to the host that holds it. */
   hostId?: ExecutionHostId
   label: string
+  rowElementId?: string
   onRename: (groupId: string, currentName: string, hostId?: ExecutionHostId) => void
   onDelete: (groupId: string, groupName: string, hostId?: ExecutionHostId) => void
 }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const scopedWindowsEnabled = useAppStore((s) => s.scopedWindowsEnabled)
+  const openProjectGroupWindow = useAppStore((s) => s.openProjectGroupWindow)
+  useEffect(() => {
+    const row = rowElementId ? document.getElementById(rowElementId) : null
+    if (!row) {
+      return
+    }
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault()
+      setOpen(true)
+    }
+    row.addEventListener('contextmenu', onContextMenu)
+    return () => row.removeEventListener('contextmenu', onContextMenu)
+  }, [rowElementId])
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -68,6 +87,18 @@ export function ProjectGroupHeaderMenu({
         onClick={stopRepoHeaderMenuEvent}
         onKeyDown={stopRepoHeaderMenuEvent}
       >
+        {scopedWindowsEnabled ? (
+          <>
+            <DropdownMenuItem onSelect={() => void openProjectGroupWindow(groupId)}>
+              <AppWindow className="size-3.5" />
+              {translate(
+                'auto.components.sidebar.WorktreeList.openInNewWindow',
+                'Open in new window'
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuItem onSelect={() => onRename(groupId, label, hostId)}>
           {translate('auto.components.sidebar.WorktreeList.4d7b73658c', 'Rename group')}
         </DropdownMenuItem>

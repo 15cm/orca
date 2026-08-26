@@ -129,6 +129,7 @@ export function createProjectGroupMutationActions(
         if (!deleted) {
           return false
         }
+        const scopeGroupId = get().windowScope?.projectGroupId ?? null
         set((s) => {
           const next = applyProjectGroupDeleteCascade(s, groupId, ownerHostId)
           return {
@@ -140,6 +141,14 @@ export function createProjectGroupMutationActions(
             )
           }
         })
+        // Why: the group was this window's identity; it stays open as a free window (main also
+        // releases local groups, this covers a remote host's group only the renderer knows).
+        if (
+          scopeGroupId !== null &&
+          !get().projectGroups.some((group) => group.id === scopeGroupId)
+        ) {
+          void get().releaseWindowScope()
+        }
         return true
       } catch (err) {
         console.error('Failed to delete project group:', err)

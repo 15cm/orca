@@ -12,7 +12,8 @@ import {
 import {
   _resetWindowViewStateRegistryForTests,
   bindWindowIdToWebContents,
-  getWindowViewState
+  getWindowViewState,
+  setScopedWindowsEnabled
 } from '../window/window-view-state-registry'
 import {
   applyRendererUIUpdate,
@@ -172,5 +173,34 @@ describe('UI window-view routing', () => {
     // Why: windowB never read or wrote, so it has no view-state yet and sees the profile as-is.
     expect(overlayWindowViewState(broadcast, windowB.webContents.id)).toBe(broadcast)
     expect(overlayWindowViewState(broadcast, 999)).toBe(broadcast)
+  })
+
+  it('never lets a project-scoped window rewrite the persisted seed, even when focused', () => {
+    // Why: the seed is what mobile and the next free window read (remote-wire-compatibility, Rule 3).
+    setScopedWindowsEnabled(true)
+    bindWindowIdToWebContents(windowA.webContents.id, 'group:perc')
+    const store = makeStore({
+      filterRepoIds: ['persisted'],
+      filterGroupIds: ['other']
+    })
+    focused = windowA
+
+    const ui = readUIForRenderer(store, windowA.webContents)
+    applyRendererUIUpdate(store, windowA.webContents as never, {
+      filterRepoIds: ['cli'],
+      filterGroupIds: [],
+      sidebarWidth: 300
+    })
+
+    expect(ui.filterGroupIds).toEqual(['perc'])
+    expect(ui.filterRepoIds).toEqual([])
+    expect(store.updateUI).toHaveBeenCalledTimes(1)
+    expect(store.updateUI).toHaveBeenCalledWith({ sidebarWidth: 300 })
+    expect(store.getUI().filterRepoIds).toEqual(['persisted'])
+    expect(store.getUI().filterGroupIds).toEqual(['other'])
+    expect(getWindowViewState('group:perc')).toEqual({
+      filterRepoIds: ['cli'],
+      filterGroupIds: ['perc']
+    })
   })
 })

@@ -9,6 +9,12 @@ import { SidebarProjectFilterPanel } from './SidebarProjectFilterPanel'
 import type { ProjectFilterSelection } from './project-filter-selection'
 import { useProjectFilterSelection } from './use-project-filter-selection'
 import { translate } from '@/i18n/i18n'
+import {
+  getScopedProjectDisplayName,
+  SidebarScopedProjectMenuItems
+} from './SidebarScopedProjectMenuItems'
+import { useWindowScopeProject } from './use-window-scope-project'
+import { resetProjectFilterToWindowBaseline } from './window-scope-project-filter'
 
 function getProjectFilterVisibilityLabel(selection: ProjectFilterSelection): string {
   const { selectedGroups, selectedRepos, effectiveRepoCount } = selection
@@ -50,6 +56,7 @@ const SidebarRepositoryFilterSection = React.memo(function SidebarRepositoryFilt
   const filterGroupIds = useAppStore((s) => s.filterGroupIds)
   const setFilterGroupIds = useAppStore((s) => s.setFilterGroupIds)
   const repos = useAppStore((s) => s.repos)
+  const scopedProject = useWindowScopeProject()
   const selection = useProjectFilterSelection(
     filterRepoIdsProp ? { filterRepoIds: filterRepoIdsProp, filterGroupIds: [] } : undefined
   )
@@ -82,14 +89,40 @@ const SidebarRepositoryFilterSection = React.memo(function SidebarRepositoryFilt
     (groupId: string) => setFilterGroupIds(filterGroupIds.filter((id) => id !== groupId)),
     [filterGroupIds, setFilterGroupIds]
   )
-  const clearProjectFilter = useCallback(() => {
-    if (filterRepoIds.length > 0) {
-      setFilterRepoIds([])
-    }
-    if (filterGroupIds.length > 0) {
-      setFilterGroupIds([])
-    }
-  }, [filterGroupIds, filterRepoIds, setFilterGroupIds, setFilterRepoIds])
+  const clearProjectFilter = useCallback(
+    () =>
+      resetProjectFilterToWindowBaseline({
+        windowScope: scopedProject.scope,
+        filterRepoIds,
+        filterGroupIds,
+        setFilterRepoIds,
+        setFilterGroupIds
+      }),
+    [scopedProject.scope, filterGroupIds, filterRepoIds, setFilterGroupIds, setFilterRepoIds]
+  )
+
+  if (scopedProject.scope) {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <span className="flex flex-1 items-center justify-between gap-3">
+            <span>
+              {translate(
+                'auto.components.sidebar.SidebarRepositoryFilterSection.projectRow',
+                'Project'
+              )}
+            </span>
+            <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
+              {getScopedProjectDisplayName(scopedProject)}
+            </span>
+          </span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-64">
+          <SidebarScopedProjectMenuItems project={scopedProject} />
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
 
   if (!canFilterRepos) {
     return null

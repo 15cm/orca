@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, type BrowserWindow } from 'electron'
 import { registerAppHandlers } from '../app'
 import { registerCliHandlers } from '../cli'
 import { registerPreflightHandlers } from '../preflight'
@@ -50,6 +50,7 @@ import { registerShellHandlers } from '../shell'
 import { registerPetHandlers } from '../pet'
 import { registerPluginHandlers } from '../plugins'
 import { registerUIHandlers, setTrustedUIRendererWebContentsId } from '../ui'
+import { registerUIWindowScopeHandlers } from '../ui-window-scope-handlers'
 import { registerEmulatorFrameStreamHandlers } from '../emulator-frame-stream'
 import { registerEmulatorVideoStreamHandlers } from '../emulator-video-stream'
 import { registerSpeechHandlers } from '../speech'
@@ -96,6 +97,8 @@ let registered = false
 
 type CoreHandlerLifecycleOptions = {
   onBeforeRelaunch?: () => void | Promise<void>
+  /** Opens a main window under a scope key (shared/window-scope); null while the app cannot open one. */
+  openScopedMainWindow?: (windowId: string) => BrowserWindow | null
   onOrcaProfileAuthMutation?: () => void
   onBeforeOrcaProfileSignOut?: () => void
   getAdditionalAiVaultCodexHomePaths?: () => readonly string[]
@@ -200,6 +203,9 @@ export function registerCoreHandlers(
   registerPetHandlers()
   registerSessionHandlers(store)
   registerUIHandlers(store, { isDashboardPopoutRenderer })
+  registerUIWindowScopeHandlers(store, {
+    openScopedMainWindow: lifecycleOptions.openScopedMainWindow
+  })
   registerEmulatorFrameStreamHandlers()
   registerEmulatorVideoStreamHandlers()
   registerWorkspaceSpaceHandlers(store)

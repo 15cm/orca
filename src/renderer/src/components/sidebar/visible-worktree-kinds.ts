@@ -51,7 +51,10 @@ export function isDetachedHeadWorkspace(worktree: Worktree): boolean {
 /** Inputs describing sidebar filter settings that the Clear Filters path owns. */
 export type SidebarFilterState = {
   showSleepingWorkspaces: boolean
+  /** Effective project filter: explicit picks plus group members (project-filter-resolution). */
   filterRepoIds: readonly string[]
+  /** Whether the project filter narrows beyond the window's baseline (window-scope-project-filter); derived from filterRepoIds when absent. */
+  projectFilterActive?: boolean
   hideDefaultBranchWorkspace: boolean
   hideAutomationGeneratedWorkspaces: boolean
   hideCliCreatedWorkspaces: boolean

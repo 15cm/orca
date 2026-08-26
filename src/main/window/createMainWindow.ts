@@ -105,7 +105,7 @@ export function createMainWindow(
   // forced per-frame WindowServer alpha compositing (#8482). Applies at creation only, so it needs a restart.
   const platformBlurOptions =
     blur && process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}
-  const windowId = createWindowId()
+  const windowId = opts?.windowId ?? createWindowId()
 
   const mainWindow = new BrowserWindow({
     width: savedBounds?.width ?? defaultBounds.width,

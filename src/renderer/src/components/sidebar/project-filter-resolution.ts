@@ -1,6 +1,7 @@
 import type { ProjectGroup } from '../../../../shared/project-group-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { getProjectGroupSubtreeIds } from '../../../../shared/project-groups'
+import type { WindowScope } from '../../../../shared/window-scope'
 
 /**
  * The sidebar's project filter has two persisted halves — explicit project picks
@@ -15,6 +16,8 @@ export type ProjectFilterInputs = {
   filterGroupIds: readonly string[]
   repos: readonly Pick<Repo, 'id' | 'projectGroupId'>[]
   projectGroups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
+  /** Project group this window is bound to (shared/window-scope); absent or null for a free window. */
+  windowScope?: WindowScope | null
 }
 
 /**
@@ -68,7 +71,10 @@ export function resolveEffectiveFilterRepoIds(input: ProjectFilterInputs): reado
     return input.filterRepoIds
   }
   const subtreeIds = getSelectedProjectGroupSubtreeIds(input.projectGroups, input.filterGroupIds)
-  if (subtreeIds.size === 0) {
+  // Why fail-open only for a free window: at launch the filter is applied before any group
+  // catalog exists, so an unresolved id must not blank the sidebar. A scoped window is bound
+  // to exactly that group and shows nothing (the "loading project" state) until it resolves.
+  if (subtreeIds.size === 0 && !input.windowScope) {
     return input.filterRepoIds
   }
   const repoIds = new Set(input.filterRepoIds)
@@ -88,7 +94,8 @@ function sameInputs(left: ProjectFilterInputs, right: ProjectFilterInputs): bool
     left.filterRepoIds === right.filterRepoIds &&
     left.filterGroupIds === right.filterGroupIds &&
     left.repos === right.repos &&
-    left.projectGroups === right.projectGroups
+    left.projectGroups === right.projectGroups &&
+    (left.windowScope ?? null) === (right.windowScope ?? null)
   )
 }
 
@@ -118,7 +125,8 @@ export function selectEffectiveFilterRepoIds(state: ProjectFilterInputs): readon
       filterRepoIds: state.filterRepoIds,
       filterGroupIds: state.filterGroupIds,
       repos: state.repos,
-      projectGroups: state.projectGroups
+      projectGroups: state.projectGroups,
+      windowScope: state.windowScope ?? null
     },
     result
   }
@@ -137,6 +145,13 @@ export function clearProjectFilterHidingRepo(
 ): void {
   const effectiveRepoIds = selectEffectiveFilterRepoIds(state)
   if (effectiveRepoIds.length === 0 || effectiveRepoIds.includes(repoId)) {
+    return
+  }
+  // Why: a scoped window widens to admit the repo instead of dropping its project. Containment,
+  // not the fix — the CLI, notifications and mobile "open in desktop" still land in whichever
+  // window handles them; routing a reveal to the right project window is a later phase.
+  if (state.windowScope) {
+    state.setFilterRepoIds([...state.filterRepoIds, repoId])
     return
   }
   if (state.filterRepoIds.length > 0) {

@@ -3,6 +3,10 @@ import { useAppStore } from '@/store'
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../../../shared/constants'
 import { computeClearFilterActions, sidebarHasActiveFilters } from '../../visible-worktrees'
 import { selectEffectiveFilterRepoIds } from '../../project-filter-resolution'
+import {
+  isProjectFilterActive,
+  resetProjectFilterToWindowBaseline
+} from '../../window-scope-project-filter'
 
 export type SidebarWorktreeFilters = ReturnType<typeof useSidebarWorktreeFilters>
 
@@ -11,7 +15,9 @@ export function useSidebarWorktreeFilters() {
   const showSleepingWorkspaces = useAppStore((s) => s.showSleepingWorkspaces)
   // Why: explicit picks plus project-group members; the row pipeline never sees the two halves.
   const filterRepoIds = useAppStore(selectEffectiveFilterRepoIds)
+  const pickedRepoIds = useAppStore((s) => s.filterRepoIds)
   const filterGroupIds = useAppStore((s) => s.filterGroupIds)
+  const windowScope = useAppStore((s) => s.windowScope)
   const hideDefaultBranchWorkspace = useAppStore((s) => s.hideDefaultBranchWorkspace)
   const hideAutomationGeneratedWorkspaces = useAppStore((s) => s.hideAutomationGeneratedWorkspaces)
   const hideCliCreatedWorkspaces = useAppStore((s) => s.hideCliCreatedWorkspaces)
@@ -41,6 +47,11 @@ export function useSidebarWorktreeFilters() {
     () => ({
       showSleepingWorkspaces,
       filterRepoIds,
+      projectFilterActive: isProjectFilterActive({
+        windowScope,
+        filterRepoIds: pickedRepoIds,
+        filterGroupIds
+      }),
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,
@@ -53,6 +64,9 @@ export function useSidebarWorktreeFilters() {
     [
       showSleepingWorkspaces,
       filterRepoIds,
+      pickedRepoIds,
+      filterGroupIds,
+      windowScope,
       hideDefaultBranchWorkspace,
       hideAutomationGeneratedWorkspaces,
       hideCliCreatedWorkspaces,
@@ -70,10 +84,13 @@ export function useSidebarWorktreeFilters() {
       setShowSleepingWorkspaces(DEFAULT_SHOW_SLEEPING_WORKSPACES)
     }
     if (actions.resetFilterRepoIds) {
-      setFilterRepoIds([])
-      if (filterGroupIds.length > 0) {
-        setFilterGroupIds([])
-      }
+      resetProjectFilterToWindowBaseline({
+        windowScope,
+        filterRepoIds: pickedRepoIds,
+        filterGroupIds,
+        setFilterRepoIds,
+        setFilterGroupIds
+      })
     }
     if (actions.resetHideDefaultBranchWorkspace) {
       setHideDefaultBranchWorkspace(false)
@@ -100,7 +117,9 @@ export function useSidebarWorktreeFilters() {
     setShowSleepingWorkspaces,
     setFilterRepoIds,
     setFilterGroupIds,
+    pickedRepoIds,
     filterGroupIds,
+    windowScope,
     setHideDefaultBranchWorkspace,
     setHideAutomationGeneratedWorkspaces,
     setHideCliCreatedWorkspaces,
