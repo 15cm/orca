@@ -1,4 +1,4 @@
-import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import type { IPtyProvider } from '../../../providers/types'
 import { isPtyWriteUnavailableError } from '../../../providers/pty-write-unavailable-error'
@@ -11,6 +11,7 @@ import {
   iterateTerminalInputChunks
 } from '../../../../shared/terminal-input'
 import { reportAgentSessionWriteRefusal } from '../agent-session-write-refusal-report'
+import { getMainWindowForWebContents } from '../../../window/main-window-registry'
 import { ptyOwnership } from '../provider/ownership-state'
 import { tryGetProviderForPty } from '../provider/registry'
 import {
@@ -19,16 +20,26 @@ import {
   visibleRendererPtys
 } from '../delivery/visibility-state'
 
-export function isMainWindowPtyIpcEvent(
-  event: IpcMainEvent | IpcMainInvokeEvent,
-  mainWindow: BrowserWindow,
-  mainWebContents: WebContents
-): boolean {
-  return (
-    event.sender === mainWebContents &&
-    !mainWindow.isDestroyed() &&
-    !(typeof mainWebContents.isDestroyed === 'function' && mainWebContents.isDestroyed())
-  )
+/**
+ * Accepts PTY input from any live main window, not one captured at install time.
+ *
+ * Why the registry and not a window reference: these handlers are installed per
+ * window and each install replaces the previous listener, so pinning the sender
+ * to one window let whichever window registered last own typing and left the
+ * others mute. Asking the registry keeps every window writable.
+ *
+ * Why nothing dereferences a passed-in window any more: reading `.webContents`
+ * off a destroyed BrowserWindow throws `Object has been destroyed`, and the
+ * throw happened at the call site before this guard could run — so a closed
+ * window turned every later keystroke into an uncaught main-process exception.
+ */
+export function isMainWindowPtyIpcEvent(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  const sender = event.sender
+  if (sender.isDestroyed()) {
+    return false
+  }
+  const window = getMainWindowForWebContents(sender)
+  return window !== null && !window.isDestroyed()
 }
 
 export type PtyWritePayload = { id: string; data: string }
@@ -43,10 +54,7 @@ export function createPtyWriteInput(deps: {
   writePtyInputAccepted: (args: PtyWritePayload) => boolean | Promise<boolean>
   isPtyWritePayload: (value: unknown) => value is PtyWritePayload
   isPtyViewportClaimPayload: (value: unknown) => value is PtyViewportClaimPayload
-  isPtyWriteEventFromMainWindow: (
-    event: IpcMainEvent | IpcMainInvokeEvent,
-    mainWebContents: WebContents
-  ) => boolean
+  isPtyWriteEventFromMainWindow: (event: IpcMainEvent | IpcMainInvokeEvent) => boolean
 } {
   const { mainWindow, runtime, clearHiddenRendererResizeOutput } = deps
 
@@ -185,10 +193,8 @@ export function createPtyWriteInput(deps: {
     (value as { cols: number }).cols > 0 &&
     (value as { rows: number }).rows > 0
 
-  const isPtyWriteEventFromMainWindow = (
-    event: IpcMainEvent | IpcMainInvokeEvent,
-    mainWebContents: WebContents
-  ): boolean => isMainWindowPtyIpcEvent(event, mainWindow, mainWebContents)
+  const isPtyWriteEventFromMainWindow = (event: IpcMainEvent | IpcMainInvokeEvent): boolean =>
+    isMainWindowPtyIpcEvent(event)
 
   const writePtyInput = (args: PtyWritePayload): boolean | Promise<boolean> => {
     // Why: mobile-presence-lock defense-in-depth — the renderer's onData guard can let one keystroke slip during the state-flip lag, so catch it server-side. See docs/mobile-presence-lock.md.

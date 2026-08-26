@@ -51,6 +51,7 @@ describe('registerPtyHandlers', () => {
   const {
     handlers,
     mainWindow,
+    trackTestMainWindow,
     createMockProc,
     installObservableDaemonTestProvider,
     getPtyAckDataListener,
@@ -69,6 +70,10 @@ describe('registerPtyHandlers', () => {
     spawnMock.mockReturnValue(mockProc.proc)
     let destroyed = false
     const destroyableWindow = {
+      id: 2,
+      on: vi.fn(),
+      once: vi.fn(),
+      removeListener: vi.fn(),
       isDestroyed: () => destroyed,
       isFocused: () => true,
       isVisible: () => true,
@@ -77,6 +82,9 @@ describe('registerPtyHandlers', () => {
     }
 
     try {
+      // Why exclusive: this case is about the owning window dying, so it must be
+      // the only live window — otherwise a survivor legitimately keeps talking.
+      trackTestMainWindow(destroyableWindow, { exclusive: true })
       registerPtyHandlers(destroyableWindow as never)
       await handlers.get('pty:spawn')!(null, { cols: 80, rows: 24, cwd: '/tmp' })
       destroyableWindow.webContents.send.mockClear()

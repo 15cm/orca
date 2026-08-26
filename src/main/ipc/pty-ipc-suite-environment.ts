@@ -3,6 +3,7 @@ import * as electron from 'electron'
 import { join } from 'node:path'
 import { installFakeAppEnvironment } from '../../../config/scripts/vitest-host-ports-setup'
 import { setPtyHostBindings } from './pty-host-bindings'
+import { createPtyIpcTestWindowRegistry } from './pty-ipc-test-window-registry'
 import { testPtyIpcSurface } from './pty-ipc-test-surface'
 import type { Mock } from 'vitest'
 import {
@@ -80,12 +81,19 @@ export type PtyIpcSuiteEnvironment = {
   mainWindow: PtyIpcTestMainWindow
   mainWindowIpcEvent: { sender: PtyIpcTestWebContents }
   foreignWindowIpcEvent: { sender: PtyIpcTestWebContents }
+  trackTestMainWindow: (window: { webContents: unknown }, options?: { exclusive?: boolean }) => void
 }
 
 /** Registers the shared beforeEach/afterEach every pty IPC suite file relies on. */
 export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
   const handlers = new Map<string, (_event: unknown, args: unknown) => unknown>()
   const mainWindow = {
+    // Why id/on/once: the main-window registry tracks windows by id and unhooks
+    // them on 'closed', so a fake window has to answer those to be registerable.
+    id: 1,
+    on: vi.fn(),
+    once: vi.fn(),
+    removeListener: vi.fn(),
     isDestroyed: () => false,
     isFocused: () => true,
     isVisible: () => true,
@@ -97,6 +105,7 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
       isDestroyed: vi.fn(() => false)
     }
   }
+  const windowRegistry = createPtyIpcTestWindowRegistry()
   const mainWindowIpcEvent = { sender: mainWindow.webContents }
   const foreignWindowIpcEvent = {
     sender: {
@@ -112,6 +121,11 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     // Why here: pty.ts registers against injected surfaces now, so the mocked ipcMain
     // must be installed for the shared `handlers` map to keep capturing registrations.
     setPtyHostBindings({ ipc: testPtyIpcSurface() })
+    // Why here: PTY input is admitted by looking the sender up in the main-window
+    // registry, so the suite's fake window has to be a window the registry knows.
+    // Foreign senders resolve to null and stay rejected, which is what the
+    // cross-window tests assert.
+    windowRegistry.install(mainWindow)
     // Why here: pty.ts reads app paths and the packaged flag through the AppEnvironment
     // port now, so the shared vi.mock('electron') app object alone is inert. Back the
     // port with the same mocks so every suite's existing expectations still hold.
@@ -297,5 +311,11 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     envScope.restoreProcessEnv()
   })
 
-  return { handlers, mainWindow, mainWindowIpcEvent, foreignWindowIpcEvent }
+  return {
+    handlers,
+    mainWindow,
+    mainWindowIpcEvent,
+    foreignWindowIpcEvent,
+    trackTestMainWindow: windowRegistry.trackTestMainWindow
+  }
 }

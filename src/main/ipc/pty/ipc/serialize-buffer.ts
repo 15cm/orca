@@ -38,10 +38,7 @@ export function installPtySerializeBufferIpc(session: PtyIpcSession): void {
       }
     ) => {
       // Why: the snapshot seeds terminal restore state, so only the main window may settle it.
-      if (
-        !isMainWindowPtyIpcEvent(event, session.mainWindow, session.mainWindow.webContents) ||
-        typeof args?.requestId !== 'string'
-      ) {
+      if (!isMainWindowPtyIpcEvent(event) || typeof args?.requestId !== 'string') {
         return
       }
       const snapshot = args.snapshot

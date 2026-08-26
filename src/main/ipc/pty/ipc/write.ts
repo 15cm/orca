@@ -9,7 +9,7 @@ export function installPtyWriteIpcHandlers(deps: {
   clearHiddenRendererResizeOutput: (id: string) => void
 }): void {
   const ipcMain = getPtyIpc()
-  const { mainWindow, runtime } = deps
+  const { runtime } = deps
   const {
     writePtyInput,
     writePtyInputAccepted,
@@ -21,7 +21,7 @@ export function installPtyWriteIpcHandlers(deps: {
   const hostViewportClaimTails = new Map<string, Promise<boolean>>()
 
   ipcMain.on('pty:write', (event, args: unknown) => {
-    if (!isPtyWriteEventFromMainWindow(event, mainWindow.webContents) || !isPtyWritePayload(args)) {
+    if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(args)) {
       return
     }
     const claimTail = hostViewportClaimTails.get(args.id)
@@ -32,7 +32,7 @@ export function installPtyWriteIpcHandlers(deps: {
     writePtyInput(args)
   })
   ipcMain.handle('pty:writeAccepted', (event, args: unknown): boolean | Promise<boolean> => {
-    if (!isPtyWriteEventFromMainWindow(event, mainWindow.webContents) || !isPtyWritePayload(args)) {
+    if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(args)) {
       return false
     }
     const claimTail = hostViewportClaimTails.get(args.id)
@@ -43,11 +43,7 @@ export function installPtyWriteIpcHandlers(deps: {
 
   ipcMain.removeAllListeners('pty:claimViewport')
   ipcMain.on('pty:claimViewport', (event, args: unknown) => {
-    if (
-      !isPtyWriteEventFromMainWindow(event, mainWindow.webContents) ||
-      !runtime ||
-      !isPtyViewportClaimPayload(args)
-    ) {
+    if (!isPtyWriteEventFromMainWindow(event) || !runtime || !isPtyViewportClaimPayload(args)) {
       return
     }
     const prior = hostViewportClaimTails.get(args.id)
