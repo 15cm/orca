@@ -3,6 +3,7 @@ import type { KeybindingDefinition } from '../../../../shared/keybindings'
 import type { ActivePluginCommand } from '@/store/plugin-panels'
 import { buildShortcutDefinitionCatalog } from './shortcut-definition-catalog'
 import { groupDefinitions } from './shortcut-groups'
+import { getShortcutsPaneSearchEntries } from './shortcuts-search'
 
 const pluginDefinition: KeybindingDefinition = {
   id: 'plugin:orca-samples.tasks/open',
@@ -35,6 +36,16 @@ describe('shortcut groups', () => {
     expect(global?.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'dashboard.toggle', title: 'Toggle Agent Dashboard' })
+      ])
+    )
+  })
+
+  it('exposes New Window in the shortcut settings search catalog', () => {
+    expect(getShortcutsPaneSearchEntries()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'New Window'
+        })
       ])
     )
   })

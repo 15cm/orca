@@ -240,11 +240,14 @@ describe('registerAppMenu', () => {
       const options = buildMenuOptions()
       registerAppMenu({ ...options, multiWindowEnabled: true })
 
-      const newWindowItem = getSubmenu(getTemplate(), 'File').find(
-        (item) => item.label === 'New Window'
+      const newWindowItem = getSubmenu(getTemplate(), 'File').find((item) =>
+        item.label?.startsWith('New Window')
       )
 
-      expect(newWindowItem?.accelerator).toBe('CmdOrCtrl+Alt+N')
+      expect(newWindowItem?.label).toBe(
+        `New Window\t${platform === 'darwin' ? '⌘⌥N' : 'Ctrl+Alt+N'}`
+      )
+      expect(newWindowItem?.accelerator).toBeUndefined()
       newWindowItem?.click?.({} as never, {} as never, {} as never)
       expect(options.onNewWindow).toHaveBeenCalledOnce()
     }

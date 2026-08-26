@@ -32,6 +32,7 @@ export type KeybindingActionId =
   | 'worktree.navigateUp'
   | 'worktree.navigateDown'
   | 'app.settings'
+  | 'app.newWindow'
   | 'app.forceReload'
   | 'workspace.create'
   | 'workspace.rename'
@@ -217,6 +218,15 @@ export const KEYBINDING_DEFINITIONS: readonly KeybindingDefinition[] = [
     scope: 'global',
     searchKeywords: ['shortcut', 'settings', 'preferences'],
     defaultBindings: platformBindings(['Mod+Comma']),
+    conflictGroup: 'menu'
+  },
+  {
+    id: 'app.newWindow',
+    title: 'New Window',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'global', 'window', 'new', 'multi-window', 'monitor'],
+    defaultBindings: platformBindings(['Mod+Alt+N']),
     conflictGroup: 'menu'
   },
   {

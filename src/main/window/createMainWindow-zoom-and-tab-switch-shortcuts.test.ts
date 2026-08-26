@@ -17,13 +17,72 @@ vi.mock('../browser/browser-manager', async () =>
 import { createMainWindow } from './createMainWindow'
 import { ipcMain } from 'electron'
 import { resetExpectedTeardownStateForTest } from '../crash-reporting/expected-teardown-state'
-import { browserWindowMock, resetMainWindowMocks } from './createMainWindow-test-harness'
+import {
+  browserWindowMock,
+  resetMainWindowMocks,
+  withPlatform
+} from './createMainWindow-test-harness'
 
 describe('createMainWindow', () => {
   beforeEach(() => {
     resetMainWindowMocks()
     resetExpectedTeardownStateForTest()
     vi.useRealTimers()
+  })
+
+  it.each(['darwin', 'linux', 'win32'] as const)('opens a new window on %s', (platform) => {
+    withPlatform(platform, () => {
+      const windowHandlers: Record<string, (...args: any[]) => void> = {}
+      const webContents = {
+        on: vi.fn((event, handler) => {
+          windowHandlers[event] = handler
+        }),
+        once: vi.fn((event, handler) => {
+          windowHandlers[event] = handler
+        }),
+        setZoomLevel: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        invalidate: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        send: vi.fn()
+      }
+      const browserWindowInstance = {
+        webContents,
+        on: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+        isMaximized: vi.fn(() => true),
+        isFullScreen: vi.fn(() => false),
+        getSize: vi.fn(() => [1200, 800]),
+        setSize: vi.fn(),
+        maximize: vi.fn(),
+        show: vi.fn(),
+        loadFile: vi.fn(),
+        loadURL: vi.fn()
+      }
+      browserWindowMock.mockImplementation(function () {
+        return browserWindowInstance
+      })
+
+      const onNewWindow = vi.fn()
+      createMainWindow(null, { onNewWindow })
+
+      const preventDefault = vi.fn()
+      windowHandlers['before-input-event'](
+        { preventDefault } as never,
+        {
+          type: 'keyDown',
+          code: 'KeyN',
+          key: 'n',
+          meta: platform === 'darwin',
+          control: platform !== 'darwin',
+          alt: true,
+          shift: false
+        } as never
+      )
+
+      expect(preventDefault).toHaveBeenCalledOnce()
+      expect(onNewWindow).toHaveBeenCalledOnce()
+    })
   })
 
   it('supports all minus key variants for terminal zoom out', () => {

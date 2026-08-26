@@ -77,6 +77,27 @@ describe('resolveWindowShortcutAction', () => {
     ).toEqual({ type: 'jumpToTabIndex', index: 2 })
   })
 
+  it.each(['darwin', 'linux', 'win32'] as const)('resolves New Window on %s', (platform) => {
+    const input = {
+      code: 'KeyN',
+      key: 'n',
+      meta: platform === 'darwin',
+      control: platform !== 'darwin',
+      alt: true,
+      shift: false
+    }
+
+    expect(resolveWindowShortcutAction(input, platform)).toEqual({ type: 'openNewWindow' })
+    expect(
+      resolveWindowShortcutAction(input, platform, { 'app.newWindow': ['Mod+Shift+N'] })
+    ).toBeNull()
+    expect(
+      resolveWindowShortcutAction({ ...input, alt: false, shift: true }, platform, {
+        'app.newWindow': ['Mod+Shift+N']
+      })
+    ).toEqual({ type: 'openNewWindow' })
+  })
+
   it('uses Alt+number for tab jumps on Windows/Linux without stealing workspace jumps', () => {
     expect(
       resolveWindowShortcutAction(

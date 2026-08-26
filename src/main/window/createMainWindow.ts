@@ -260,6 +260,7 @@ type CreateMainWindowOptions = {
   revealOnDidFinishLoad?: boolean
   title?: string
   getKeybindings?: () => KeybindingOverrides | undefined
+  onNewWindow?: () => void
   onBeforeReload?: (options: { ignoreCache: boolean; webContentsId: number }) => void
   /** Marks the in-place recovery reload so did-finish-load's PTY orphan sweep spares live sessions until restore re-attaches (#5787). */
   onBeforeRecoveryReload?: (webContentsId: number) => void
@@ -776,6 +777,9 @@ export function createMainWindow(
       case 'openSettings':
         mainWindow.webContents.send('ui:openSettings')
         return
+      case 'openNewWindow':
+        opts?.onNewWindow?.()
+        return
       case 'forceReload':
         opts?.onBeforeReload?.({ ignoreCache: true, webContentsId: mainWindow.webContents.id })
         mainWindow.webContents.reloadIgnoringCache()
@@ -836,6 +840,15 @@ export function createMainWindow(
     }
   ): boolean => {
     const { focusedShortcutContext, isAutoRepeat } = options
+    if (action.type === 'openNewWindow' && !opts?.onNewWindow) {
+      return false
+    }
+
+    if (action.type === 'openNewWindow' && isAutoRepeat) {
+      event.preventDefault()
+      return true
+    }
+
     if (
       floatingTerminalInputFocused &&
       (action.type === 'toggleLeftSidebar' || action.type === 'toggleRightSidebar')

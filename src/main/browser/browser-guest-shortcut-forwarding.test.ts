@@ -623,6 +623,26 @@ describe('setupGuestShortcutForwarding', () => {
     expect(rendererSendMock).toHaveBeenCalledWith('ui:toggleQuickCommandsMenu')
   })
 
+  it('forwards New Window from a focused guest page', () => {
+    const onNewWindow = vi.fn()
+    setupGuestShortcutForwarding({
+      browserTabId,
+      guest: makeGuest(),
+      resolveRenderer: () => makeRenderer(),
+      onNewWindow
+    })
+
+    const preventDefault = triggerBeforeInput({
+      code: 'KeyN',
+      key: 'n',
+      alt: true
+    })
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(onNewWindow).toHaveBeenCalledOnce()
+    expect(rendererSendMock).not.toHaveBeenCalled()
+  })
+
   it('consumes guest zoom shortcuts even when the renderer is unavailable', () => {
     setupGuestShortcutForwarding({
       browserTabId,

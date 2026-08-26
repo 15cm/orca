@@ -108,8 +108,9 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   }
 
   const newWindowItem: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.newWindow', 'New Window'),
-    accelerator: 'CmdOrCtrl+Alt+N',
+    // Why: route the accelerator through the shared before-input policy so
+    // user overrides work and focused browser guests use the same binding.
+    label: `${translateMain('menu.newWindow', 'New Window')}\t${shortcutLabel('app.newWindow')}`,
     click: () => onNewWindow?.()
   }
 

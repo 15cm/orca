@@ -30,6 +30,7 @@ export type WindowShortcutInput = {
 export type WindowShortcutAction =
   | { type: 'zoom'; direction: 'in' | 'out' | 'reset' }
   | { type: 'openSettings' }
+  | { type: 'openNewWindow' }
   | { type: 'forceReload' }
   | { type: 'toggleWorktreePalette' }
   | { type: 'toggleFloatingTerminal' }
@@ -206,6 +207,10 @@ export function resolveWindowShortcutAction(
     return { type: 'openSettings' }
   }
 
+  if (actionMatches('app.newWindow', input, platform, keybindings, options)) {
+    return { type: 'openNewWindow' }
+  }
+
   if (actionMatches('app.forceReload', input, platform, keybindings, options)) {
     return { type: 'forceReload' }
   }
@@ -297,51 +302,41 @@ export function resolveWindowShortcutAction(
   return null
 }
 
+const WINDOW_SHORTCUT_ACTION_IDS: Partial<
+  Record<WindowShortcutAction['type'], KeybindingActionId>
+> = {
+  openSettings: 'app.settings',
+  openNewWindow: 'app.newWindow',
+  forceReload: 'app.forceReload',
+  toggleWorktreePalette: 'worktree.palette',
+  toggleFloatingTerminal: 'floatingTerminal.toggle',
+  toggleLeftSidebar: 'sidebar.left.toggle',
+  toggleRightSidebar: 'sidebar.right.toggle',
+  openQuickOpen: 'worktree.quickOpen',
+  toggleQuickCommandsMenu: 'tab.openQuickCommandsMenu',
+  openNewWorkspace: 'workspace.create',
+  deleteCurrentWorkspace: 'workspace.delete',
+  openWorkspaceBoard: 'workspace.openBoard',
+  openTasks: 'view.tasks',
+  toggleAgentDashboard: 'dashboard.toggle',
+  switchRecentTab: 'tab.previousRecent',
+  dictationKeyDown: 'voice.dictation',
+  jumpToWorktreeIndex: 'workspace.selectByIndex',
+  jumpToTabIndex: 'tab.selectByIndex'
+}
+
 export function getWindowShortcutActionId(action: WindowShortcutAction): KeybindingActionId | null {
-  switch (action.type) {
-    case 'zoom':
-      return action.direction === 'in'
-        ? 'zoom.in'
-        : action.direction === 'out'
-          ? 'zoom.out'
-          : 'zoom.reset'
-    case 'openSettings':
-      return 'app.settings'
-    case 'forceReload':
-      return 'app.forceReload'
-    case 'toggleWorktreePalette':
-      return 'worktree.palette'
-    case 'toggleFloatingTerminal':
-      return 'floatingTerminal.toggle'
-    case 'toggleLeftSidebar':
-      return 'sidebar.left.toggle'
-    case 'toggleRightSidebar':
-      return 'sidebar.right.toggle'
-    case 'openQuickOpen':
-      return 'worktree.quickOpen'
-    case 'toggleQuickCommandsMenu':
-      return 'tab.openQuickCommandsMenu'
-    case 'openNewWorkspace':
-      return 'workspace.create'
-    case 'deleteCurrentWorkspace':
-      return 'workspace.delete'
-    case 'openWorkspaceBoard':
-      return 'workspace.openBoard'
-    case 'openTasks':
-      return 'view.tasks'
-    case 'toggleAgentDashboard':
-      return 'dashboard.toggle'
-    case 'switchRecentTab':
-      return 'tab.previousRecent'
-    case 'worktreeHistoryNavigate':
-      return action.direction === 'back' ? 'worktree.history.back' : 'worktree.history.forward'
-    case 'dictationKeyDown':
-      return 'voice.dictation'
-    case 'jumpToWorktreeIndex':
-      return 'workspace.selectByIndex'
-    case 'jumpToTabIndex':
-      return 'tab.selectByIndex'
+  if (action.type === 'zoom') {
+    return action.direction === 'in'
+      ? 'zoom.in'
+      : action.direction === 'out'
+        ? 'zoom.out'
+        : 'zoom.reset'
   }
+  if (action.type === 'worktreeHistoryNavigate') {
+    return action.direction === 'back' ? 'worktree.history.back' : 'worktree.history.forward'
+  }
+  return WINDOW_SHORTCUT_ACTION_IDS[action.type] ?? null
 }
 
 export function windowShortcutActionCapturesTerminal(action: WindowShortcutAction): boolean {
