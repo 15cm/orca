@@ -231,10 +231,11 @@ export function attachMainWindowServices(
     }
   )
 
+  const rendererWebContentsId = mainWindow.webContents.id
   mainWindow.on('closed', () => {
     // Why: browser guests belong to their renderer; closing one window must not
     // tear down guests owned by sibling windows.
-    browserManager.unregisterGuestsForRenderer(mainWindow.webContents.id)
+    browserManager.unregisterGuestsForRenderer(rendererWebContentsId)
   })
 }
 
