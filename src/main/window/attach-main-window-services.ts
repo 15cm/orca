@@ -73,6 +73,7 @@ import {
   getFocusedOrLastActiveMainWindow,
   getMainWindowById,
   getMainWindowForWebContents,
+  getMainWindows,
   sendToWindow
 } from './main-window-registry'
 
@@ -87,9 +88,21 @@ export function ensureAutoUpdaterConfigured(): void {
 
 let tccPromptHandlerTokenCounter = 0
 let activeTccPromptHandlerToken: number | null = null
+let ptyHandlersWindow: BrowserWindow | null = null
 let onBeforeAppRendererReload:
   | ((args: { webContentsId: number; ignoreCache: boolean }) => void)
   | undefined
+
+function shouldRegisterPtyHandlers(): boolean {
+  if (!ptyHandlersWindow) {
+    return true
+  }
+  const registeredWindow = getMainWindowById(ptyHandlersWindow.id)
+  if (registeredWindow !== ptyHandlersWindow && !ptyHandlersWindow.isDestroyed()) {
+    return true
+  }
+  return getMainWindows().length === 0
+}
 
 export function attachMainWindowServices(
   mainWindow: BrowserWindow,
@@ -127,22 +140,25 @@ export function attachMainWindowServices(
   // marker poll to upgrade them without a restart (#11477).
   startFolderRepoGitUpgradeWatch(store, mainWindow)
   registerWorkspaceCleanupHandlers(store, { runtime, getLocalPtyProvider })
-  registerPtyHandlers(
-    mainWindow,
-    runtime,
-    getSelectedCodexHomePath,
-    () => store.getSettings(),
-    prepareClaudeAuth,
-    store,
-    {
-      prepareCodexSessionResume: options?.prepareCodexSessionResume,
-      awaitLocalPtyStartup: options?.awaitLocalPtyStartup,
-      awaitLocalPtyProviderStartup: options?.awaitLocalPtyProviderStartup,
-      isRecoveryReloadInFlight: options?.isRecoveryReloadInFlight,
-      onCodexHomePtySpawned: options?.onCodexHomePtySpawned,
-      onPtyExit: options?.onPtyExit
-    }
-  )
+  if (shouldRegisterPtyHandlers()) {
+    registerPtyHandlers(
+      mainWindow,
+      runtime,
+      getSelectedCodexHomePath,
+      () => store.getSettings(),
+      prepareClaudeAuth,
+      store,
+      {
+        prepareCodexSessionResume: options?.prepareCodexSessionResume,
+        awaitLocalPtyStartup: options?.awaitLocalPtyStartup,
+        awaitLocalPtyProviderStartup: options?.awaitLocalPtyProviderStartup,
+        isRecoveryReloadInFlight: options?.isRecoveryReloadInFlight,
+        onCodexHomePtySpawned: options?.onCodexHomePtySpawned,
+        onPtyExit: options?.onPtyExit
+      }
+    )
+    ptyHandlersWindow = mainWindow
+  }
   // Why: register after registerPtyHandlers so pty:management:* IPC re-installs on macOS re-activation (docs/daemon-staleness-ux.md §Phase 1).
   registerDaemonManagementHandlers()
   // Why: don't enumerate repo paths in background GC — `git worktree list` can touch protected macOS folders and trigger access prompts.
