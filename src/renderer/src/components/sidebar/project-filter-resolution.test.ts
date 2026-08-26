@@ -4,7 +4,8 @@ import {
   clearProjectFilterHidingRepo,
   dropDeletedProjectGroupFilterIds,
   resolveEffectiveFilterRepoIds,
-  selectEffectiveFilterRepoIds
+  selectEffectiveFilterRepoIds,
+  filterFolderWorkspacesForSelectedGroups
 } from './project-filter-resolution'
 
 function group(id: string, parentGroupId: string | null = null) {
@@ -196,5 +197,30 @@ describe('dropDeletedProjectGroupFilterIds', () => {
       dropDeletedProjectGroupFilterIds(filterGroupIds, GROUPS, [group('perc'), group('tools')])
     ).toEqual(['offline-host-group'])
     expect(dropDeletedProjectGroupFilterIds(filterGroupIds, GROUPS, GROUPS)).toBe(filterGroupIds)
+  })
+})
+
+describe('filterFolderWorkspacesForSelectedGroups', () => {
+  const workspaces = [
+    { id: 'perc-terminals', projectGroupId: 'perc' },
+    { id: 'services-notes', projectGroupId: 'services' },
+    { id: 'deep', projectGroupId: 'services-internal' },
+    { id: 'cce-terminals', projectGroupId: 'tools' }
+  ]
+
+  it('keeps the selected group and its descendants, dropping the rest', () => {
+    expect(
+      filterFolderWorkspacesForSelectedGroups(workspaces, GROUPS, ['perc']).map((w) => w.id)
+    ).toEqual(['perc-terminals', 'services-notes', 'deep'])
+  })
+
+  it('leaves every workspace alone when no group is selected', () => {
+    const all = filterFolderWorkspacesForSelectedGroups(workspaces, GROUPS, [])
+    expect(all).toBe(workspaces)
+  })
+
+  it('leaves every workspace alone when the selected group is unknown', () => {
+    const all = filterFolderWorkspacesForSelectedGroups(workspaces, GROUPS, ['ghost'])
+    expect(all).toBe(workspaces)
   })
 })

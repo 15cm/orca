@@ -7,6 +7,8 @@ import {
   type ExecutionHostId
 } from '../../../../../../shared/execution-host'
 import type { SidebarWorktreeFilters } from './use-filters'
+import { useAppStore } from '@/store'
+import { filterFolderWorkspacesForSelectedGroups } from '../../project-filter-resolution'
 import { filterFolderWorkspacesFromOtherDevices } from '../../workspace-creator-visibility'
 import {
   filterFolderWorkspacesForVisibleHosts,
@@ -27,6 +29,7 @@ export function useSidebarHostVisibleScope(args: {
   const { filterState, defaultHostId, repos, projectGroups, folderWorkspaces } = args
   const { visibleWorkspaceHostIds, workspaceHostScope, hideWorkspacesFromOtherDevices } =
     filterState
+  const filterGroupIds = useAppStore((state) => state.filterGroupIds)
   const visibleHostIdSet = useMemo(
     () => getVisibleSidebarHostIdSet(visibleWorkspaceHostIds, workspaceHostScope),
     [visibleWorkspaceHostIds, workspaceHostScope]
@@ -52,16 +55,21 @@ export function useSidebarHostVisibleScope(args: {
       visibleHostIdSet,
       defaultHostId
     )
-    if (!hideWorkspacesFromOtherDevices) {
-      return hostVisibleWorkspaces
-    }
-    return filterFolderWorkspacesFromOtherDevices(
-      hostVisibleWorkspaces,
-      args.pairedDeviceIdsByEnvironment
+    const deviceVisibleWorkspaces = hideWorkspacesFromOtherDevices
+      ? filterFolderWorkspacesFromOtherDevices(
+          hostVisibleWorkspaces,
+          args.pairedDeviceIdsByEnvironment
+        )
+      : hostVisibleWorkspaces
+    return filterFolderWorkspacesForSelectedGroups(
+      deviceVisibleWorkspaces,
+      projectGroups,
+      filterGroupIds
     )
   }, [
     args.pairedDeviceIdsByEnvironment,
     defaultHostId,
+    filterGroupIds,
     folderWorkspaces,
     hideWorkspacesFromOtherDevices,
     projectGroups,

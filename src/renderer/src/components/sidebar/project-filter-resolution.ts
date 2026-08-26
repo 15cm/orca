@@ -42,6 +42,27 @@ export function getSelectedProjectGroupSubtreeIds(
   return subtreeIds
 }
 
+/**
+ * Folder workspaces hang off project groups rather than projects, so a group
+ * filter scopes them too — otherwise picking one group still leaves every other
+ * group's terminal cards on screen. A project-only filter leaves them alone: a
+ * folder workspace is not a project, so no project pick can name one.
+ */
+export function filterFolderWorkspacesForSelectedGroups<T extends { projectGroupId: string }>(
+  folderWorkspaces: readonly T[],
+  projectGroups: ProjectFilterInputs['projectGroups'],
+  filterGroupIds: readonly string[]
+): readonly T[] {
+  if (filterGroupIds.length === 0) {
+    return folderWorkspaces
+  }
+  const subtreeIds = getSelectedProjectGroupSubtreeIds(projectGroups, filterGroupIds)
+  if (subtreeIds.size === 0) {
+    return folderWorkspaces
+  }
+  return folderWorkspaces.filter((workspace) => subtreeIds.has(workspace.projectGroupId))
+}
+
 export function resolveEffectiveFilterRepoIds(input: ProjectFilterInputs): readonly string[] {
   if (input.filterGroupIds.length === 0) {
     return input.filterRepoIds
