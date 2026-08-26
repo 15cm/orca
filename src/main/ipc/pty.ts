@@ -7548,11 +7548,18 @@ export function registerPtyHandlers(
   const isPtyWriteEventFromMainWindow = (
     event: IpcMainEvent | IpcMainInvokeEvent,
     mainWebContents: WebContents | null
-  ): boolean =>
-    mainWebContents !== null &&
-    event.sender === mainWebContents &&
-    !isRendererGone(mainWindow) &&
-    !(typeof mainWebContents.isDestroyed === 'function' && mainWebContents.isDestroyed())
+  ): boolean => {
+    const senderWindow = getMainWindowForWebContents(event.sender)
+    if (senderWindow) {
+      return event.sender === senderWindow.webContents && !isRendererGone(senderWindow)
+    }
+    return (
+      mainWebContents !== null &&
+      event.sender === mainWebContents &&
+      !isRendererGone(mainWindow) &&
+      !(typeof mainWebContents.isDestroyed === 'function' && mainWebContents.isDestroyed())
+    )
+  }
 
   const writePtyInput = (
     event: IpcMainEvent,

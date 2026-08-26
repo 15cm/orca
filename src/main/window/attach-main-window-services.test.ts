@@ -157,15 +157,16 @@ type RuntimeStub = {
 }
 
 function createMainWindow(
-  extraWebContents: { isLoadingMainFrame?: MockFn; on?: MockFn; send?: MockFn } = {}
+  extraWebContents: { isLoadingMainFrame?: MockFn; on?: MockFn; send?: MockFn } = {},
+  id = 1
 ): MainWindowStub {
   const mainWindow: MainWindowStub = {
-    id: 1,
+    id,
     isDestroyed: vi.fn(() => false),
     on: vi.fn(),
     once: vi.fn(),
     webContents: {
-      id: 1,
+      id,
       getURL: vi.fn(() => 'file:///opt/orca/renderer/index.html'),
       isDestroyed: vi.fn(() => false),
       isLoadingMainFrame: vi.fn(() => true),
@@ -185,6 +186,9 @@ function createMainWindow(
   registerMainWindow(mainWindow as never)
   return mainWindow
 }
+
+const attachWindowServices = (window: MainWindowStub): void =>
+  attachMainWindowServices(window as never, createStore(), createRuntime() as never)
 
 function createStore(): Store & { flushPendingAsync: MockFn } {
   return {
@@ -342,10 +346,10 @@ describe('attachMainWindowServices', () => {
     expect(store.flushPendingAsync).toHaveBeenCalledTimes(1)
   })
 
-  it('replaces the TCC handlers when the main window is reattached', () => {
-    attachMainWindowServices(createMainWindow() as never, createStore(), createRuntime() as never)
+  it('replaces TCC handlers while retaining process-wide PTY handlers', () => {
+    attachWindowServices(createMainWindow({}, 1))
     const releaseCount = releasePendingTccPromptNoticeMock.mock.calls.length
-    attachMainWindowServices(createMainWindow() as never, createStore(), createRuntime() as never)
+    attachWindowServices(createMainWindow({ send: vi.fn() }, 2))
 
     for (const channel of [
       'macosTccPrompts:consumePending',
@@ -357,8 +361,8 @@ describe('attachMainWindowServices', () => {
       expect(handleMock.mock.calls.filter(([value]) => value === channel)).toHaveLength(2)
     }
     expect(releasePendingTccPromptNoticeMock).toHaveBeenCalledTimes(releaseCount + 1)
+    expect(registerPtyHandlersMock).toHaveBeenCalledOnce()
   })
-
   it('lets only the current main renderer consume the pending TCC notice', () => {
     const mainWindow = createMainWindow()
     consumePendingTccPromptNoticeMock.mockReturnValue({ claimId: 1, promptCount: 3 })

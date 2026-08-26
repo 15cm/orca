@@ -58,6 +58,7 @@ desktop.ini
 
 # Lint/cache
 .oxlintcache
+.orca-*
 
 # Logs
 *.log
