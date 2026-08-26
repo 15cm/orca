@@ -63,6 +63,7 @@ import {
   setPtyOwnership,
   unregisterSshPtyProvider
 } from '../ipc/pty'
+import { createPtyIpcTestWindowRegistry } from '../ipc/pty-ipc-test-window-registry'
 import type { IPtyProvider } from './types'
 import { LEGACY_TERMINAL_SHIM_REMOTE_ENV_KEYS } from '../pty/legacy-terminal-shim-dir'
 
@@ -76,11 +77,13 @@ describe('PTY provider dispatch', () => {
     on: vi.fn(),
     once: vi.fn(),
     removeListener: vi.fn(),
-    webContents: { on: vi.fn(), send: vi.fn(), removeListener: vi.fn() }
+    webContents: { isDestroyed: () => false, on: vi.fn(), send: vi.fn(), removeListener: vi.fn() }
   }
   const mainWindowIpcEvent = { sender: mainWindow.webContents }
+  const testWindowRegistry = createPtyIpcTestWindowRegistry()
 
   function setup(): void {
+    testWindowRegistry.install(mainWindow)
     handlers.clear()
     handleMock.mockReset()
     onMock.mockReset()
