@@ -448,7 +448,8 @@ describe('completed background-worker retirement resume matrix', () => {
     const legacyAction = resolveLegacyWorkerTerminalRecoveryAction({
       paneKey: ORIGINAL_PANE_KEY,
       resolution: 'rolled_back',
-      ptyId: ORIGINAL_PTY_ID
+      ptyId: ORIGINAL_PTY_ID,
+      worktreeId: WORKTREE_ID
     })
     expect(legacyAction.kind).toBe('rollback-surface')
     if (legacyAction.kind === 'rollback-surface') {

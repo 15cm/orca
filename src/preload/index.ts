@@ -4108,6 +4108,7 @@ const api = {
     },
     onSplitTerminal: (
       callback: (data: {
+        worktreeId: string
         tabId: string
         paneRuntimeId: number
         direction: 'horizontal' | 'vertical'
@@ -4118,6 +4119,7 @@ const api = {
       const listener = (
         _event: Electron.IpcRendererEvent,
         data: {
+          worktreeId: string
           tabId: string
           paneRuntimeId: number
           direction: 'horizontal' | 'vertical'
@@ -4129,11 +4131,11 @@ const api = {
       return () => ipcRenderer.removeListener('ui:splitTerminal', listener)
     },
     onRenameTerminal: (
-      callback: (data: { tabId: string; title: string | null }) => void
+      callback: (data: { worktreeId: string; tabId: string; title: string | null }) => void
     ): (() => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        data: { tabId: string; title: string | null }
+        data: { worktreeId: string; tabId: string; title: string | null }
       ) => callback(data)
       ipcRenderer.on('ui:renameTerminal', listener)
       return () => ipcRenderer.removeListener('ui:renameTerminal', listener)
@@ -4257,11 +4259,11 @@ const api = {
       ipcRenderer.send('ui:mobileMarkdownResponse', response)
     },
     onCloseTerminal: (
-      callback: (data: { tabId: string; paneRuntimeId?: number }) => void
+      callback: (data: { worktreeId: string; tabId: string; paneRuntimeId?: number }) => void
     ): (() => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        data: { tabId: string; paneRuntimeId?: number }
+        data: { worktreeId: string; tabId: string; paneRuntimeId?: number }
       ) => callback(data)
       ipcRenderer.on('ui:closeTerminal', listener)
       return () => ipcRenderer.removeListener('ui:closeTerminal', listener)
@@ -4423,6 +4425,9 @@ const api = {
     /** Report a genuine hidden→visible reveal so main can recover a stale (throttled) layout/compositor surface. */
     notifyWindowRevealed: (): void => {
       ipcRenderer.send('ui:window-revealed')
+    },
+    recordTabFocus: (args: { worktreeId: string; tabId: string }): void => {
+      ipcRenderer.send('ui:recordTabFocus', args)
     }
   } satisfies PreloadApi['ui'],
 
@@ -5017,6 +5022,7 @@ const api = {
         paneKey: string
         resolution: 'adopted' | 'exited' | 'rolled_back'
         ptyId?: string
+        worktreeId?: string
       }) => void
     ): (() => void) => {
       const listener = (
@@ -5025,6 +5031,7 @@ const api = {
           paneKey: string
           resolution: 'adopted' | 'exited' | 'rolled_back'
           ptyId?: string
+          worktreeId?: string
         }
       ) => callback(data)
       ipcRenderer.on('agentStatus:legacyWorkerTerminalRecovery', listener)

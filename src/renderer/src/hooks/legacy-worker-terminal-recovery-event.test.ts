@@ -12,11 +12,13 @@ describe('legacy worker terminal recovery events', () => {
       resolveLegacyWorkerTerminalRecoveryAction({
         paneKey: `legacy-worker:${LEAF_ID}`,
         resolution: 'rolled_back',
-        ptyId: 'pty-legacy'
+        ptyId: 'pty-legacy',
+        worktreeId: 'worktree'
       })
     ).toEqual({
       kind: 'rollback-surface',
       detail: {
+        worktreeId: 'worktree',
         tabId: 'legacy-worker',
         leafId: LEAF_ID,
         preservePty: true,
@@ -73,6 +75,7 @@ describe('legacy worker terminal recovery events', () => {
 
     expect(
       rollbackLegacyWorkerTerminalSurfaceInStore(store as never, {
+        worktreeId: 'worktree',
         tabId: 'legacy-worker',
         leafId: LEAF_ID,
         preservePty: true,
@@ -116,6 +119,7 @@ describe('legacy worker terminal recovery events', () => {
 
     expect(
       rollbackLegacyWorkerTerminalSurfaceInStore(store as never, {
+        worktreeId: 'worktree',
         tabId: 'legacy-worker',
         leafId: LEAF_ID,
         preservePty: true,

@@ -402,7 +402,9 @@ describe('a committed paired close stays closed while its PTY lingers', () => {
     const closing = harness.runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, TAB_A, {
       reason: 'user'
     })
-    await vi.waitFor(() => expect(harness.closeTerminalTab).toHaveBeenCalledWith(TAB_A))
+    await vi.waitFor(() =>
+      expect(harness.closeTerminalTab).toHaveBeenCalledWith(WORKTREE_ID, TAB_A)
+    )
     harness.retirePersistedTab(TAB_A)
     harness.relayAck.resolve()
     await expect(closing).resolves.toMatchObject({ closed: true })
@@ -419,7 +421,9 @@ describe('a committed paired close stays closed while its PTY lingers', () => {
     const closing = harness.runtime.closeMobileSessionTab(`id:${WORKTREE_ID}`, TAB_A, {
       reason: 'user'
     })
-    await vi.waitFor(() => expect(harness.closeTerminalTab).toHaveBeenCalledWith(TAB_A))
+    await vi.waitFor(() =>
+      expect(harness.closeTerminalTab).toHaveBeenCalledWith(WORKTREE_ID, TAB_A)
+    )
     // Production ordering: the renderer durably retires the tab and publishes
     // the pruned graph BEFORE replying to the relay. The kill it dispatched has
     // not produced an exit yet, so the PTY record is still connected.

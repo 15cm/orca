@@ -2917,7 +2917,8 @@ function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     onWindowCloseRequested: () => noopUnsubscribe,
     confirmWindowClose: () => {},
     cancelWindowClose: () => {},
-    notifyWindowRevealed: () => {}
+    notifyWindowRevealed: () => {},
+    recordTabFocus: () => {}
   }
 }
 

@@ -2587,6 +2587,93 @@ describe('OrcaRuntimeService', () => {
     expect(runtime.getStatus().authoritativeWindowId).toBe(TEST_WINDOW_ID)
   })
 
+  it('returns only ready matching windows and prefers exact pane candidates', () => {
+    const runtime = createRuntime()
+    const targetTab = {
+      tabId: 'target-tab',
+      worktreeId: TEST_WORKTREE_ID,
+      title: 'Target',
+      activeLeafId: 'target-leaf',
+      layout: null
+    }
+    const targetLeaf = {
+      tabId: 'target-tab',
+      worktreeId: TEST_WORKTREE_ID,
+      leafId: 'target-leaf',
+      paneRuntimeId: 1,
+      ptyId: null
+    }
+    const otherLeaf = { ...targetLeaf, leafId: 'other-leaf', paneRuntimeId: 2 }
+
+    runtime.syncWindowGraph(1, { tabs: [targetTab], leaves: [targetLeaf] })
+    runtime.syncWindowGraph(2, {
+      tabs: [{ ...targetTab, activeLeafId: 'other-leaf' }],
+      leaves: [otherLeaf]
+    })
+    runtime.attachWindow(3)
+    runtime.syncWindowGraph(4, {
+      tabs: [{ ...targetTab, worktreeId: 'repo-1::/other-worktree' }],
+      leaves: [{ ...targetLeaf, worktreeId: 'repo-1::/other-worktree' }]
+    })
+
+    expect(runtime.getWindowGraphCandidates(TEST_WORKTREE_ID, 'target-tab', 'target-leaf')).toEqual(
+      [{ windowId: 1, leafId: 'target-leaf' }]
+    )
+    expect(runtime.getWindowGraphCandidates(TEST_WORKTREE_ID, 'target-tab')).toEqual([
+      { windowId: 1, leafId: 'target-leaf' },
+      { windowId: 2, leafId: 'other-leaf' }
+    ])
+    expect(
+      runtime.getWindowGraphCandidates(TEST_WORKTREE_ID, 'target-tab', 'missing-leaf')
+    ).toEqual([
+      { windowId: 1, leafId: 'target-leaf' },
+      { windowId: 2, leafId: 'other-leaf' }
+    ])
+  })
+
+  it('scopes duplicate tab and leaf identities by worktree across windows', () => {
+    const runtime = createRuntime()
+    const worktreeA = 'repo-1::/worktree-a'
+    const worktreeB = 'repo-1::/worktree-b'
+    const tabA = {
+      tabId: 'duplicate-tab',
+      worktreeId: worktreeA,
+      title: 'A',
+      activeLeafId: 'duplicate-leaf',
+      layout: null
+    }
+    const tabB = { ...tabA, worktreeId: worktreeB, title: 'B' }
+    const leafA = {
+      tabId: 'duplicate-tab',
+      worktreeId: worktreeA,
+      leafId: 'duplicate-leaf',
+      paneRuntimeId: 1,
+      ptyId: null
+    }
+    const leafB = { ...leafA, worktreeId: worktreeB, paneRuntimeId: 2 }
+
+    runtime.syncWindowGraph(1, { tabs: [tabA, tabB], leaves: [leafA, leafB] })
+    runtime.syncWindowGraph(2, { tabs: [tabA], leaves: [leafA] })
+
+    expect(runtime.getWindowGraphCandidates(worktreeA, 'duplicate-tab', 'duplicate-leaf')).toEqual([
+      { windowId: 1, leafId: 'duplicate-leaf' },
+      { windowId: 2, leafId: 'duplicate-leaf' }
+    ])
+    expect(runtime.getWindowGraphCandidates(worktreeB, 'duplicate-tab', 'duplicate-leaf')).toEqual([
+      { windowId: 1, leafId: 'duplicate-leaf' }
+    ])
+    expect(runtime.resolveOwnerWindowIdForLeaf('duplicate-tab', 'duplicate-leaf', worktreeA)).toBe(
+      1
+    )
+    expect(runtime.resolveOwnerWindowIdForLeaf('duplicate-tab', 'duplicate-leaf', worktreeB)).toBe(
+      1
+    )
+    expect(runtime.resolveOwnerWindowIdForLeaf('duplicate-tab', 'duplicate-leaf')).toBeNull()
+    expect(runtime.resolveOwnerWindowIdForTabId('duplicate-tab')).toBeNull()
+    expect(runtime.resolveOwnerWindowIdForWorktreeTab(worktreeA, 'duplicate-tab')).toBe(1)
+    expect(runtime.resolveOwnerWindowIdForWorktreeTab(worktreeB, 'duplicate-tab')).toBe(1)
+  })
+
   it('transfers authority from the headless sentinel to the first real window', () => {
     const runtime = createRuntime()
     electronMocks.BrowserWindow.fromId.mockImplementation((windowId: number) =>
@@ -3115,7 +3202,7 @@ describe('OrcaRuntimeService', () => {
       createdAt: 7
     })
 
-    expect(nativeChatLaunchDraftResolved).toHaveBeenCalledWith('tab-1', {
+    expect(nativeChatLaunchDraftResolved).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'tab-1', {
       text: 'seed',
       createdAt: 7
     })
@@ -21304,7 +21391,8 @@ describe('OrcaRuntimeService', () => {
     expect(harness.resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
       harness.workerPaneKey,
       'rolled_back',
-      harness.ptyId
+      harness.ptyId,
+      TEST_WORKTREE_ID
     )
     expect(harness.resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
       harness.workerPaneKey,
@@ -21372,7 +21460,8 @@ describe('OrcaRuntimeService', () => {
     expect(harness.resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
       harness.workerPaneKey,
       'rolled_back',
-      harness.ptyId
+      harness.ptyId,
+      TEST_WORKTREE_ID
     )
     expect(harness.resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
       harness.workerPaneKey,
@@ -21591,7 +21680,8 @@ describe('OrcaRuntimeService', () => {
       expect(resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
         workerPaneKey,
         'rolled_back',
-        'pty-missing-worker'
+        'pty-missing-worker',
+        TEST_WORKTREE_ID
       )
       expect(resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(workerPaneKey, 'exited')
     } finally {
@@ -21698,7 +21788,8 @@ describe('OrcaRuntimeService', () => {
       expect(resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(
         workerPaneKey,
         'rolled_back',
-        'pty-missing-retry'
+        'pty-missing-retry',
+        TEST_WORKTREE_ID
       )
       expect(resolveLegacyWorkerTerminalRecovery).toHaveBeenCalledWith(workerPaneKey, 'exited')
       warn.mockRestore()
@@ -27400,7 +27491,7 @@ describe('OrcaRuntimeService', () => {
 
     await runtime.closeMobileSessionTab(`id:${TEST_WORKTREE_ID}`, 'tab-1')
 
-    expect(closeTerminal).toHaveBeenCalledWith('tab-1')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'tab-1')
     expect(kill).not.toHaveBeenCalled()
   })
 
@@ -29486,7 +29577,7 @@ describe('OrcaRuntimeService', () => {
       ptyKilled: true
     })
     expect(kill).toHaveBeenCalledWith('laptop-created-pty')
-    expect(closeTerminal).toHaveBeenCalledWith('laptop-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'laptop-tab')
   })
 
   it('waits for renderer acknowledgement before returning a whole-tab close receipt', async () => {
@@ -29530,7 +29621,9 @@ describe('OrcaRuntimeService', () => {
       settled = true
     })
 
-    await vi.waitFor(() => expect(closeTerminalTab).toHaveBeenCalledWith('host-tab'))
+    await vi.waitFor(() =>
+      expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
+    )
     expect(settled).toBe(false)
 
     acknowledged.resolve()
@@ -29614,7 +29707,9 @@ describe('OrcaRuntimeService', () => {
       reason: 'user',
       clientNavigationId: 'device-a'
     })
-    await vi.waitFor(() => expect(closeTerminalTab).toHaveBeenCalledWith('host-tab'))
+    await vi.waitFor(() =>
+      expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
+    )
     expect(setBackgroundThrottling.mock.calls).toEqual([[false]])
 
     acknowledged.resolve()
@@ -29694,7 +29789,9 @@ describe('OrcaRuntimeService', () => {
       reason: 'user',
       clientNavigationId: 'device-a'
     })
-    await vi.waitFor(() => expect(closeTerminalTab).toHaveBeenCalledWith('host-tab'))
+    await vi.waitFor(() =>
+      expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
+    )
     const session = getSession()
     setSession({
       ...session,
@@ -31545,7 +31642,7 @@ describe('OrcaRuntimeService', () => {
 
     expect(closeTerminalTab).not.toHaveBeenCalled()
     expect(kill).toHaveBeenCalledWith(persistedPtyId)
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(flushOrThrow).toHaveBeenCalledTimes(1)
     expect(warn).toHaveBeenCalledWith(
       '[runtime] failed to notify renderer after headless terminal close',
@@ -31636,10 +31733,10 @@ describe('OrcaRuntimeService', () => {
       ptyKilled: true
     })
 
-    expect(closeTerminalTab).toHaveBeenCalledWith('host-tab', {
+    expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab', {
       localPtyTeardownOwnedExternally: true
     })
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toEqual([])
     expect(getSession().terminalLayoutsByTabId['host-tab']).toBeUndefined()
     expect((await runtime.listMobileSessionTabs(`id:${TEST_WORKTREE_ID}`)).tabs).toEqual([])
@@ -31708,7 +31805,7 @@ describe('OrcaRuntimeService', () => {
       runtime.closeMobileSessionTab(`id:${TEST_WORKTREE_ID}`, 'host-tab')
     ).rejects.toThrow('terminal_tab_pinned')
 
-    expect(closeTerminalTab).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(closeTerminal).not.toHaveBeenCalled()
     expect(kill).not.toHaveBeenCalled()
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toHaveLength(1)
@@ -32613,7 +32710,7 @@ describe('OrcaRuntimeService', () => {
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toEqual([])
     expect(getSession().terminalLayoutsByTabId['host-tab']).toBeUndefined()
     // Best-effort renderer notify so no adopted pane is left dead.
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
   })
 
   it('delegates a renderer-owned daemon-session (worktreeId@@uuid) local terminal to the renderer', async () => {
@@ -32675,7 +32772,7 @@ describe('OrcaRuntimeService', () => {
 
     await runtime.closeMobileSessionTab(`id:${TEST_WORKTREE_ID}`, 'host-tab')
 
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(kill).not.toHaveBeenCalled()
     // Not torn down by the runtime — left for the renderer's own close to prune.
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toHaveLength(1)
@@ -32723,7 +32820,7 @@ describe('OrcaRuntimeService', () => {
 
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toEqual([])
     expect(getSession().terminalLayoutsByTabId['host-tab']).toBeUndefined()
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
   })
 
   it('defers a renderer-published pending tab to the renderer instead of tearing it down', async () => {
@@ -32777,7 +32874,7 @@ describe('OrcaRuntimeService', () => {
 
     await runtime.closeMobileSessionTab(`id:${TEST_WORKTREE_ID}`, 'host-tab')
 
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(forgetTabs).not.toHaveBeenCalled()
     expect(kill).not.toHaveBeenCalled()
     // Not torn down by the runtime: the renderer-owned tab is left for the renderer's own close to prune.
@@ -32842,7 +32939,7 @@ describe('OrcaRuntimeService', () => {
     // notifier that may decline it, so tombstoning would hide a live tab from
     // paired clients forever. Only a host-committed close may tombstone.
     expect(result).toEqual({ closed: true })
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     expect(forgetTabs).not.toHaveBeenCalled()
     expect(kill).not.toHaveBeenCalled()
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toHaveLength(1)
@@ -32870,7 +32967,7 @@ describe('OrcaRuntimeService', () => {
     expect(kill).not.toHaveBeenCalled()
     expect(getSession().tabsByWorktree[TEST_WORKTREE_ID]).toEqual([])
     expect(getSession().terminalLayoutsByTabId['host-tab']).toBeUndefined()
-    expect(closeTerminal).toHaveBeenCalledWith('host-tab')
+    expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
   })
 
   it('closes only the addressed serve-owned split leaf so siblings survive even with a renderer attached', async () => {
@@ -33142,7 +33239,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       // Legacy whole-parent relay: the renderer close transaction still runs.
-      expect(closeTerminalTab).toHaveBeenCalledWith('host-tab')
+      expect(closeTerminalTab).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'host-tab')
     })
 
     it('keeps a reasonless legacy close and republishes its live mirror', async () => {
@@ -34502,7 +34599,7 @@ describe('OrcaRuntimeService', () => {
       const outcome = await settled
 
       expect(outcome.ok).toBe(false)
-      expect(closeTerminal).toHaveBeenCalledWith('tab-ghost')
+      expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'tab-ghost')
     } finally {
       vi.useRealTimers()
     }
@@ -34510,7 +34607,7 @@ describe('OrcaRuntimeService', () => {
 
   // Why: the five #7587 mobile-create tests share one notifier factory so interface changes live in one place.
   function createMobileCreateTestNotifier(
-    closeTerminal: (tabId: string, paneRuntimeId?: number) => void
+    closeTerminal: (worktreeId: string, tabId: string, paneRuntimeId?: number) => void
   ) {
     return {
       focusTerminal: vi.fn(),
@@ -34600,7 +34697,7 @@ describe('OrcaRuntimeService', () => {
       const outcome = await settled
 
       expect(outcome.ok).toBe(false)
-      expect(closeTerminal).toHaveBeenCalledWith('tab-pending')
+      expect(closeTerminal).toHaveBeenCalledWith(TEST_WORKTREE_ID, 'tab-pending')
     } finally {
       vi.useRealTimers()
     }

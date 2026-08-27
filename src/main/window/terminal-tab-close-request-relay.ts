@@ -11,6 +11,7 @@ const TERMINAL_TAB_CLOSE_TIMEOUT_MS = 20_000
 
 export async function requestTerminalTabCloseFromRenderer(
   mainWindow: BrowserWindow,
+  worktreeId: string,
   tabId: string,
   options: { localPtyTeardownOwnedExternally?: boolean } = {}
 ): Promise<void> {
@@ -38,7 +39,7 @@ export async function requestTerminalTabCloseFromRenderer(
       }
     }
     ipcMain.on('ui:terminalTabCloseResponse', onResponse)
-    const request: TerminalTabCloseRequest = { requestId, tabId, ...options }
+    const request: TerminalTabCloseRequest = { requestId, worktreeId, tabId, ...options }
     mainWindow.webContents.send('ui:terminalTabCloseRequest', request)
   })
 }

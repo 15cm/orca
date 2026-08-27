@@ -18,11 +18,13 @@ import {
   getFocusedOrLastActiveMainWindow,
   getLastActiveMainWindow,
   getMainWindowForWebContents,
+  getMainWindowTabFocusSequence,
   getMainWindows,
   getSingleMainWindow,
   hasLiveMainWindows,
   hasVisibleMainWindow,
-  registerMainWindow
+  registerMainWindow,
+  recordMainWindowTabFocus
 } from './main-window-registry'
 
 type WindowStub = {
@@ -95,6 +97,37 @@ describe('main-window-registry', () => {
 
     expect(getMainWindows()).toEqual([second])
     expect(first.removeListener).toHaveBeenCalledWith('focus', expect.any(Function))
+  })
+
+  it('records main-owned tab focus order and removes it with the window', () => {
+    const first = createWindow(1)
+    const second = createWindow(2)
+    registerMainWindow(first as never)
+    registerMainWindow(second as never)
+
+    recordMainWindowTabFocus(first as never, 'worktree', 'tab')
+    recordMainWindowTabFocus(second as never, 'worktree', 'tab')
+    const firstSequence = getMainWindowTabFocusSequence(1, 'worktree', 'tab')
+    const secondSequence = getMainWindowTabFocusSequence(2, 'worktree', 'tab')
+    expect(firstSequence).toBeGreaterThan(0)
+    expect(secondSequence).toBeGreaterThan(firstSequence!)
+
+    emit(second, 'closed')
+    expect(getMainWindowTabFocusSequence(2, 'worktree', 'tab')).toBeNull()
+    expect(getMainWindowTabFocusSequence(1, 'worktree', 'tab')).toBe(firstSequence)
+  })
+
+  it('keeps focus history distinct when worktree and tab IDs contain separators', () => {
+    const first = createWindow(1)
+    registerMainWindow(first as never)
+
+    recordMainWindowTabFocus(first as never, 'repo:branch', 'tab')
+    recordMainWindowTabFocus(first as never, 'repo', 'branch:tab')
+
+    const firstSequence = getMainWindowTabFocusSequence(1, 'repo:branch', 'tab')
+    const secondSequence = getMainWindowTabFocusSequence(1, 'repo', 'branch:tab')
+    expect(firstSequence).toBeGreaterThan(0)
+    expect(secondSequence).toBeGreaterThan(firstSequence!)
   })
 
   it('tracks focus order and ignores unregistered focused windows', () => {

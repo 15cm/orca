@@ -81,18 +81,25 @@ function collectPtyIdsForTab(
 }
 
 function collectLiveTerminalTabs(
-  state: TerminalTabRetirementState
+  state: TerminalTabRetirementState,
+  worktreeId?: string
 ): Map<string, { worktreeId: string; rowPtyId: string | null }> {
   const liveTabs = new Map<string, { worktreeId: string; rowPtyId: string | null }>()
-  for (const [worktreeId, tabs] of Object.entries(state.tabsByWorktree)) {
+  for (const [candidateWorktreeId, tabs] of Object.entries(state.tabsByWorktree)) {
+    if (worktreeId !== undefined && candidateWorktreeId !== worktreeId) {
+      continue
+    }
     for (const tab of tabs) {
-      liveTabs.set(tab.id, { worktreeId, rowPtyId: tab.ptyId })
+      liveTabs.set(tab.id, { worktreeId: candidateWorktreeId, rowPtyId: tab.ptyId })
     }
   }
-  for (const [worktreeId, tabs] of Object.entries(state.unifiedTabsByWorktree)) {
+  for (const [candidateWorktreeId, tabs] of Object.entries(state.unifiedTabsByWorktree)) {
+    if (worktreeId !== undefined && candidateWorktreeId !== worktreeId) {
+      continue
+    }
     for (const tab of tabs) {
       if (tab.contentType === 'terminal' && !liveTabs.has(tab.entityId)) {
-        liveTabs.set(tab.entityId, { worktreeId, rowPtyId: null })
+        liveTabs.set(tab.entityId, { worktreeId: candidateWorktreeId, rowPtyId: null })
       }
     }
   }
@@ -136,18 +143,20 @@ export function isTerminalTabPresent(
 
 export function buildTerminalTabRetirementPlan(
   state: TerminalTabRetirementState,
-  tabId: string
+  tabId: string,
+  worktreeId?: string
 ): TerminalTabRetirementPlan {
-  return buildTerminalTabRetirementPlans(state, [tabId]).get(tabId)!
+  return buildTerminalTabRetirementPlans(state, [tabId], worktreeId).get(tabId)!
 }
 
 export function buildTerminalTabRetirementPlans(
   state: TerminalTabRetirementState,
-  tabIds: readonly string[]
+  tabIds: readonly string[],
+  worktreeId?: string
 ): Map<string, TerminalTabRetirementPlan> {
   const targetIds = [...new Set(tabIds)]
   const targetIdSet = new Set(targetIds)
-  const liveTabs = collectLiveTerminalTabs(state)
+  const liveTabs = collectLiveTerminalTabs(state, worktreeId)
   const ptyIdsByLiveTab = new Map<string, string[]>()
   const ownerTabIdsByIdentity = new Map<string, Set<string>>()
 
@@ -229,11 +238,15 @@ export function buildTerminalTabRetirementPlans(
 
 export function removeSleepingAgentSessionsForTab(
   records: Record<string, SleepingAgentSessionRecord>,
-  tabId: string
+  tabId: string,
+  worktreeId?: string
 ): Record<string, SleepingAgentSessionRecord> {
   let next = records
   for (const [paneKey, record] of Object.entries(records)) {
-    if (!paneKey.startsWith(`${tabId}:`) && record.tabId !== tabId) {
+    if (
+      (worktreeId !== undefined && record.worktreeId !== worktreeId) ||
+      (!paneKey.startsWith(`${tabId}:`) && record.tabId !== tabId)
+    ) {
       continue
     }
     if (next === records) {

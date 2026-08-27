@@ -172,7 +172,7 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
       }
 
       if (process.platform !== 'darwin') {
-        return deliverNativeNotification(args, notificationOptions, settings)
+        return deliverNativeNotification(args, notificationOptions, settings, runtime)
       }
       // Why: macOS silently swallows notifications while permission is denied/undecided (verified macOS 26); skip so the renderer can show a fallback.
       return readNotificationAuthorizationStatus().then((authorization) => {
@@ -180,7 +180,7 @@ export function registerNotificationHandlers(store: Store, runtime?: OrcaRuntime
           recordNotificationDeliveryOutcome('failed')
           return { delivered: false, reason: 'blocked-by-system' }
         }
-        return deliverNativeNotification(args, notificationOptions, settings)
+        return deliverNativeNotification(args, notificationOptions, settings, runtime)
       })
     }
   )

@@ -49,4 +49,5 @@ export type UiWindowApi = {
   confirmWindowClose: () => void
   cancelWindowClose: () => void
   notifyWindowRevealed: () => void
+  recordTabFocus: (args: { worktreeId: string; tabId: string }) => void
 }

@@ -403,8 +403,10 @@ import { preserveAgentAuthBeforeRestart } from './agent-auth-restart-preservatio
 import { CliInstaller } from './cli/cli-installer'
 import { installLinuxBareOrcaDispatcher } from './cli/linux-bare-orca-dispatcher'
 import { reconcileManagedWslCliRegistrations } from './cli/wsl-cli-registration-reconciliation'
+import { createAgentHookBroadcasterLease } from './agent-hooks/agent-hook-broadcaster-lease'
 
 let mainWindow: BrowserWindow | null = null
+const agentHookBroadcasterLease = createAgentHookBroadcasterLease()
 /** Whether a manual app.quit() (Cmd+Q) is in progress; lets the close handler skip the running-process confirmation and go straight to close. */
 let isQuitting = false
 let experimentalMultiWindowEnabledAtStartup = false
@@ -1680,6 +1682,7 @@ function openMainWindow(
     }
   })
   registerMainWindow(window)
+  const installsAgentHookBroadcaster = agentHookBroadcasterLease.acquire()
   recordCrashBreadcrumb('main_window_created')
   logStartupMilestone('window-created')
   // Why: Windows Tray construction can block synchronously on Shell_NotifyIcon, so both platforms defer creation to after first paint.
@@ -1801,6 +1804,7 @@ function openMainWindow(
   rateLimits.start({ fetchImmediately: false })
   window.on('focus', () => updateAutomationWindow(window))
   window.on('closed', () => {
+    const releasedFinalAgentHookBroadcasterLease = agentHookBroadcasterLease.release()
     if (mainWindow === window) {
       mainWindow = getFocusedOrLastActiveMainWindow()
     }
@@ -1808,7 +1812,7 @@ function openMainWindow(
     removeTrustedBrowserRendererWebContentsId(rendererWebContentsId)
     clearTrustedClipboardRendererWebContentsId(rendererWebContentsId)
     updateAutomationWindow()
-    if (!hasLiveMainWindows()) {
+    if (!hasLiveMainWindows() || releasedFinalAgentHookBroadcasterLease) {
       // Why: keep process-global hook services alive through a no-window macOS gap,
       // but clear renderer endpoints when no window can consume their events.
       agentHookServer.setListener(null)
@@ -1830,108 +1834,118 @@ function openMainWindow(
   // Why: user is back on show/restore, so clear the tray attention dot set while hidden (see notifications.ts).
   window.on('show', () => setTrayAttention(false))
   window.on('restore', () => setTrayAttention(false))
-  agentHookServer.setListener(
-    ({
-      paneKey,
-      tabId,
-      worktreeId,
-      connectionId,
-      payload,
-      receivedAt,
-      stateStartedAt,
-      launchToken,
-      providerSession,
-      providerSessionOnly,
-      promptInteractionKey,
-      restoredUnconfirmed,
-      observation,
-      isReplay
-    }) => {
-      if (!hasLiveMainWindows()) {
-        return
-      }
-      if (providerSessionOnly) {
-        // Why: session_start just refreshes durable resume identity while Pi is idle; forward it without titles, telemetry, or status UI.
-        broadcastToMainWindows('agentStatus:set', {
+  if (installsAgentHookBroadcaster) {
+    agentHookServer.setListener(
+      ({
+        paneKey,
+        tabId,
+        worktreeId,
+        connectionId,
+        payload,
+        receivedAt,
+        stateStartedAt,
+        launchToken,
+        providerSession,
+        providerSessionOnly,
+        promptInteractionKey,
+        restoredUnconfirmed,
+        observation,
+        isReplay
+      }) => {
+        if (!hasLiveMainWindows()) {
+          return
+        }
+        if (providerSessionOnly) {
+          // Why: session_start just refreshes durable resume identity while Pi is idle; forward it without titles, telemetry, or status UI.
+          broadcastToMainWindows('agentStatus:set', {
+            ...payload,
+            paneKey,
+            ...(launchToken ? { launchToken } : {}),
+            tabId,
+            worktreeId,
+            connectionId,
+            receivedAt,
+            stateStartedAt,
+            ...(providerSession ? { providerSession } : {}),
+            ...(observation ? { observation } : {}),
+            providerSessionOnly: true
+          })
+          return
+        }
+        if (!restoredUnconfirmed) {
+          maybeAutoRenameBranchOnFirstWorkFromHook({
+            paneKey,
+            tabId,
+            worktreeId,
+            payload,
+            isReplay
+          })
+        }
+        const orchestration = runtime?.getAgentStatusOrchestrationContextForPaneKey(paneKey)
+        const terminalHandle = runtime?.getAgentStatusTerminalHandleForPaneKey(paneKey)
+        const suppressSyntheticCodexAutoApprovalTitle =
+          payload.agentType === 'codex' &&
+          (payload.state === 'waiting' || payload.state === 'blocked')
+            ? shouldSuppressCodexAutoApprovalSyntheticTitleFromHook({
+                agentType: payload.agentType,
+                state: payload.state,
+                launchConfig: runtime?.getAgentStatusLaunchConfigForPaneKey(paneKey, {
+                  launchToken
+                })
+              })
+            : false
+        const statusEvent = {
           ...payload,
           paneKey,
           ...(launchToken ? { launchToken } : {}),
+          ...(terminalHandle ? { terminalHandle } : {}),
           tabId,
           worktreeId,
           connectionId,
           receivedAt,
           stateStartedAt,
           ...(providerSession ? { providerSession } : {}),
+          ...(promptInteractionKey ? { promptInteractionKey } : {}),
+          ...(restoredUnconfirmed ? { restoredUnconfirmed: true } : {}),
           ...(observation ? { observation } : {}),
-          providerSessionOnly: true
-        })
+          ...(orchestration ? { orchestration } : {})
+        }
+        broadcastToMainWindows('agentStatus:set', statusEvent)
+        if (!suppressSyntheticCodexAutoApprovalTitle || isAskUserQuestionTool(payload.toolName)) {
+          getDashboardPopoutWindow()?.webContents.send('agentStatus:set', statusEvent)
+        }
+        recordAgentStateCrashBreadcrumb(payload.agentType ?? 'unknown', payload.state)
+        // Why: native OSC titles miss some idle/permission frames, so inject hook-derived ones to keep the renderer title tracker in sync.
+        const profile = getSyntheticAgentTitleProfile(payload.agentType)
+        if (
+          profile &&
+          shouldDriveSyntheticAgentTitleFromHook(payload.agentType, payload.state) &&
+          !suppressSyntheticCodexAutoApprovalTitle
+        ) {
+          driveSyntheticTitleFromHook(paneKey, payload.state, profile)
+        }
+      }
+    )
+    agentHookServer.setPaneStatusClearListener((clear) => {
+      if (!hasLiveMainWindows()) {
         return
       }
-      if (!restoredUnconfirmed) {
-        maybeAutoRenameBranchOnFirstWorkFromHook({ paneKey, tabId, worktreeId, payload, isReplay })
+      broadcastToMainWindows('agentStatus:clear', clear)
+      getDashboardPopoutWindow()?.webContents.send('agentStatus:clear', clear)
+    })
+    setMigrationUnsupportedPtyListener((event) => {
+      if (!hasLiveMainWindows()) {
+        return
       }
-      const orchestration = runtime?.getAgentStatusOrchestrationContextForPaneKey(paneKey)
-      const terminalHandle = runtime?.getAgentStatusTerminalHandleForPaneKey(paneKey)
-      const suppressSyntheticCodexAutoApprovalTitle =
-        payload.agentType === 'codex' &&
-        (payload.state === 'waiting' || payload.state === 'blocked')
-          ? shouldSuppressCodexAutoApprovalSyntheticTitleFromHook({
-              agentType: payload.agentType,
-              state: payload.state,
-              launchConfig: runtime?.getAgentStatusLaunchConfigForPaneKey(paneKey, { launchToken })
-            })
-          : false
-      const statusEvent = {
-        ...payload,
-        paneKey,
-        ...(launchToken ? { launchToken } : {}),
-        ...(terminalHandle ? { terminalHandle } : {}),
-        tabId,
-        worktreeId,
-        connectionId,
-        receivedAt,
-        stateStartedAt,
-        ...(providerSession ? { providerSession } : {}),
-        ...(promptInteractionKey ? { promptInteractionKey } : {}),
-        ...(restoredUnconfirmed ? { restoredUnconfirmed: true } : {}),
-        ...(observation ? { observation } : {}),
-        ...(orchestration ? { orchestration } : {})
+      if (event.type === 'set') {
+        broadcastToMainWindows('agentStatus:migrationUnsupported', event.entry)
+      } else {
+        broadcastToMainWindows('agentStatus:migrationUnsupportedClear', {
+          ptyId: event.ptyId
+        })
       }
-      broadcastToMainWindows('agentStatus:set', statusEvent)
-      if (!suppressSyntheticCodexAutoApprovalTitle || isAskUserQuestionTool(payload.toolName)) {
-        getDashboardPopoutWindow()?.webContents.send('agentStatus:set', statusEvent)
-      }
-      recordAgentStateCrashBreadcrumb(payload.agentType ?? 'unknown', payload.state)
-      // Why: native OSC titles miss some idle/permission frames, so inject hook-derived ones to keep the renderer title tracker in sync.
-      const profile = getSyntheticAgentTitleProfile(payload.agentType)
-      if (
-        profile &&
-        shouldDriveSyntheticAgentTitleFromHook(payload.agentType, payload.state) &&
-        !suppressSyntheticCodexAutoApprovalTitle
-      ) {
-        driveSyntheticTitleFromHook(paneKey, payload.state, profile)
-      }
-    }
-  )
-  agentHookServer.setPaneStatusClearListener((clear) => {
-    if (!hasLiveMainWindows()) {
-      return
-    }
-    broadcastToMainWindows('agentStatus:clear', clear)
-    getDashboardPopoutWindow()?.webContents.send('agentStatus:clear', clear)
-  })
-  setMigrationUnsupportedPtyListener((event) => {
-    if (!hasLiveMainWindows()) {
-      return
-    }
-    if (event.type === 'set') {
-      broadcastToMainWindows('agentStatus:migrationUnsupported', event.entry)
-    } else {
-      broadcastToMainWindows('agentStatus:migrationUnsupportedClear', {
-        ptyId: event.ptyId
-      })
-    }
-  })
+    })
+  }
   logStartupMilestone('load-start')
   loadMainWindow(window)
   return window

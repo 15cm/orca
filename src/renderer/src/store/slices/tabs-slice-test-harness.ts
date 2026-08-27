@@ -17,7 +17,7 @@ export type TabsSliceMockApi = {
   pty: { kill: Mock; spawn: Mock }
   gh: { prForBranch: Mock; issue: Mock }
   settings: { get: Mock; set: Mock }
-  ui: { set: Mock }
+  ui: { set: Mock; recordTabFocus: Mock }
   cache: { getGitHub: Mock; setGitHub: Mock }
   claudeUsage: UsageScannerMocks
   codexUsage: UsageScannerMocks
@@ -53,7 +53,8 @@ export function createTabsSliceMockApi(): TabsSliceMockApi {
       set: vi.fn().mockResolvedValue(undefined)
     },
     ui: {
-      set: vi.fn().mockResolvedValue(undefined)
+      set: vi.fn().mockResolvedValue(undefined),
+      recordTabFocus: vi.fn()
     },
     cache: {
       getGitHub: vi.fn().mockResolvedValue(null),

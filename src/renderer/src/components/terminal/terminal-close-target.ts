@@ -15,10 +15,12 @@ export type TerminalCloseTarget = {
 export function validatePrecomputedTerminalCloseState(
   tabId: string,
   retirementPlan: TerminalTabRetirementPlan | undefined,
-  closeState: PrecomputedTerminalCloseState | undefined
+  closeState: PrecomputedTerminalCloseState | undefined,
+  worktreeId?: string
 ): PrecomputedTerminalCloseState | undefined {
   return retirementPlan?.tabId === tabId &&
-    retirementPlan.worktreeId === closeState?.owningWorktreeId
+    retirementPlan.worktreeId === closeState?.owningWorktreeId &&
+    (worktreeId === undefined || worktreeId === closeState?.owningWorktreeId)
     ? closeState
     : undefined
 }
@@ -26,22 +28,34 @@ export function validatePrecomputedTerminalCloseState(
 export function resolveTerminalCloseTarget(
   state: Pick<AppState, 'tabsByWorktree' | 'unifiedTabsByWorktree'>,
   tabId: string,
-  precomputed: PrecomputedTerminalCloseState | undefined
+  precomputed: PrecomputedTerminalCloseState | undefined,
+  worktreeId?: string
 ): TerminalCloseTarget | null {
   if (precomputed) {
+    if (worktreeId !== undefined && precomputed.owningWorktreeId !== worktreeId) {
+      return null
+    }
     return { worktreeId: precomputed.owningWorktreeId, terminalTabId: tabId }
   }
-  for (const [worktreeId, worktreeTabs] of Object.entries(state.tabsByWorktree)) {
+  const worktreeEntries =
+    worktreeId === undefined
+      ? Object.entries(state.tabsByWorktree)
+      : [[worktreeId, state.tabsByWorktree[worktreeId] ?? []] as const]
+  for (const [candidateWorktreeId, worktreeTabs] of worktreeEntries) {
     if (worktreeTabs.some((tab) => tab.id === tabId)) {
-      return { worktreeId, terminalTabId: tabId }
+      return { worktreeId: candidateWorktreeId, terminalTabId: tabId }
     }
   }
-  for (const [worktreeId, unifiedTabs] of Object.entries(state.unifiedTabsByWorktree ?? {})) {
+  const unifiedEntries =
+    worktreeId === undefined
+      ? Object.entries(state.unifiedTabsByWorktree ?? {})
+      : [[worktreeId, state.unifiedTabsByWorktree?.[worktreeId] ?? []] as const]
+  for (const [candidateWorktreeId, unifiedTabs] of unifiedEntries) {
     const unified = unifiedTabs.find(
       (tab) => tab.contentType === 'terminal' && (tab.entityId === tabId || tab.id === tabId)
     )
     if (unified) {
-      return { worktreeId, terminalTabId: unified.entityId }
+      return { worktreeId: candidateWorktreeId, terminalTabId: unified.entityId }
     }
   }
   return null

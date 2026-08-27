@@ -50,7 +50,7 @@ describe('registerNotificationHandlers', () => {
       isMinimized: () => false,
       restore: vi.fn(),
       focus: popoutFocus,
-      webContents: { send: popoutSend }
+      webContents: { isDestroyed: () => false, send: popoutSend }
     }
     const mainWindow = {
       isDestroyed: () => false,
@@ -59,7 +59,7 @@ describe('registerNotificationHandlers', () => {
       restore,
       show,
       focus,
-      webContents: { send: webContentsSend }
+      webContents: { isDestroyed: () => false, send: webContentsSend }
     }
     getAllWindowsMock.mockReturnValue([popoutWindow, mainWindow] as never)
     getTrustedUIRendererWindowMock.mockReturnValue(mainWindow)

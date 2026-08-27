@@ -1703,6 +1703,7 @@ export function useIpcEvents(): void {
                 window.dispatchEvent(
                   new CustomEvent<SplitTerminalPaneDetail>(SPLIT_TERMINAL_PANE_EVENT, {
                     detail: {
+                      worktreeId,
                       tabId: tab.id,
                       paneRuntimeId: -1,
                       direction: splitDirection ?? 'horizontal',
@@ -1941,8 +1942,9 @@ export function useIpcEvents(): void {
 
     unsubs.push(
       window.api.ui.onSplitTerminal(
-        ({ tabId, paneRuntimeId, direction, command, telemetrySource }) => {
+        ({ worktreeId, tabId, paneRuntimeId, direction, command, telemetrySource }) => {
           const detail: SplitTerminalPaneDetail = {
+            worktreeId,
             tabId,
             paneRuntimeId,
             direction,
@@ -1955,8 +1957,8 @@ export function useIpcEvents(): void {
     )
 
     unsubs.push(
-      window.api.ui.onRenameTerminal(({ tabId, title }) => {
-        useAppStore.getState().setTabCustomTitle(tabId, title)
+      window.api.ui.onRenameTerminal(({ worktreeId, tabId, title }) => {
+        useAppStore.getState().setTabCustomTitle(tabId, title, { worktreeId })
       })
     )
 
@@ -2159,14 +2161,14 @@ export function useIpcEvents(): void {
     )
 
     unsubs.push(
-      window.api.ui.onCloseTerminal(({ tabId, paneRuntimeId }) => {
+      window.api.ui.onCloseTerminal(({ worktreeId, tabId, paneRuntimeId }) => {
         if (paneRuntimeId != null) {
           // Why: route pane closes via the lifecycle hook for sibling promotion (falls through to closeTab on the last pane).
-          const detail: CloseTerminalPaneDetail = { tabId, paneRuntimeId }
+          const detail: CloseTerminalPaneDetail = { worktreeId, tabId, paneRuntimeId }
           window.dispatchEvent(new CustomEvent(CLOSE_TERMINAL_PANE_EVENT, { detail }))
         } else {
           // Why: the CLI/RPC caller is answered immediately, so it cannot wait on a modal.
-          closeTerminalTab(tabId, { skipRunningProcessConfirm: true })
+          closeTerminalTab(tabId, { worktreeId, skipRunningProcessConfirm: true })
         }
       })
     )
@@ -2175,7 +2177,7 @@ export function useIpcEvents(): void {
     if (window.api.ui.onTerminalTabCloseRequest) {
       unsubs.push(
         window.api.ui.onTerminalTabCloseRequest(
-          ({ requestId, tabId, localPtyTeardownOwnedExternally }) => {
+          ({ requestId, worktreeId, tabId, localPtyTeardownOwnedExternally }) => {
             let responded = false
             const respond = (error?: string): void => {
               if (responded) {
@@ -2185,6 +2187,7 @@ export function useIpcEvents(): void {
               window.api.ui.respondTerminalTabClose({ requestId, ...(error ? { error } : {}) })
             }
             closeTerminalTab(tabId, {
+              worktreeId,
               rejectPinned: true,
               ...(localPtyTeardownOwnedExternally ? { localPtyTeardownOwnedExternally: true } : {}),
               onCancel: () => respond('terminal_tab_pinned'),

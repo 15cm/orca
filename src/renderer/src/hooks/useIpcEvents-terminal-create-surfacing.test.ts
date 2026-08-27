@@ -765,6 +765,7 @@ describe('useIpcEvents updater integration', () => {
         type: 'orca-split-terminal-pane',
         detail: {
           tabId: 'tab-existing',
+          worktreeId: 'wt-2',
           paneRuntimeId: -1,
           direction: 'vertical',
           sourceLeafId: 'leaf-source',

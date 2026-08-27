@@ -406,10 +406,9 @@ function registerRuntimeWindowLifecycle(
       new Promise((resolve, reject) => {
         const ownerWindowId =
           opts.tabId && opts.splitFromLeafId
-            ? runtime.resolveOwnerWindowIdForLeaf(opts.tabId, opts.splitFromLeafId)
+            ? runtime.resolveOwnerWindowIdForLeaf(opts.tabId, opts.splitFromLeafId, worktreeId)
             : opts.tabId
-              ? (runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, opts.tabId) ??
-                runtime.resolveOwnerWindowIdForTabId(opts.tabId))
+              ? runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, opts.tabId)
               : runtime.resolveOwnerWindowIdForPtyId(opts.ptyId)
         const target =
           (ownerWindowId === null ? null : getMainWindowById(ownerWindowId)) ??
@@ -494,30 +493,41 @@ function registerRuntimeWindowLifecycle(
         })
         target.once('closed', onTargetClosed)
       }),
-    resolveLegacyWorkerTerminalRecovery: (paneKey, resolution, ptyId) =>
+    resolveLegacyWorkerTerminalRecovery: (paneKey, resolution, ptyId, worktreeId) =>
       sendToTarget('agentStatus:legacyWorkerTerminalRecovery', {
         paneKey,
         resolution,
-        ...(ptyId ? { ptyId } : {})
+        ...(ptyId ? { ptyId } : {}),
+        ...(worktreeId ? { worktreeId } : {})
       }),
-    splitTerminal: (tabId, paneRuntimeId, opts) => {
-      sendToOwner(runtime.resolveOwnerWindowIdForTabId(tabId), 'ui:splitTerminal', {
-        tabId,
-        paneRuntimeId,
-        direction: opts.direction,
-        command: opts.command,
-        telemetrySource: opts.telemetrySource
-      })
+    splitTerminal: (worktreeId, tabId, paneRuntimeId, opts) => {
+      sendToOwner(
+        runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId),
+        'ui:splitTerminal',
+        {
+          worktreeId,
+          tabId,
+          paneRuntimeId,
+          direction: opts.direction,
+          command: opts.command,
+          telemetrySource: opts.telemetrySource
+        }
+      )
     },
-    renameTerminal: (tabId, title) =>
-      sendToOwner(runtime.resolveOwnerWindowIdForTabId(tabId), 'ui:renameTerminal', {
-        tabId,
-        title
-      }),
+    renameTerminal: (worktreeId, tabId, title) =>
+      sendToOwner(
+        runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId),
+        'ui:renameTerminal',
+        {
+          worktreeId,
+          tabId,
+          title
+        }
+      ),
     focusTerminal: (tabId, worktreeId, leafId) =>
       sendToOwner(
         leafId
-          ? runtime.resolveOwnerWindowIdForLeaf(tabId, leafId)
+          ? runtime.resolveOwnerWindowIdForLeaf(tabId, leafId, worktreeId)
           : runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId),
         'ui:focusTerminal',
         { tabId, worktreeId, leafId }
@@ -583,17 +593,22 @@ function registerRuntimeWindowLifecycle(
           }) as Promise<RuntimeMarkdownSaveTabResult>)
         : Promise.reject(new Error('runtime_unavailable'))
     },
-    closeTerminal: (tabId, paneRuntimeId) =>
-      sendToOwner(runtime.resolveOwnerWindowIdForTabId(tabId), 'ui:closeTerminal', {
-        tabId,
-        paneRuntimeId
-      }),
-    closeTerminalTab: (tabId, options) => {
+    closeTerminal: (worktreeId, tabId, paneRuntimeId) =>
+      sendToOwner(
+        runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId),
+        'ui:closeTerminal',
+        {
+          worktreeId,
+          tabId,
+          paneRuntimeId
+        }
+      ),
+    closeTerminalTab: (worktreeId, tabId, options) => {
       const target =
-        getMainWindowById(runtime.resolveOwnerWindowIdForTabId(tabId) ?? -1) ??
+        getMainWindowById(runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId) ?? -1) ??
         getFocusedOrLastActiveMainWindow()
       return target
-        ? requestTerminalTabCloseFromRenderer(target, tabId, options)
+        ? requestTerminalTabCloseFromRenderer(target, worktreeId, tabId, options)
         : Promise.reject(new Error('runtime_unavailable'))
     },
     sleepWorktree: (worktreeId) => sendToTarget('ui:sleepWorktree', { worktreeId }),
@@ -613,9 +628,9 @@ function registerRuntimeWindowLifecycle(
           driver
         }
       ),
-    nativeChatLaunchDraftResolved: (tabId, resolution) =>
+    nativeChatLaunchDraftResolved: (worktreeId, tabId, resolution) =>
       sendToOwnerOrTarget(
-        runtime.resolveOwnerWindowIdForTabId(tabId),
+        runtime.resolveOwnerWindowIdForWorktreeTab(worktreeId, tabId),
         'runtime:nativeChatLaunchDraftResolved',
         { tabId, ...resolution }
       ),

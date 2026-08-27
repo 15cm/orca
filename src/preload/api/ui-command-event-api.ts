@@ -159,6 +159,7 @@ export type UiCommandEventApi = {
   replyTerminalCreate: (reply: TerminalTabCreateReply) => void
   onSplitTerminal: (
     callback: (data: {
+      worktreeId: string
       tabId: string
       paneRuntimeId: number
       direction: 'horizontal' | 'vertical'
@@ -167,7 +168,7 @@ export type UiCommandEventApi = {
     }) => void
   ) => () => void
   onRenameTerminal: (
-    callback: (data: { tabId: string; title: string | null }) => void
+    callback: (data: { worktreeId: string; tabId: string; title: string | null }) => void
   ) => () => void
   onFocusTerminal: (
     callback: (data: {
@@ -206,7 +207,7 @@ export type UiCommandEventApi = {
   onMobileMarkdownRequest: (callback: (request: RuntimeMobileMarkdownRequest) => void) => () => void
   respondMobileMarkdownRequest: (response: RuntimeMobileMarkdownResponse) => void
   onCloseTerminal: (
-    callback: (data: { tabId: string; paneRuntimeId?: number }) => void
+    callback: (data: { worktreeId: string; tabId: string; paneRuntimeId?: number }) => void
   ) => () => void
   onTerminalTabCloseRequest: (callback: (request: TerminalTabCloseRequest) => void) => () => void
   respondTerminalTabClose: (response: TerminalTabCloseResponse) => void

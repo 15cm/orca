@@ -25,6 +25,7 @@ export type AgentStatusApi = {
       paneKey: string
       resolution: 'adopted' | 'exited' | 'rolled_back'
       ptyId?: string
+      worktreeId?: string
     }) => void
   ) => () => void
   getMigrationUnsupportedSnapshot: () => Promise<MigrationUnsupportedPtyEntry[]>

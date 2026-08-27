@@ -15,7 +15,7 @@ vi.mock('@/lib/agent-status', async (importOriginal) => {
   }
 })
 
-createTabsSliceMockApi()
+const tabsSliceMockApi = createTabsSliceMockApi()
 
 const WT = 'repo1::/tmp/feature'
 
@@ -24,6 +24,7 @@ describe('TabsSlice', () => {
 
   beforeEach(() => {
     store = createTestStore()
+    tabsSliceMockApi.ui.recordTabFocus.mockReset()
   })
 
   // ─── activateTab ──────────────────────────────────────────────────
@@ -36,6 +37,46 @@ describe('TabsSlice', () => {
       store.getState().activateTab(t1.id)
 
       expect(store.getState().groupsByWorktree[WT][0].activeTabId).toBe(t1.id)
+    })
+
+    it('records focus only for a tab activated in the active worktree', () => {
+      const activeTab = store.getState().createUnifiedTab(WT, 'terminal')
+      const backgroundWorktree = 'repo1::/tmp/background'
+      const backgroundTab = store.getState().createUnifiedTab(backgroundWorktree, 'terminal')
+      store.setState({ activeWorktreeId: WT })
+      tabsSliceMockApi.ui.recordTabFocus.mockReset()
+
+      store.getState().activateTab(activeTab.id)
+      store.getState().activateTab(backgroundTab.id)
+
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenCalledOnce()
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenCalledWith({
+        worktreeId: WT,
+        tabId: activeTab.id
+      })
+    })
+
+    it('records focus for visible tab creation and split creation only', () => {
+      store.setState({ activeWorktreeId: WT })
+      const created = store.getState().createUnifiedTab(WT, 'terminal')
+
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenLastCalledWith({
+        worktreeId: WT,
+        tabId: created.id
+      })
+
+      tabsSliceMockApi.ui.recordTabFocus.mockReset()
+      store.getState().createUnifiedTab(WT, 'terminal', { activate: false })
+      expect(tabsSliceMockApi.ui.recordTabFocus).not.toHaveBeenCalled()
+
+      const split = store.getState().createUnifiedTabInSplit(WT, 'terminal', {
+        sourceGroupId: created.groupId,
+        splitDirection: 'right'
+      })
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenLastCalledWith({
+        worktreeId: WT,
+        tabId: split?.id
+      })
     })
 
     it('promotes a preview tab to permanent on activation', () => {
@@ -391,6 +432,58 @@ describe('TabsSlice', () => {
 
       expect(store.getState().unreadTerminalTabs[tabA.entityId]).toBeUndefined()
       expect(store.getState().unreadTerminalTabs[tabB.entityId]).toBeUndefined()
+    })
+
+    it('records the focused group tab and suppresses hidden worktree focus', () => {
+      const tab = store.getState().createUnifiedTab(WT, 'terminal')
+      const groupId = store.getState().groupsByWorktree[WT][0].id
+      const hiddenWorktree = 'repo1::/tmp/hidden'
+      store.getState().createUnifiedTab(hiddenWorktree, 'terminal')
+      const hiddenGroupId = store.getState().groupsByWorktree[hiddenWorktree][0].id
+      store.setState({ activeWorktreeId: WT })
+      tabsSliceMockApi.ui.recordTabFocus.mockReset()
+
+      store.getState().focusGroup(WT, groupId)
+
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenCalledWith({
+        worktreeId: WT,
+        tabId: tab.id
+      })
+
+      tabsSliceMockApi.ui.recordTabFocus.mockReset()
+      store.getState().focusGroup(hiddenWorktree, hiddenGroupId)
+
+      expect(tabsSliceMockApi.ui.recordTabFocus).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setActiveWorktree', () => {
+    it('records the restored visible top-level tab', () => {
+      const tab = store.getState().createUnifiedTab(WT, 'terminal')
+      store.setState({
+        tabsByWorktree: {
+          [WT]: [
+            {
+              id: tab.entityId,
+              ptyId: null,
+              worktreeId: WT,
+              title: 'Terminal',
+              customTitle: null,
+              color: null,
+              sortOrder: 0,
+              createdAt: Date.now()
+            }
+          ]
+        }
+      })
+      tabsSliceMockApi.ui.recordTabFocus.mockReset()
+
+      store.getState().setActiveWorktree(WT)
+
+      expect(tabsSliceMockApi.ui.recordTabFocus).toHaveBeenCalledWith({
+        worktreeId: WT,
+        tabId: tab.id
+      })
     })
   })
 })

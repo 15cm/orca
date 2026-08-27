@@ -5,16 +5,22 @@ const {
   fromWebContentsMock,
   getAllWebContentsMock,
   getAllWindowsMock,
+  getFocusedOrLastActiveMainWindowMock,
+  getMainWindowForWebContentsMock,
   handleMock,
   onMock,
+  recordMainWindowTabFocusMock,
   removeAllListenersMock
 } = vi.hoisted(() => ({
   fromIdMock: vi.fn(),
   fromWebContentsMock: vi.fn(),
   getAllWebContentsMock: vi.fn(),
   getAllWindowsMock: vi.fn(() => []),
+  getFocusedOrLastActiveMainWindowMock: vi.fn(() => null),
+  getMainWindowForWebContentsMock: vi.fn(),
   handleMock: vi.fn(),
   onMock: vi.fn(),
+  recordMainWindowTabFocusMock: vi.fn(),
   removeAllListenersMock: vi.fn()
 }))
 
@@ -32,6 +38,12 @@ vi.mock('electron', () => ({
     fromId: fromIdMock,
     getAllWebContents: getAllWebContentsMock
   }
+}))
+
+vi.mock('../window/main-window-registry', () => ({
+  getFocusedOrLastActiveMainWindow: getFocusedOrLastActiveMainWindowMock,
+  getMainWindowForWebContents: getMainWindowForWebContentsMock,
+  recordMainWindowTabFocus: recordMainWindowTabFocusMock
 }))
 
 import {
@@ -77,6 +89,12 @@ function getNativeSelectionActionHandler():
   return onMock.mock.calls.find(([channel]) => channel === 'ui:performNativeSelectionAction')?.[1]
 }
 
+function getTabFocusHandler():
+  | ((event: ReturnType<typeof makeUIEvent>, args: unknown) => void)
+  | undefined {
+  return onMock.mock.calls.find(([channel]) => channel === 'ui:recordTabFocus')?.[1]
+}
+
 describe('UI IPC', () => {
   beforeEach(() => {
     vi.stubEnv('ELECTRON_RENDERER_URL', '')
@@ -86,14 +104,64 @@ describe('UI IPC', () => {
     getAllWebContentsMock.mockReturnValue([])
     getAllWindowsMock.mockReset()
     getAllWindowsMock.mockReturnValue([])
+    getFocusedOrLastActiveMainWindowMock.mockReset()
+    getFocusedOrLastActiveMainWindowMock.mockReturnValue(null)
+    getMainWindowForWebContentsMock.mockReset()
     handleMock.mockReset()
     onMock.mockReset()
+    recordMainWindowTabFocusMock.mockReset()
     removeAllListenersMock.mockReset()
     setTrustedUIRendererWebContentsId(null)
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  it('records focus from a trusted renderer using its registered main window', () => {
+    const event = makeUIEvent()
+    const mainWindow = { id: 12 }
+    setTrustedUIRendererWebContentsId(event.sender.id as number)
+    getMainWindowForWebContentsMock.mockReturnValue(mainWindow)
+
+    registerUIHandlers(makeStore() as never)
+    getTabFocusHandler()?.(event, { worktreeId: 'repo::/worktree', tabId: 'tab-1' })
+
+    expect(getMainWindowForWebContentsMock).toHaveBeenCalledWith(event.sender)
+    expect(recordMainWindowTabFocusMock).toHaveBeenCalledWith(
+      mainWindow,
+      'repo::/worktree',
+      'tab-1'
+    )
+  })
+
+  it('ignores malformed or untrusted tab-focus IPC payloads', () => {
+    const event = makeUIEvent()
+    const mainWindow = { id: 12 }
+    setTrustedUIRendererWebContentsId(event.sender.id as number)
+    getMainWindowForWebContentsMock.mockReturnValue(mainWindow)
+
+    registerUIHandlers(makeStore() as never)
+    const handler = getTabFocusHandler()
+    const malformed: unknown[] = [
+      null,
+      [],
+      {},
+      { worktreeId: '', tabId: 'tab-1' },
+      { worktreeId: 'repo::/worktree', tabId: '' },
+      { worktreeId: 'repo::/worktree', tabId: 'tab-1'.repeat(513) },
+      { worktreeId: 'repo::/worktree', tabId: 1 }
+    ]
+    for (const args of malformed) {
+      handler?.(event, args)
+    }
+    handler?.(makeUIEvent({ id: 18 }), {
+      worktreeId: 'repo::/worktree',
+      tabId: 'tab-1'
+    })
+
+    expect(getMainWindowForWebContentsMock).not.toHaveBeenCalled()
+    expect(recordMainWindowTabFocusMock).not.toHaveBeenCalled()
   })
 
   it('sends app events once to the trusted renderer without waking 100 browser guests', () => {

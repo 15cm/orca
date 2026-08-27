@@ -1,4 +1,5 @@
 import { app, Notification } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type {
   NotificationDispatchRequest,
   NotificationDispatchResult,
@@ -6,6 +7,7 @@ import type {
 } from '../../shared/notification-settings-types'
 import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
 import { parsePaneKey } from '../../shared/stable-pane-id'
+import { parseWorkspaceKey } from '../../shared/workspace-scope'
 import type { buildNotificationOptions } from './notification-options'
 import { getEffectiveNotificationSoundId } from './notification-sound-selection'
 import {
@@ -16,11 +18,18 @@ import {
 } from './native-notification-lifecycle'
 import { recordNotificationDeliveryOutcome } from './notification-permission-probe'
 import { getTrustedUIRendererWindow } from './ui'
+import type { OrcaRuntimeService } from '../runtime/orca-runtime'
+import {
+  getFocusedOrLastActiveMainWindow,
+  getMainWindowById,
+  getMainWindowTabFocusSequence
+} from '../window/main-window-registry'
 
 export function deliverNativeNotification(
   args: NotificationDispatchRequest,
   notificationOptions: ReturnType<typeof buildNotificationOptions>,
-  settings: NotificationSettings
+  settings: NotificationSettings,
+  runtime?: OrcaRuntimeService
 ): NotificationDispatchResult | Promise<NotificationDispatchResult> {
   if (getEffectiveNotificationSoundId(settings) !== 'system') {
     notificationOptions.silent = true
@@ -70,38 +79,168 @@ export function deliverNativeNotification(
   }
   notification.on('failed', failedHandler)
 
-  // Why: worktreeId is formatted "repoId::worktreePath"; without the separator we can't extract a repoId, so skip the click-to-navigate binding.
-  if (args.worktreeId && args.worktreeId.includes('::')) {
-    const repoId = getRepoIdFromWorktreeId(args.worktreeId)
+  const targetWorktreeId = args.worktreeId
+  const isGitWorktreeId = Boolean(
+    targetWorktreeId &&
+    targetWorktreeId.includes('::') &&
+    getRepoIdFromWorktreeId(targetWorktreeId).length > 0
+  )
+  const isFolderWorkspaceId = parseWorkspaceKey(targetWorktreeId ?? '')?.type === 'folder'
+  // Why: folder workspace ids do not have a Git repo owner, but still carry enough identity for pane navigation.
+  if (targetWorktreeId && (isGitWorktreeId || isFolderWorkspaceId)) {
+    const repoId = isGitWorktreeId ? getRepoIdFromWorktreeId(targetWorktreeId) : null
     clickHandler = () => {
       release()
-      const win = getTrustedUIRendererWindow()
-      if (!win || win.isDestroyed()) {
+      const paneTarget = args.paneKey ? parsePaneKey(args.paneKey) : null
+      const targetTabId = paneTarget?.tabId ?? null
+      const exactCandidates =
+        runtime && targetTabId && paneTarget
+          ? runtime
+              .getWindowGraphCandidates(targetWorktreeId, targetTabId, paneTarget.leafId)
+              .filter((candidate) =>
+                runtime.isWindowGraphCandidate(
+                  candidate.windowId,
+                  targetWorktreeId,
+                  targetTabId,
+                  paneTarget.leafId
+                )
+              )
+          : []
+      const tabCandidates =
+        runtime && targetTabId
+          ? runtime.getWindowGraphCandidates(targetWorktreeId, targetTabId)
+          : []
+      const exactPaneCandidates = paneTarget
+        ? exactCandidates.filter((candidate) => candidate.leafId === paneTarget.leafId)
+        : []
+      const primaryCandidates = exactPaneCandidates.length > 0 ? exactPaneCandidates : tabCandidates
+      const rankCandidates = (values: typeof primaryCandidates) =>
+        [...new Map(values.map((candidate) => [candidate.windowId, candidate])).values()]
+          .map((candidate) => ({
+            ...candidate,
+            sequence: getMainWindowTabFocusSequence(
+              candidate.windowId,
+              targetWorktreeId,
+              targetTabId!
+            )
+          }))
+          .sort((a, b) => (b.sequence ?? -1) - (a.sequence ?? -1))
+      const ranked = rankCandidates(primaryCandidates)
+      const rankedTabCandidates = rankCandidates(tabCandidates)
+      const historicalCandidates = ranked.filter((candidate) => candidate.sequence !== null)
+      const canonicalWindowId = runtime
+        ? exactPaneCandidates.length > 0 && targetTabId && paneTarget
+          ? runtime.resolveOwnerWindowIdForLeaf(targetTabId, paneTarget.leafId, targetWorktreeId)
+          : tabCandidates.length > 0 && targetTabId
+            ? runtime.resolveOwnerWindowIdForWorktreeTab(targetWorktreeId, targetTabId)
+            : null
+        : null
+      const canonicalCandidate =
+        canonicalWindowId === null
+          ? null
+          : paneTarget && exactPaneCandidates.length > 0
+            ? (ranked.find((candidate) => candidate.windowId === canonicalWindowId) ?? null)
+            : (rankedTabCandidates.find((candidate) => candidate.windowId === canonicalWindowId) ??
+              null)
+      const candidatesToTry: typeof ranked = []
+      const candidateWindowIds = new Set<number>()
+      const appendCandidate = (candidate: (typeof ranked)[number] | null): void => {
+        if (!candidate || candidateWindowIds.has(candidate.windowId)) {
+          return
+        }
+        candidateWindowIds.add(candidate.windowId)
+        candidatesToTry.push(candidate)
+      }
+      for (const candidate of historicalCandidates) {
+        appendCandidate(candidate)
+      }
+      appendCandidate(canonicalCandidate)
+      // Why: a stale canonical owner must not skip another live graph match.
+      for (const candidate of ranked) {
+        appendCandidate(candidate)
+      }
+      for (const candidate of rankedTabCandidates) {
+        appendCandidate(candidate)
+      }
+
+      const exactCandidateWindowIds = new Set(
+        exactCandidates.map((candidate) => candidate.windowId)
+      )
+      const isUsableWindow = (candidateWindow: BrowserWindow): boolean => {
+        try {
+          return !candidateWindow.isDestroyed() && !candidateWindow.webContents.isDestroyed()
+        } catch {
+          return false
+        }
+      }
+      const tryNavigate = (
+        candidateWindow: BrowserWindow,
+        candidate?: (typeof ranked)[number]
+      ): boolean => {
+        if (
+          !isUsableWindow(candidateWindow) ||
+          (candidate &&
+            runtime &&
+            targetTabId &&
+            !runtime.isWindowGraphCandidate(
+              candidate.windowId,
+              targetWorktreeId,
+              targetTabId,
+              exactCandidateWindowIds.has(candidate.windowId) ? paneTarget?.leafId : undefined
+            ))
+        ) {
+          return false
+        }
+        try {
+          if (process.platform === 'darwin') {
+            app.focus({ steal: true })
+          }
+          if (candidateWindow.isMinimized()) {
+            candidateWindow.restore()
+          }
+          candidateWindow.show()
+          candidateWindow.focus()
+          if (!isUsableWindow(candidateWindow)) {
+            return false
+          }
+          if (repoId) {
+            candidateWindow.webContents.send('ui:activateWorktree', {
+              repoId,
+              worktreeId: targetWorktreeId
+            })
+          }
+          if (paneTarget) {
+            if (!isUsableWindow(candidateWindow)) {
+              return false
+            }
+            candidateWindow.webContents.send('ui:focusTerminal', {
+              tabId: paneTarget.tabId,
+              worktreeId: targetWorktreeId,
+              leafId: paneTarget.leafId,
+              ackPaneKeyOnSuccess: args.paneKey,
+              flashFocusedPane: true,
+              scrollToBottomIfOutputSinceLastView: true
+            })
+          }
+          return true
+        } catch {
+          return false
+        }
+      }
+
+      for (const candidate of candidatesToTry) {
+        const candidateWindow = getMainWindowById(candidate.windowId)
+        if (candidateWindow && tryNavigate(candidateWindow, candidate)) {
+          return
+        }
+      }
+      const focusedWindow = getFocusedOrLastActiveMainWindow()
+      if (focusedWindow && tryNavigate(focusedWindow)) {
         return
       }
-      if (process.platform === 'darwin') {
-        app.focus({ steal: true })
-      }
-      if (win.isMinimized()) {
-        win.restore()
-      }
-      win.show()
-      win.focus()
-      win.webContents.send('ui:activateWorktree', {
-        repoId,
-        worktreeId: args.worktreeId
-      })
-      // Why: focusTerminal targets the pane by stable leafId so split-pane notifications land on the exact pane.
-      const paneTarget = args.paneKey ? parsePaneKey(args.paneKey) : null
-      if (paneTarget) {
-        win.webContents.send('ui:focusTerminal', {
-          tabId: paneTarget.tabId,
-          worktreeId: args.worktreeId,
-          leafId: paneTarget.leafId,
-          ackPaneKeyOnSuccess: args.paneKey,
-          flashFocusedPane: true,
-          scrollToBottomIfOutputSinceLastView: true
-        })
+      const trustedWindow = getTrustedUIRendererWindow()
+      if (trustedWindow) {
+        tryNavigate(trustedWindow)
       }
     }
     notification.on('click', clickHandler)

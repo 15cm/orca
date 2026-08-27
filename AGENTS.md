@@ -14,11 +14,15 @@ Use the following gated workflow for feature development:
 6. **Review with `cx-sol-high`.** After Luna finishes, hand the approved plan, Luna's report, and the complete diff to a fresh `cx-sol-high` review pass. Sol must review requirements coverage, design conformance, correctness, regressions, test quality, and validation evidence. Findings must be actionable and include severity plus file/line references where possible. Sol reviews only; Luna owns fixes.
 7. **Iterate to closure.** Hand review findings back to the same Luna execution thread. Luna fixes them and reruns affected validation, then Sol re-reviews the complete updated diff. Repeat until Sol reports no blocking findings and every approved validation step passes. Escalate conflicting feedback, changed requirements, or design changes to the human.
 
+For personal projects, keep review criteria proportionate to the request: approve once the stated requirement is met and no material correctness or safety issue remains. Do not block on optional polish, exhaustive cross-platform evidence, or environment-only validation gaps.
+
 For Git workspaces, "complete diff" includes branch commits relative to the agreed base, staged changes, unstaged changes, and relevant untracked files. For folder workspaces, use Luna's changed-file inventory and inspect every listed file. Keep the approved plan as the source of truth and append material approved decisions or deviations so later review passes retain context.
 
 ## Electron UI Validation
 
-Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not use computer-use for Orca UI validation.
+Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not use computer-use for Orca UI validation. Run GUI tests only in the isolated `$gui-sandbox`; never run them on the host machine.
+
+Never try GUI tests on the host machine. Run them only in the isolated `$gui-sandbox`.
 
 # Style
 ## Concise/Brief Non-obviosu comments ONLY

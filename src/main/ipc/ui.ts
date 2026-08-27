@@ -2,7 +2,11 @@ import { BrowserWindow, ipcMain, webContents, type WebContents } from 'electron'
 import type { Store } from '../persistence'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
 import { isFeatureInteractionId } from '../../shared/feature-interactions'
-import { getFocusedOrLastActiveMainWindow } from '../window/main-window-registry'
+import {
+  getFocusedOrLastActiveMainWindow,
+  getMainWindowForWebContents,
+  recordMainWindowTabFocus
+} from '../window/main-window-registry'
 
 const trustedUIRendererWebContentsIds = new Set<number>()
 let explicitUIRendererTrustInitialized = false
@@ -84,6 +88,28 @@ export function registerUIHandlers(
 
   ipcMain.handle('ui:set', (_event, args: Partial<PersistedUIState>) => {
     store.updateUI(args)
+  })
+
+  ipcMain.removeAllListeners('ui:recordTabFocus')
+  ipcMain.on('ui:recordTabFocus', (event, args: unknown) => {
+    if (!isTrustedUIRenderer(event.sender) || typeof args !== 'object' || args === null) {
+      return
+    }
+    const { worktreeId, tabId } = args as { worktreeId?: unknown; tabId?: unknown }
+    if (
+      typeof worktreeId !== 'string' ||
+      worktreeId.length === 0 ||
+      worktreeId.length > 4096 ||
+      typeof tabId !== 'string' ||
+      tabId.length === 0 ||
+      tabId.length > 512
+    ) {
+      return
+    }
+    const window = getMainWindowForWebContents(event.sender)
+    if (window) {
+      recordMainWindowTabFocus(window, worktreeId, tabId)
+    }
   })
 
   ipcMain.handle('ui:recordFeatureInteraction', (_event, id: unknown) => {

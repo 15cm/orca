@@ -302,7 +302,7 @@ describe('terminal close and handle incarnation continuity', () => {
     })
 
     await vi.waitFor(() =>
-      expect(harness.closeTerminalTab).toHaveBeenCalledWith(TAB_ID, {
+      expect(harness.closeTerminalTab).toHaveBeenCalledWith(WORKTREE_ID, TAB_ID, {
         localPtyTeardownOwnedExternally: true
       })
     )
@@ -460,7 +460,7 @@ describe('terminal close and handle incarnation continuity', () => {
     harness.acknowledged.resolve()
 
     await expect(closing).resolves.toMatchObject({ handle, tabId: TAB_ID, ptyKilled: false })
-    expect(harness.closeTerminal).toHaveBeenCalledWith(TAB_ID)
+    expect(harness.closeTerminal).toHaveBeenCalledWith(WORKTREE_ID, TAB_ID)
     expect(harness.stopAndWait).toHaveBeenCalledWith(RUNTIME_OWNED_PTY_ID, {
       deadlineMs: expect.any(Number)
     })

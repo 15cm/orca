@@ -127,7 +127,11 @@ export type TabsSlice = {
   activateTab: (tabId: string, opts?: { preservePreview?: boolean; worktreeId?: string }) => void
   closeUnifiedTab: (
     tabId: string,
-    opts?: { recordInteraction?: boolean; terminalRetirementHandled?: boolean }
+    opts?: {
+      recordInteraction?: boolean
+      terminalRetirementHandled?: boolean
+      worktreeId?: string
+    }
   ) => { closedTabId: string; wasLastTab: boolean; worktreeId: string } | null
   reorderUnifiedTabs: (
     groupId: string,
@@ -142,7 +146,7 @@ export type TabsSlice = {
   setTabCustomLabel: (
     tabId: string,
     label: string | null,
-    opts?: { recordInteraction?: boolean }
+    opts?: { recordInteraction?: boolean; worktreeId?: string }
   ) => void
   setUnifiedTabColor: (tabId: string, color: string | null) => void
   setRenamingTabId: (tabId: string | null) => void
@@ -576,6 +580,24 @@ function buildActiveSurfacePatch(
   }
 }
 
+export function recordVisibleTopLevelTabFocus(
+  state: Pick<AppState, 'activeWorktreeId' | 'unifiedTabsByWorktree'>,
+  worktreeId: string | null,
+  tabId: string | null
+): void {
+  if (
+    !worktreeId ||
+    !tabId ||
+    state.activeWorktreeId !== worktreeId ||
+    !(state.unifiedTabsByWorktree[worktreeId] ?? []).some((tab) => tab.id === tabId)
+  ) {
+    return
+  }
+  if (typeof window !== 'undefined' && typeof window.api?.ui?.recordTabFocus === 'function') {
+    window.api.ui.recordTabFocus({ worktreeId, tabId })
+  }
+}
+
 function activeSurfacePatchMatchesState(
   state: Pick<
     AppState,
@@ -833,6 +855,7 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
 
   createUnifiedTab: (worktreeId, contentType, init) => {
     const id = init?.id ?? createBrowserUuid()
+    const shouldActivate = init?.activate ?? true
     let created!: Tab
     set((state) => {
       const { group, groupsByWorktree, activeGroupIdByWorktree } = ensureGroup(
@@ -858,7 +881,6 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
         }
       }
 
-      const shouldActivate = init?.activate ?? true
       const createdAt = Date.now()
       const executionHostId =
         init?.executionHostId ?? getActiveExecutionHostIdForWorktree(state, worktreeId)
@@ -916,12 +938,16 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     if (init?.recordInteraction !== false) {
       get().recordFeatureInteraction?.('terminal-tabs')
     }
+    if (shouldActivate) {
+      recordVisibleTopLevelTabFocus(get(), worktreeId, created.id)
+    }
     return created
   },
 
   createUnifiedTabInSplit: (worktreeId, contentType, target, init) => {
     const id = init?.id ?? createBrowserUuid()
     const newGroupId = createBrowserUuid()
+    const shouldActivate = init?.activate ?? true
     let created: Tab | null = null
     let moved = false
     set((state) => {
@@ -931,7 +957,6 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
       }
       const existingTabs = state.unifiedTabsByWorktree[worktreeId] ?? []
       const currentGroups = state.groupsByWorktree[worktreeId] ?? []
-      const shouldActivate = init?.activate ?? true
       const currentLayout =
         state.layoutByWorktree[worktreeId] ??
         ({ type: 'leaf', groupId: target.sourceGroupId } as const)
@@ -1021,6 +1046,9 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     if (moved && init?.recordInteraction !== false) {
       get().recordFeatureInteraction?.('tab-splits')
     }
+    if (moved && shouldActivate) {
+      recordVisibleTopLevelTabFocus(get(), worktreeId, id)
+    }
     return created
   },
 
@@ -1045,6 +1073,8 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     findTabByEntityInGroup(get().unifiedTabsByWorktree, worktreeId, groupId, entityId, contentType),
 
   activateTab: (tabId, opts) => {
+    let focusedWorktreeId: string | null = null
+    let focusedTabId: string | null = null
     set((state) => {
       const scopedWorktreeId = opts?.worktreeId
       let found: ReturnType<typeof findTabAndWorktree>
@@ -1061,6 +1091,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
         return {}
       }
       const { tab, worktreeId } = found
+      if (state.activeWorktreeId === worktreeId) {
+        focusedWorktreeId = worktreeId
+        focusedTabId = tab.id
+      }
       // Why: activating a terminal tab dismisses its tab-level bell — the user has moved their eyes here.
       // Why (activeWorktree guard below): only when the tab is in the active worktree, else the unseen signal is lost (mirrors focusGroup).
       const terminalEntityId = tab.contentType === 'terminal' ? tab.entityId : null
@@ -1113,11 +1147,19 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
           : {})
       }
     })
+    recordVisibleTopLevelTabFocus(get(), focusedWorktreeId, focusedTabId)
   },
 
   closeUnifiedTab: (tabId, opts) => {
     const state = get()
-    const found = findTabAndWorktree(state.unifiedTabsByWorktree, tabId)
+    const found = opts?.worktreeId
+      ? (() => {
+          const tab = (state.unifiedTabsByWorktree[opts.worktreeId] ?? []).find(
+            (candidate) => candidate.id === tabId
+          )
+          return tab ? { tab, worktreeId: opts.worktreeId } : null
+        })()
+      : findTabAndWorktree(state.unifiedTabsByWorktree, tabId)
     if (!found) {
       return null
     }
@@ -1131,7 +1173,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
       const dedupedGroupOrder = dedupeTabOrder(group.tabOrder)
       const wasLastTab = dedupeTabOrder(dedupedGroupOrder.filter((id) => id !== tabId)).length === 0
       // Why: unified-only hydrated tabs still own provider sessions without a legacy row, so retire every terminal close by entity id.
-      get().closeTab(tab.entityId, { recordInteraction: opts?.recordInteraction })
+      get().closeTab(tab.entityId, {
+        recordInteraction: opts?.recordInteraction,
+        worktreeId
+      })
       return { closedTabId: tabId, wasLastTab, worktreeId }
     }
 
@@ -1340,8 +1385,13 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
   },
 
   setTabCustomLabel: (tabId, label, opts) => {
-    const exists = get().getTab(tabId) !== null
-    set((state) => patchTab(state.unifiedTabsByWorktree, tabId, { customLabel: label }) ?? {})
+    const exists = opts?.worktreeId
+      ? (get().unifiedTabsByWorktree[opts.worktreeId] ?? []).some((tab) => tab.id === tabId)
+      : get().getTab(tabId) !== null
+    set(
+      (state) =>
+        patchTab(state.unifiedTabsByWorktree, tabId, { customLabel: label }, opts?.worktreeId) ?? {}
+    )
     if (exists && opts?.recordInteraction !== false) {
       get().recordFeatureInteraction?.('terminal-tabs')
     }
@@ -1531,7 +1581,7 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     return groupId
   },
 
-  focusGroup: (worktreeId, groupId) =>
+  focusGroup: (worktreeId, groupId) => {
     set((state) => {
       const groupAlreadyFocused = state.activeGroupIdByWorktree[worktreeId] === groupId
       const nextActiveGroupIdByWorktree = groupAlreadyFocused
@@ -1598,7 +1648,9 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
           : {}),
         ...activeSurfacePatch
       }
-    }),
+    })
+    recordVisibleTopLevelTabFocus(get(), worktreeId, get().getActiveTab(worktreeId)?.id ?? null)
+  },
 
   closeEmptyGroup: (worktreeId, groupId) => {
     const state = get()

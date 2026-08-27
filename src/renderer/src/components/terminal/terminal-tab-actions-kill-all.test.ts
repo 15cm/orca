@@ -84,7 +84,10 @@ describe('closeTerminalTab kill-all routing', () => {
     closeTerminalTab('terminal-1', { force: true })
 
     expect(requestPinnedTabCloseConfirm).not.toHaveBeenCalled()
-    expect(closeTab).toHaveBeenCalledWith('terminal-1', { reason: undefined })
+    expect(closeTab).toHaveBeenCalledWith('terminal-1', {
+      reason: undefined,
+      worktreeId: 'wt'
+    })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
 

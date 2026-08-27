@@ -7,6 +7,7 @@ type LegacyWorkerTerminalRecoveryEvent = {
   paneKey: string
   resolution: 'adopted' | 'exited' | 'rolled_back'
   ptyId?: string
+  worktreeId?: string
 }
 
 export type LegacyWorkerTerminalRecoveryAction =
@@ -21,10 +22,11 @@ export function resolveLegacyWorkerTerminalRecoveryAction(
     return { kind: 'clear-sleeping', paneKey: event.paneKey }
   }
   const pane = parsePaneKey(event.paneKey)
-  return pane && event.ptyId
+  return pane && event.ptyId && event.worktreeId
     ? {
         kind: 'rollback-surface',
         detail: {
+          worktreeId: event.worktreeId,
           tabId: pane.tabId,
           leafId: pane.leafId,
           preservePty: true,

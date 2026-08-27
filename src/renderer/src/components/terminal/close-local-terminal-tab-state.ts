@@ -7,6 +7,7 @@ import type {
 export function closeLocalTerminalTabState(
   terminalTabId: string,
   options?: {
+    worktreeId?: string
     reason?: TerminalTabCloseReason
     captureRecentlyClosed?: boolean
     remoteCloseOwnedByHost?: boolean
@@ -15,9 +16,12 @@ export function closeLocalTerminalTabState(
   }
 ): void {
   const state = useAppStore.getState()
+  const candidateTabs = options?.worktreeId
+    ? [state.tabsByWorktree[options.worktreeId] ?? []]
+    : Object.values(state.tabsByWorktree)
   if (
     options?.precomputedRetirementPlan?.tabId === terminalTabId ||
-    Object.values(state.tabsByWorktree).some((tabs) => tabs.some((tab) => tab.id === terminalTabId))
+    candidateTabs.some((tabs) => tabs.some((tab) => tab.id === terminalTabId))
   ) {
     if (
       options?.reason ||
@@ -33,7 +37,10 @@ export function closeLocalTerminalTabState(
     return
   }
 
-  for (const tabs of Object.values(state.unifiedTabsByWorktree ?? {})) {
+  const unifiedTabs = options?.worktreeId
+    ? [state.unifiedTabsByWorktree?.[options.worktreeId] ?? []]
+    : Object.values(state.unifiedTabsByWorktree ?? {})
+  for (const tabs of unifiedTabs) {
     const unified = tabs.find(
       (tab) =>
         tab.contentType === 'terminal' &&

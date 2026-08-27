@@ -1809,7 +1809,7 @@ export function useTerminalPaneLifecycle({
     // Why: deliver the startup command via the PTY connection path (waits for shell readiness), not terminal.paste() which can lose input before the shell reads stdin.
     function onCliSplitPane(event: Event): void {
       const detail = (event as CustomEvent<SplitTerminalPaneDetail>).detail
-      if (!detail?.tabId || detail.tabId !== tabId) {
+      if (!detail?.worktreeId || detail.worktreeId !== worktreeId || detail.tabId !== tabId) {
         return
       }
       const mgr = managerRef.current
@@ -1854,7 +1854,7 @@ export function useTerminalPaneLifecycle({
     // Why: CLI-driven pane close goes via CustomEvent so PaneManager promotes a sibling; the last pane falls back to closing the tab.
     function onCliClosePane(event: Event): void {
       const detail = (event as CustomEvent<CloseTerminalPaneDetail>).detail
-      if (!detail?.tabId || detail.tabId !== tabId) {
+      if (!detail?.worktreeId || detail.worktreeId !== worktreeId || detail.tabId !== tabId) {
         return
       }
       const mgr = managerRef.current

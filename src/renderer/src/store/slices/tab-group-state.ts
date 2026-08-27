@@ -222,8 +222,21 @@ export function dedupeTabOrder(tabIds: string[]): string[] {
 export function patchTab(
   tabsByWorktree: Record<string, Tab[]>,
   tabId: string,
-  patch: Partial<Tab>
+  patch: Partial<Tab>,
+  scopedWorktreeId?: string
 ): { unifiedTabsByWorktree: Record<string, Tab[]> } | null {
+  if (scopedWorktreeId !== undefined) {
+    const tabs = tabsByWorktree[scopedWorktreeId] ?? []
+    if (!tabs.some((tab) => tab.id === tabId)) {
+      return null
+    }
+    return {
+      unifiedTabsByWorktree: {
+        ...tabsByWorktree,
+        [scopedWorktreeId]: tabs.map((tab) => (tab.id === tabId ? { ...tab, ...patch } : tab))
+      }
+    }
+  }
   const found = findTabAndWorktree(tabsByWorktree, tabId)
   if (!found) {
     return null

@@ -47,6 +47,7 @@ export type PasteTerminalTextDetail = {
 }
 
 export type SplitTerminalPaneDetail = {
+  worktreeId: string
   tabId: string
   paneRuntimeId: number
   direction: 'horizontal' | 'vertical'
@@ -64,6 +65,7 @@ export type RequestActiveTerminalPaneSplitDetail = {
 }
 
 export type CloseTerminalPaneDetail = {
+  worktreeId: string
   tabId: string
   paneRuntimeId?: number
   leafId?: string

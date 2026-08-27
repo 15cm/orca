@@ -35,6 +35,7 @@ describe('applyTerminalPaneCloseRequest', () => {
     expect(
       applyTerminalPaneCloseRequest({
         detail: {
+          worktreeId: 'worktree',
           tabId: 'legacy-worker',
           leafId: '11111111-1111-4111-8111-111111111111',
           preservePty: true
@@ -57,6 +58,7 @@ describe('applyTerminalPaneCloseRequest', () => {
     expect(
       applyTerminalPaneCloseRequest({
         detail: {
+          worktreeId: 'worktree',
           tabId: 'legacy-worker',
           paneRuntimeId: 1,
           preservePty: true
@@ -90,6 +92,7 @@ describe('applyTerminalPaneCloseRequest', () => {
     expect(
       applyTerminalPaneCloseRequest({
         detail: {
+          worktreeId: 'worktree',
           tabId: 'legacy-worker',
           leafId: '11111111-1111-4111-8111-111111111111',
           preservePty: true,
@@ -117,6 +120,7 @@ describe('applyTerminalPaneCloseRequest', () => {
     expect(
       applyTerminalPaneCloseRequest({
         detail: {
+          worktreeId: 'worktree',
           tabId: 'legacy-worker',
           leafId: '11111111-1111-4111-8111-111111111111',
           preservePty: true,

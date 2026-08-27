@@ -637,6 +637,7 @@ export type TerminalSlice = {
   closeTab: (
     tabId: string,
     opts?: {
+      worktreeId?: string
       recordInteraction?: boolean
       reason?: TerminalTabCloseReason
       captureRecentlyClosed?: boolean
@@ -671,7 +672,7 @@ export type TerminalSlice = {
   setTabCustomTitle: (
     tabId: string,
     title: string | null,
-    opts?: { recordInteraction?: boolean }
+    opts?: { recordInteraction?: boolean; worktreeId?: string }
   ) => void
   setTabColor: (tabId: string, color: string | null) => void
   updateTabPtyId: (
@@ -1557,9 +1558,11 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
     const closeReason = opts?.reason ?? 'user'
     const retiresSession = closeReason === 'user' || closeReason === 'cleanup'
     const retirementPlan =
-      opts?.precomputedRetirementPlan?.tabId === tabId
+      opts?.precomputedRetirementPlan?.tabId === tabId &&
+      (opts?.worktreeId === undefined ||
+        opts.precomputedRetirementPlan.worktreeId === opts.worktreeId)
         ? opts.precomputedRetirementPlan
-        : buildTerminalTabRetirementPlan(get(), tabId)
+        : buildTerminalTabRetirementPlan(get(), tabId, opts?.worktreeId)
     let closingWorktreeId: string | null = null
 
     // Why: a parked tab has no mounted TerminalPane cleanup, so revoke its observer/candidate state before provider exit races.
@@ -1620,6 +1623,9 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       let closedTab: TerminalTab | null = null
       let closedWorktreeId: string | null = null
       for (const wId of Object.keys(next)) {
+        if (opts?.worktreeId !== undefined && wId !== opts.worktreeId) {
+          continue
+        }
         const before = next[wId]
         const closing = before.find((t) => t.id === tabId)
         if (closing) {
@@ -1681,12 +1687,21 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       delete nextDirectSshPaneRetryHistoryByTabId[tabId]
       // Why: keep the same reference when the closing tab had no unread flag, so unrelated closes don't force full-state selector re-eval.
       let nextUnreadTerminalTabs = s.unreadTerminalTabs
-      if (s.unreadTerminalTabs[tabId]) {
+      if (
+        s.unreadTerminalTabs[tabId] &&
+        (!opts?.worktreeId || closedWorktreeId === opts.worktreeId)
+      ) {
         nextUnreadTerminalTabs = { ...s.unreadTerminalTabs }
         delete nextUnreadTerminalTabs[tabId]
       }
       let nextUnreadTerminalPanes = s.unreadTerminalPanes
       for (const paneKey of Object.keys(s.unreadTerminalPanes)) {
+        if (opts?.worktreeId !== undefined) {
+          const record = s.sleepingAgentSessionsByPaneKey[paneKey]
+          if (record && record.worktreeId !== opts.worktreeId) {
+            continue
+          }
+        }
         if (paneKey.startsWith(`${tabId}:`)) {
           if (nextUnreadTerminalPanes === s.unreadTerminalPanes) {
             nextUnreadTerminalPanes = { ...s.unreadTerminalPanes }
@@ -1696,6 +1711,12 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       }
       let nextUnreadAgentCompletionPanes = s.unreadAgentCompletionPanes
       for (const paneKey of Object.keys(s.unreadAgentCompletionPanes)) {
+        if (opts?.worktreeId !== undefined) {
+          const record = s.sleepingAgentSessionsByPaneKey[paneKey]
+          if (record && record.worktreeId !== opts.worktreeId) {
+            continue
+          }
+        }
         if (paneKey.startsWith(`${tabId}:`)) {
           if (nextUnreadAgentCompletionPanes === s.unreadAgentCompletionPanes) {
             nextUnreadAgentCompletionPanes = { ...s.unreadAgentCompletionPanes }
@@ -1705,12 +1726,22 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       }
       const nextLastTerminalInputAtByPaneKey = { ...s.lastTerminalInputAtByPaneKey }
       for (const paneKey of Object.keys(nextLastTerminalInputAtByPaneKey)) {
+        if (opts?.worktreeId !== undefined) {
+          const record = s.sleepingAgentSessionsByPaneKey[paneKey]
+          if (record && record.worktreeId !== opts.worktreeId) {
+            continue
+          }
+        }
         if (paneKey.startsWith(`${tabId}:`)) {
           delete nextLastTerminalInputAtByPaneKey[paneKey]
         }
       }
       const nextSleepingAgentSessionsByPaneKey = retiresSession
-        ? removeSleepingAgentSessionsForTab(s.sleepingAgentSessionsByPaneKey, tabId)
+        ? removeSleepingAgentSessionsForTab(
+            s.sleepingAgentSessionsByPaneKey,
+            tabId,
+            opts?.worktreeId
+          )
         : s.sleepingAgentSessionsByPaneKey
       const nextPendingStartupByTabId = { ...s.pendingStartupByTabId }
       delete nextPendingStartupByTabId[tabId]
@@ -1736,6 +1767,9 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
       // Why: keep activeTabIdByWorktree in sync when closing a background-worktree tab, else the stale remembered tab falls back to tabs[0] on switch.
       const nextActiveTabIdByWorktree = { ...s.activeTabIdByWorktree }
       for (const [wId, tabs] of Object.entries(next)) {
+        if (opts?.worktreeId !== undefined && wId !== opts.worktreeId) {
+          continue
+        }
         if (nextActiveTabIdByWorktree[wId] === tabId) {
           nextActiveTabIdByWorktree[wId] = tabs[0]?.id ?? null
         }
@@ -1746,6 +1780,9 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
         ...s.tabBarOrderByWorktree
       }
       for (const wId of Object.keys(nextTabBarOrderByWorktree)) {
+        if (opts?.worktreeId !== undefined && wId !== opts.worktreeId) {
+          continue
+        }
         const order = nextTabBarOrderByWorktree[wId]
         if (order?.includes(tabId)) {
           nextTabBarOrderByWorktree[wId] = order.filter((entryId) => entryId !== tabId)
@@ -1774,7 +1811,11 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
 
       return {
         tabsByWorktree: next,
-        activeTabId: s.activeTabId === tabId ? null : s.activeTabId,
+        activeTabId:
+          s.activeTabId === tabId &&
+          (opts?.worktreeId === undefined || s.activeWorktreeId === opts.worktreeId)
+            ? null
+            : s.activeTabId,
         activeTabIdByWorktree: nextActiveTabIdByWorktree,
         ptyIdsByTabId: nextPtyIdsByTabId,
         lastKnownRelayPtyIdByTabId: nextLastKnownRelay,
@@ -1830,14 +1871,18 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
     })
     // Why shared with the paired snapshot apply: every path that removes a tab owes it the same sweep, and a second copy of the list is how one path silently misses a new entry.
     sweepRetiredTerminalTabState(get(), tabId, closingWorktreeId)
-    for (const tabs of Object.values(get().unifiedTabsByWorktree)) {
+    const unifiedTabs = opts?.worktreeId
+      ? [get().unifiedTabsByWorktree[opts.worktreeId] ?? []]
+      : Object.values(get().unifiedTabsByWorktree)
+    for (const tabs of unifiedTabs) {
       const workspaceItem = tabs.find(
         (entry) => entry.contentType === 'terminal' && entry.entityId === tabId
       )
       if (workspaceItem) {
         get().closeUnifiedTab(workspaceItem.id, {
           recordInteraction: opts?.recordInteraction,
-          terminalRetirementHandled: true
+          terminalRetirementHandled: true,
+          worktreeId: opts?.worktreeId ?? undefined
         })
       }
     }
@@ -2208,17 +2253,25 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   setTabCustomTitle: (tabId, title, opts) => {
     set((s) => {
       const next = { ...s.tabsByWorktree }
-      for (const wId of Object.keys(next)) {
+      const worktreeIds = opts?.worktreeId ? [opts.worktreeId] : Object.keys(next)
+      for (const wId of worktreeIds) {
+        if (!next[wId]) {
+          continue
+        }
         next[wId] = next[wId].map((t) => (t.id === tabId ? { ...t, customTitle: title } : t))
       }
       scheduleRuntimeGraphSync()
       return { tabsByWorktree: next }
     })
-    const item = Object.values(get().unifiedTabsByWorktree)
-      .flat()
-      .find((entry) => entry.contentType === 'terminal' && entry.entityId === tabId)
+    const item = opts?.worktreeId
+      ? (get().unifiedTabsByWorktree[opts.worktreeId] ?? []).find(
+          (entry) => entry.contentType === 'terminal' && entry.entityId === tabId
+        )
+      : Object.values(get().unifiedTabsByWorktree)
+          .flat()
+          .find((entry) => entry.contentType === 'terminal' && entry.entityId === tabId)
     if (item) {
-      get().setTabCustomLabel(item.id, title, opts)
+      get().setTabCustomLabel(item.id, title, { ...opts, worktreeId: opts?.worktreeId })
     }
   },
 

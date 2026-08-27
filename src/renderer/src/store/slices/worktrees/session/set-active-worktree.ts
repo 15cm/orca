@@ -3,7 +3,7 @@ import type { WorktreeSliceGet, WorktreeSliceSet } from '../listing/worktree-sli
 import type { AppState } from '../../../types'
 import type { WorktreeMeta } from '../../../../../../shared/worktree/meta-types'
 import { applyWorktreeUpdates } from '../../worktree-helpers'
-import { projectWorktreeTabModelReconciliation } from '../../tabs'
+import { projectWorktreeTabModelReconciliation, recordVisibleTopLevelTabFocus } from '../../tabs'
 import { moveFocusToRendererBeforeFocusedWebviewHidden } from '../../browser-webview-cleanup'
 import { tabHasLivePty } from '@/lib/tab-has-live-pty'
 import { markInputQuietSchedulerInput, scheduleAfterInputQuiet } from '@/lib/input-quiet-scheduler'
@@ -205,6 +205,11 @@ export function createSetActiveWorktree(
         ...tabsByWorktreeUpdate
       }
     })
+
+    if (worktreeId) {
+      const activeTab = get().getActiveTab?.(worktreeId)
+      recordVisibleTopLevelTabFocus(get(), worktreeId, activeTab?.id ?? null)
+    }
 
     if (worktreeId && shouldPrepareTerminalTabs) {
       const prepareTerminalTabs = (): void => {

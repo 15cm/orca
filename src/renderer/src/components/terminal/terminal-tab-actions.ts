@@ -37,6 +37,7 @@ export { closeOtherTerminalTabs, closeTerminalTabsToRight } from './terminal-tab
 export function closeTerminalTab(
   tabId: string,
   options?: {
+    worktreeId?: string
     force?: boolean
     rejectPinned?: boolean
     reason?: TerminalTabCloseReason
@@ -61,14 +62,21 @@ export function closeTerminalTab(
   const precomputedCloseState = validatePrecomputedTerminalCloseState(
     tabId,
     options?.precomputedRetirementPlan,
-    options?.precomputedCloseState
+    options?.precomputedCloseState,
+    options?.worktreeId
   )
-  const target = resolveTerminalCloseTarget(state, tabId, precomputedCloseState)
+  const target = resolveTerminalCloseTarget(
+    state,
+    tabId,
+    precomputedCloseState,
+    options?.worktreeId
+  )
   if (!target) {
     const closeReason = options?.reason ?? options?.hostCloseReason ?? 'user'
     if (closeReason !== 'pty-exit') {
       // Why: late explicit cleanup must still revoke tab-scoped resume authority after PTY exit removed the row.
       state.closeTab(tabId, {
+        ...(options?.worktreeId ? { worktreeId: options.worktreeId } : {}),
         reason: closeReason,
         ...(options?.localPtyTeardownOwnedExternally
           ? { localPtyTeardownOwnedExternally: true }
@@ -163,6 +171,7 @@ export function closeTerminalTab(
     // Why: prune local mirrors immediately so close feels responsive while the
     // host session snapshot catches up.
     closeLocalTerminalTabState(terminalTabId, {
+      worktreeId: owningWorktreeId,
       reason: options?.reason,
       ...(options?.captureRecentlyClosed !== undefined
         ? { captureRecentlyClosed: options.captureRecentlyClosed }
@@ -200,6 +209,7 @@ export function closeTerminalTab(
     precomputedCloseState?.terminalCountBeforeClose ?? currentTerminalTabIds!.length
   if (terminalCountBeforeClose <= 1) {
     closeLocalTerminalTabState(terminalTabId, {
+      worktreeId: owningWorktreeId,
       reason: options?.reason,
       ...(options?.captureRecentlyClosed !== undefined
         ? { captureRecentlyClosed: options.captureRecentlyClosed }
@@ -244,6 +254,7 @@ export function closeTerminalTab(
   }
 
   closeLocalTerminalTabState(terminalTabId, {
+    worktreeId: owningWorktreeId,
     reason: options?.reason,
     ...(options?.captureRecentlyClosed !== undefined
       ? { captureRecentlyClosed: options.captureRecentlyClosed }

@@ -26,15 +26,22 @@ describe('requestTerminalTabCloseFromRenderer', () => {
     const webContents = { isDestroyed: () => false, send: vi.fn() }
     const otherWebContents = {}
     const mainWindow = { isDestroyed: () => false, webContents }
-    const pending = requestTerminalTabCloseFromRenderer(mainWindow as never, 'tab-1', {
-      localPtyTeardownOwnedExternally: true
-    })
+    const pending = requestTerminalTabCloseFromRenderer(
+      mainWindow as never,
+      'worktree-1',
+      'tab-1',
+      {
+        localPtyTeardownOwnedExternally: true
+      }
+    )
     const request = webContents.send.mock.calls[0]?.[1] as {
       requestId: string
+      worktreeId: string
       tabId: string
       localPtyTeardownOwnedExternally?: boolean
     }
 
+    expect(request.worktreeId).toBe('worktree-1')
     expect(request.tabId).toBe('tab-1')
     expect(request.localPtyTeardownOwnedExternally).toBe(true)
     ipcEmitter.emit(
@@ -63,6 +70,7 @@ describe('requestTerminalTabCloseFromRenderer', () => {
     const webContents = { isDestroyed: () => false, send: vi.fn() }
     const pending = requestTerminalTabCloseFromRenderer(
       { isDestroyed: () => false, webContents } as never,
+      'worktree-1',
       'tab-pinned'
     )
     const request = webContents.send.mock.calls[0]?.[1] as { requestId: string }

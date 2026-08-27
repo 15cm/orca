@@ -253,7 +253,8 @@ describe('closeTerminalTab', () => {
 
     expect(closeTab).toHaveBeenCalledWith('local-tab-1', {
       reason: undefined,
-      remoteCloseOwnedByHost: true
+      remoteCloseOwnedByHost: true,
+      worktreeId: 'wt-1'
     })
     expect(closeWebRuntimeSessionTabMock).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
@@ -337,7 +338,8 @@ describe('closeTerminalTab', () => {
 
     expect(closeTab).toHaveBeenCalledWith('local-tab-1', {
       reason: undefined,
-      remoteCloseOwnedByHost: true
+      remoteCloseOwnedByHost: true,
+      worktreeId: 'wt-1'
     })
     expect(closeWebRuntimeSessionTabMock).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
@@ -449,7 +451,10 @@ describe('closeTerminalTab', () => {
 
     closeTerminalTab('terminal-entity-1')
 
-    expect(closeTab).toHaveBeenCalledWith('terminal-entity-1', { reason: undefined })
+    expect(closeTab).toHaveBeenCalledWith('terminal-entity-1', {
+      reason: undefined,
+      worktreeId: 'wt-1'
+    })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
 
@@ -505,7 +510,10 @@ describe('closeTerminalTab', () => {
     closeTerminalTab('terminal-entity-1')
 
     expect(setActiveTab).toHaveBeenCalledWith('terminal-entity-2')
-    expect(closeTab).toHaveBeenCalledWith('terminal-entity-1', { reason: undefined })
+    expect(closeTab).toHaveBeenCalledWith('terminal-entity-1', {
+      reason: undefined,
+      worktreeId: 'wt-1'
+    })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
 
@@ -533,7 +541,8 @@ describe('closeTerminalTab', () => {
 
     expect(closeTab).toHaveBeenCalledWith('plain-uuid-tab', {
       reason: undefined,
-      remoteCloseOwnedByHost: true
+      remoteCloseOwnedByHost: true,
+      worktreeId: 'wt-1'
     })
     expect(closeWebRuntimeSessionTabMock).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
@@ -621,7 +630,10 @@ describe('closeTerminalTab', () => {
     const { onConfirm } = requestPinnedTabCloseConfirm.mock.calls[0][0] as { onConfirm: () => void }
     onConfirm()
 
-    expect(closeTab).toHaveBeenCalledWith('pinned-entity-1', { reason: undefined })
+    expect(closeTab).toHaveBeenCalledWith('pinned-entity-1', {
+      reason: undefined,
+      worktreeId: 'wt-1'
+    })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
     expect(onClosed).toHaveBeenCalledTimes(1)
   })
@@ -704,7 +716,10 @@ describe('closeTerminalTab', () => {
     closeTerminalTab('pinned-entity-1')
 
     expect(requestPinnedTabCloseConfirm).not.toHaveBeenCalled()
-    expect(closeTab).toHaveBeenCalledWith('pinned-entity-1', { reason: undefined })
+    expect(closeTab).toHaveBeenCalledWith('pinned-entity-1', {
+      reason: undefined,
+      worktreeId: 'wt-1'
+    })
     expect(closeUnifiedTab).not.toHaveBeenCalled()
   })
 
@@ -728,7 +743,7 @@ describe('closeTerminalTab', () => {
     // closeTerminalTab; a self-exited shell must not join the reopen stack.
     closeTerminalTab('tab-1', { reason: 'pty-exit' })
 
-    expect(closeTab).toHaveBeenCalledWith('tab-1', { reason: 'pty-exit' })
+    expect(closeTab).toHaveBeenCalledWith('tab-1', { reason: 'pty-exit', worktreeId: 'wt-1' })
   })
 
   it('threads parked-exit history suppression through to closeTab', () => {
@@ -747,7 +762,11 @@ describe('closeTerminalTab', () => {
 
     closeTerminalTab('tab-1', { captureRecentlyClosed: false })
 
-    expect(closeTab).toHaveBeenCalledWith('tab-1', { captureRecentlyClosed: false })
+    expect(closeTab).toHaveBeenCalledWith('tab-1', {
+      captureRecentlyClosed: false,
+      reason: undefined,
+      worktreeId: 'wt-1'
+    })
   })
 
   it('keeps the plain user-close call shape when no close options are given', () => {

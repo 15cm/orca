@@ -3,6 +3,16 @@ import type { WebContents } from 'electron'
 
 const windowsById = new Map<number, BrowserWindow>()
 let lastActiveWindowId: number | null = null
+let tabFocusSequence = 0
+const tabFocusHistory = new Map<string, number>()
+
+function getTabFocusHistoryKey(windowId: number, worktreeId: string, tabId: string): string {
+  return JSON.stringify([windowId, worktreeId, tabId])
+}
+
+function getWindowTabFocusHistoryPrefix(windowId: number): string {
+  return `${JSON.stringify([windowId]).slice(0, -1)},`
+}
 
 function isLiveWindow(window: BrowserWindow | null | undefined): window is BrowserWindow {
   return Boolean(window && (typeof window.isDestroyed !== 'function' || !window.isDestroyed()))
@@ -32,6 +42,12 @@ function forgetWindow(window: BrowserWindow): void {
   if (lastActiveWindowId === window.id) {
     lastActiveWindowId = getMainWindows().at(-1)?.id ?? null
   }
+  const historyPrefix = getWindowTabFocusHistoryPrefix(window.id)
+  for (const key of tabFocusHistory.keys()) {
+    if (key.startsWith(historyPrefix)) {
+      tabFocusHistory.delete(key)
+    }
+  }
 }
 
 export function registerMainWindow(window: BrowserWindow): void {
@@ -44,6 +60,26 @@ export function registerMainWindow(window: BrowserWindow): void {
   }
   window.on('focus', onFocus)
   window.once('closed', onClosed)
+}
+
+export function recordMainWindowTabFocus(
+  window: BrowserWindow,
+  worktreeId: string,
+  tabId: string
+): void {
+  if (!isLiveWindow(window) || windowsById.get(window.id) !== window) {
+    return
+  }
+  tabFocusSequence += 1
+  tabFocusHistory.set(getTabFocusHistoryKey(window.id, worktreeId, tabId), tabFocusSequence)
+}
+
+export function getMainWindowTabFocusSequence(
+  windowId: number,
+  worktreeId: string,
+  tabId: string
+): number | null {
+  return tabFocusHistory.get(getTabFocusHistoryKey(windowId, worktreeId, tabId)) ?? null
 }
 
 export function getMainWindows(): BrowserWindow[] {
