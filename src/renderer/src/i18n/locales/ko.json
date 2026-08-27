@@ -2711,6 +2711,14 @@
             "d9f3c6e2a4": "데스크톱 키보드가 일시 중지되었습니다. 여기서 입력하려면 이 terminals을 다시 가져오거나, 휴대폰이 제어하는 모든 terminals을 다시 가져오거나, 계속 보려면 접으세요.",
             "a6b1d8f3e2": "휴대폰 세션이 종료되었습니다. 이 terminals 또는 휴대폰이 휴대폰 크기로 남긴 모든 terminals을 데스크톱 크기로 복원하세요."
           },
+          "ForeignWindowPaneOverlay": {
+            "eyebrow": "다른 창",
+            "runningInFreeWindow": "다른 창에서 실행 중",
+            "runningInProjectWindowUnnamed": "다른 프로젝트 창에서 실행 중",
+            "runningInProjectWindow": "{{project}} 창에서 실행 중",
+            "body": "출력은 그 창으로 전달됩니다. 여기 보이는 것은 스냅샷입니다. 터미널을 여기로 가져오면 실시간으로 보고 입력할 수 있습니다.",
+            "bringHere": "여기로 가져오기"
+          },
           "TerminalAgentSessionForkDialog": {
             "17fc841e59": "컨텍스트 복사",
             "0c8a8629b1": "포크는 중첩된 하위 항목이 아닌 자체 워크스페이스로 나타납니다. 새 agent는 편집 가능한 초안으로 한정된 기록을 받습니다.",

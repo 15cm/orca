@@ -1,9 +1,19 @@
 import { installRuntimeLinearCommandSurface } from './runtime-linear-command-surface'
 import { OrcaRuntimeWithResolveWaiter } from './orca-runtime-resolve-waiter'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
+import type { PtyOwnerWindowChange } from './window-pty-ownership-priority'
 
 class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
   private readonly ptyOwnerWindowById = new Map<string, number>()
+  private readonly onPtyOwnerWindowsChanged?: (changes: PtyOwnerWindowChange[]) => void
+
+  constructor(...args: ConstructorParameters<typeof OrcaRuntimeWithResolveWaiter>) {
+    super(...args)
+    const deps = args[2] as
+      | { onPtyOwnerWindowsChanged?: (changes: PtyOwnerWindowChange[]) => void }
+      | undefined
+    this.onPtyOwnerWindowsChanged = deps?.onPtyOwnerWindowsChanged
+  }
 
   resolveOwnerWindowIdForPtyId(ptyId: string): number | null {
     return this.ptyOwnerWindowById.get(ptyId) ?? null
@@ -14,7 +24,31 @@ class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
   }
 
   registerPtyOwnerWindow(ptyId: string, windowId: number): void {
+    const previousWindowId = this.ptyOwnerWindowById.get(ptyId) ?? null
     this.ptyOwnerWindowById.set(ptyId, windowId)
+    if (previousWindowId !== windowId) {
+      this.onPtyOwnerWindowsChanged?.([{ ptyId, previousWindowId, nextWindowId: windowId }])
+    }
+  }
+
+  claimPtyOwnerWindow(
+    ptyId: string,
+    windowId: number
+  ): 'claimed' | 'already-owner' | 'unavailable' {
+    if (!this.ptyOwnerWindowById.has(ptyId)) {
+      return 'unavailable'
+    }
+    const previousWindowId = this.ptyOwnerWindowById.get(ptyId) ?? null
+    if (previousWindowId === windowId) {
+      return 'already-owner'
+    }
+    this.ptyOwnerWindowById.set(ptyId, windowId)
+    this.onPtyOwnerWindowsChanged?.([{ ptyId, previousWindowId, nextWindowId: windowId }])
+    return 'claimed'
+  }
+
+  listPtyOwnerWindows(): { ptyId: string; windowId: number }[] {
+    return Array.from(this.ptyOwnerWindowById, ([ptyId, windowId]) => ({ ptyId, windowId }))
   }
 
   senderWindowOwnsTerminalHandle(handle: string, senderWindowId: number): boolean {

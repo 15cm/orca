@@ -2721,6 +2721,14 @@
             "d9f3c6e2a4": "桌面键盘已暂停。收回此终端以在此输入，收回手机控制的所有终端，或折叠以继续观看。",
             "a6b1d8f3e2": "手机会话已结束。将此终端或手机留在手机尺寸的所有终端恢复为桌面尺寸。"
           },
+          "ForeignWindowPaneOverlay": {
+            "eyebrow": "另一个窗口",
+            "runningInFreeWindow": "正在另一个窗口中运行",
+            "runningInProjectWindowUnnamed": "正在另一个项目窗口中运行",
+            "runningInProjectWindow": "正在 {{project}} 窗口中运行",
+            "body": "输出会发送到那个窗口；这里看到的只是快照。把终端移到这里即可实时查看并输入。",
+            "bringHere": "移到这里"
+          },
           "TerminalAgentSessionForkDialog": {
             "17fc841e59": "复制上下文",
             "0c8a8629b1": "派生会话会显示为独立工作区，而非嵌套子项。新智能体会收到一份有界转录稿，可作为可编辑草稿。",

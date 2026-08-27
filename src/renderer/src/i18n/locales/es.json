@@ -2706,6 +2706,14 @@
             "d9f3c6e2a4": "El teclado de escritorio está en pausa. Recupera este terminal para escribir aquí, recupera todos los terminales que controla tu teléfono o contrae para seguir observando.",
             "a6b1d8f3e2": "La sesión del teléfono terminó. Restaura el tamaño de escritorio para este terminal o para todos los terminales que tu teléfono dejó en tamaño móvil."
           },
+          "ForeignWindowPaneOverlay": {
+            "eyebrow": "Otra ventana",
+            "runningInFreeWindow": "Corriendo en otra ventana",
+            "runningInProjectWindowUnnamed": "Corriendo en la ventana de otro proyecto",
+            "runningInProjectWindow": "Corriendo en la ventana de {{project}}",
+            "body": "La salida va a esa ventana; lo que ves acá es una instantánea. Traé la terminal acá para verla en vivo y escribir en ella.",
+            "bringHere": "Traer acá"
+          },
           "TerminalAgentSessionForkDialog": {
             "17fc841e59": "Copiar contexto",
             "0c8a8629b1": "El fork aparece como su propio espacio de trabajo, no como un hijo anidado. El nuevo agente recibe una transcripción acotada como borrador editable.",

@@ -1,4 +1,5 @@
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
+import { getMainWindowForWebContents } from '../../../window/main-window-registry'
 import { getRuntimeDesktopSurface } from '../../../runtime/runtime-desktop-surface'
 import type { PtyIpcSession } from '../session'
 
@@ -16,4 +17,18 @@ export function getPtyRendererWindow(session: PtyIpcSession, id: string): Browse
   const webContentsDestroyed =
     typeof target.webContents.isDestroyed === 'function' && target.webContents.isDestroyed()
   return webContentsDestroyed ? null : target
+}
+
+// Why: after a hand-off the previous owner's late cumulative ACKs describe bytes the new owner
+// never saw; crediting them would open the in-flight window on bytes still unparsed there.
+export function isPtyOwnerWindowSender(
+  session: PtyIpcSession,
+  sender: WebContents,
+  id: string
+): boolean {
+  const ownerWindowId = session.runtime?.resolveOwnerWindowIdForPtyId?.(id) ?? null
+  if (ownerWindowId === null) {
+    return true
+  }
+  return getMainWindowForWebContents(sender)?.id === ownerWindowId
 }

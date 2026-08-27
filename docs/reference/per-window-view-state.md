@@ -107,6 +107,60 @@ Scoped windows do not survive a restart in this phase: nothing records which one
 the next launch opens the usual free window. Reopening the project from the group header restores
 the same filter because it is derived, not stored.
 
+## Terminal ownership: which window a PTY delivers to
+
+Every main window publishes its own renderer graph, and a project window and a free window
+routinely publish the **same** tabs, leaves and PTYs. The runtime keeps one aggregate graph and
+an owner index per entry (`rebuildOwnerWindowIndexes` in `orca-runtime.ts`); `pty:data` is
+delivered only to the PTY's owner (`ipc/pty/delivery/owner-window.ts`), and every other window
+that renders that pane is a **mirror**. The owner is resolved in three tiers, highest first
+(`src/main/runtime/window-pty-ownership-priority.ts`):
+
+1. **An explicit claim** — the user pressed _Bring here_ on a mirrored pane. In memory only; it
+   dies with the claiming window (`clearTransientPtyOwnersForWindow`) or with the PTY
+   (`clearOwnerWindowForPty`), and no rebind or later rebuild can undo it.
+2. **Project scope** — the window bound to project group P owns every tab, leaf and PTY whose
+   worktree belongs to P, git worktree (through the repo's `projectGroupId`) or folder workspace
+   alike. A worktree that resolves to no group is left alone. Scopes are singletons per group and
+   a worktree belongs to one group, so two scoped windows never contest an entry.
+3. **Arrival order** — the first window that published it, which is the pre-multi-window rule and
+   the only one that runs with the flag off (the runtime then has no scope resolver at all).
+
+A window can only win what it actually publishes in any tier. The runtime learns a window's scope
+through an injected resolver (`resolveWindowProjectGroupId`, wired in `main/index.ts` from
+`window-view-state-registry`), never by importing `main/window`; a rebind re-resolves through
+`setWindowScopeRebindListener` → `handleWindowScopesChanged`.
+
+### What a hand-off does
+
+`onPtyOwnerWindowsChanged` reports every owner change to `ipc/pty/delivery/owner-transfer.ts`:
+
+- **Backpressure credit is per PTY and per renderer.** Bytes in flight to the previous owner can
+  never be ACKed by the new one, so `settleRendererDeliveryForOwnerTransfer` repays that credit
+  once, drops the pending backlog (the restore below repaints it) and deletes the accounting entry
+  so the next send restarts the cumulative baseline. `pty:ackData` only credits ACKs from the
+  owning window, so the previous owner's late ACKs cannot re-open the window; on becoming owner
+  the renderer resets its own cumulative total (`onPtyBecameOwnedByThisWindow`).
+- **The new owner repaints from the model.** A `pty:modelRestoreNeeded` marker with reason
+  `owner-change` reuses the existing snapshot/restore path, so the pane shows the current state,
+  not the scrollback it froze on.
+- **Every window learns its view.** `pty:windowOwnershipChanged` carries, per window,
+  `ownedByThisWindow` and the owner's scope; `pty:getWindowOwnership` is the hydration query.
+  Nothing is sent while scoped windows are off.
+
+### What a mirror shows
+
+A pane whose PTY is owned elsewhere renders `ForeignWindowPaneOverlay` ("Running in the
+<project> window" / "Running in another window") with a single _Bring here_ action
+(`pty:claimOwnerWindow`). The overlay is symmetric: after a claim the pane in the window that
+lost the PTY shows the same notice pointing at the new owner, with its own button, so the user can
+move a terminal back and forth. The scope is purely a client-side delivery choice — an SSH PTY
+keeps running on its execution host, and losing contact with that host neither claims nor
+releases anything.
+
+Multi-window delivery (the same PTY live in two windows) is deliberately not this: the
+accounting assumes one consumer. This picks the one owner well and makes the mirror honest.
+
 ## Paired web client and host RPC
 
 The paired client's `ui.set` RPC still writes the host profile blob (it is an implicit window and,

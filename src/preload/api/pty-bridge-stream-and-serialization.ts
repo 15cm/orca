@@ -3,8 +3,24 @@ import type { PtyModelRestoreNeededEvent } from '../../shared/pty-model-restore-
 import type { TerminalSideEffectBatch } from '../../shared/terminal-side-effect-facts'
 import type { PreloadApi } from '../api-types'
 import type { TerminalProcessInspection } from '../../shared/terminal-process-inspection'
+import type {
+  PtyWindowOwnershipEntry,
+  PtyClaimOwnerWindowResult
+} from '../../shared/pty-window-ownership'
 
 export const ptyStreamAndSerializationApi = {
+  getWindowOwnership: (): Promise<PtyWindowOwnershipEntry[]> =>
+    ipcRenderer.invoke('pty:getWindowOwnership'),
+  claimOwnerWindow: (id: string): Promise<PtyClaimOwnerWindowResult> =>
+    ipcRenderer.invoke('pty:claimOwnerWindow', { id }),
+  onWindowOwnershipChanged: (
+    callback: (entries: PtyWindowOwnershipEntry[]) => void
+  ): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, entries: PtyWindowOwnershipEntry[]) =>
+      callback(entries)
+    ipcRenderer.on('pty:windowOwnershipChanged', listener)
+    return () => ipcRenderer.removeListener('pty:windowOwnershipChanged', listener)
+  },
   inspectProcess: (
     id: string,
     options?: {

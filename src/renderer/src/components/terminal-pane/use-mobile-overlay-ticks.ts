@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { onDriverChange } from '@/lib/pane-manager/mobile-driver-state'
 import { onOverrideChange } from '@/lib/pane-manager/mobile-fit-overrides'
+import { onPtyWindowOwnershipChange } from '@/lib/pane-manager/pty-window-ownership-state'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import { safeFit } from '@/lib/pane-manager/pane-tree-ops'
 import { applyDesktopFitFallbackAfterReplay } from './desktop-fit-fallback'
@@ -146,6 +147,20 @@ export function useMobileOverlayTicks({ managerRef, paneTransportsRef }: MobileO
           return
         }
         setDriverTick((n) => n + 1)
+      }),
+    [paneTransportsRef]
+  )
+
+  // Why: same shape for window ownership — a pane flips between live and mirror without any
+  // pane-manager state changing, so only this tick can show or drop the foreign-window notice.
+  const [, setOwnershipTick] = useState(0)
+  useEffect(
+    () =>
+      onPtyWindowOwnershipChange((event) => {
+        if (!isPtyMountedInTab(paneTransportsRef.current, event.ptyId)) {
+          return
+        }
+        setOwnershipTick((n) => n + 1)
       }),
     [paneTransportsRef]
   )

@@ -88,6 +88,8 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
       }) => string | null | Promise<string | null>
       buildAgentHookPtyEnv?: () => Record<string, string>
       getDesktopWindowStatus?: () => RuntimeDesktopWindowStatus
+      resolveWindowProjectGroupId?: (windowId: number) => string | null
+      onPtyOwnerWindowsChanged?: (changes: unknown[]) => void
       agentSessionClaimSigner?: AgentSessionClaimSigner
       skillTransactionRecovery?: Promise<unknown>
       orchestrationEnvironmentTransport?: OrchestrationEnvironmentTransport

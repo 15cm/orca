@@ -18,6 +18,7 @@ import { TerminalPaneNativeChatPortal } from './TerminalPaneNativeChatPortal'
 import {
   TerminalPaneCodexRestartPortals,
   TerminalPaneMobileDriverPortals,
+  TerminalPaneForeignWindowPortals,
   TerminalPaneProcessExitPortals,
   TerminalPaneRecoveryPortals,
   TerminalPaneSshReconnectPortals
@@ -332,6 +333,7 @@ export function TerminalPaneSurface({
       />
       <TerminalPaneRecoveryPortals controller={controller} />
       <TerminalPaneMobileDriverPortals controller={controller} />
+      <TerminalPaneForeignWindowPortals controller={controller} />
       <CloseTerminalDialog
         open={pendingCloseConfirmation !== null}
         copyKind={pendingCloseConfirmation?.copyKind}

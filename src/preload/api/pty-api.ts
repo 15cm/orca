@@ -8,6 +8,10 @@ import type { PtyListedSession, PtySessionListScope } from '../../shared/pty-lis
 import type { PtyMainDeliveryDiagnostics } from '../../shared/pty-delivery-diagnostics'
 import type { PtyModelRestoreNeededEvent } from '../../shared/pty-model-restore-marker'
 import type {
+  PtyClaimOwnerWindowResult,
+  PtyWindowOwnershipEntry
+} from '../../shared/pty-window-ownership'
+import type {
   PtyRendererDeliveryHealthReply,
   PtyRendererDeliveryStateReport
 } from '../../shared/pty-renderer-delivery-health'
@@ -84,6 +88,11 @@ export type PtyApi = {
   ackColdRestore: (id: string) => void
   ackData: (id: string, charCount: number, processedChars?: number) => void
   onDeliveryResyncRequest: (callback: (payload: { requestId: number }) => void) => () => void
+  /** Which window each PTY delivers to, from this window's point of view (shared/pty-window-ownership). */
+  getWindowOwnership?: () => Promise<PtyWindowOwnershipEntry[]>
+  /** "Bring here": take a PTY this window renders as a mirror. */
+  claimOwnerWindow?: (id: string) => Promise<PtyClaimOwnerWindowResult>
+  onWindowOwnershipChanged?: (callback: (entries: PtyWindowOwnershipEntry[]) => void) => () => void
   respondDeliveryResync: (payload: {
     requestId: number
     processedCharsByPty: Record<string, number>

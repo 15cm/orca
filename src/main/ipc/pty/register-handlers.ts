@@ -50,7 +50,9 @@ import { configureLocalPtyProvider } from './provider/local-configure'
 import { bindProviderListeners } from './provider/bind-listeners'
 import { installSessionSshOutputIntake } from './delivery/ssh-intake'
 import { installPtySerializeBufferIpc } from './ipc/serialize-buffer'
+import { installPtyWindowOwnershipIpc } from './delivery/owner-transfer'
 import { installPtyResizeVisibilityIpc } from './ipc/resize-visibility'
+import { installPtyAckCreditIpc } from './ipc/ack-credit'
 import { adoptStablePane } from './pane/adopt-stable'
 import { getPtyIpc } from '../pty-host-bindings'
 import {
@@ -165,6 +167,7 @@ export function registerPtyHandlers(
   bindProviderListeners(session)
   setRebindProviderListeners(() => bindProviderListeners(session))
   installPtySerializeBufferIpc(session)
+  installPtyWindowOwnershipIpc(session)
 
   // Why: reload/crash orphans delivery-interest holds and hidden marks; reset so surviving PTYs aren't stuck force-fed or gated — each pane's first sync re-marks.
   clearRendererGateResetHandlers()
@@ -288,6 +291,7 @@ export function registerPtyHandlers(
     clearHiddenRendererResizeOutput: session.clearHiddenRendererResizeOutput
   })
   installPtyResizeVisibilityIpc(session)
+  installPtyAckCreditIpc(session)
   installPtyInspectIpcHandlers({ getLocalPtyProviderStartupPromise })
   installPtyKillIpcHandler({
     store,

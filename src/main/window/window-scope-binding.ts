@@ -31,6 +31,14 @@ export const WINDOW_SCOPE_CHANGED_CHANNEL = 'ui:windowScopeChanged'
 
 type SeedViewState = () => WindowViewState
 
+// Why: the runtime's owner index ranks windows by scope, so every rebind must re-resolve it.
+// A listener (set once at startup) keeps this module free of runtime imports.
+let windowScopeRebindListener: (() => void) | null = null
+
+export function setWindowScopeRebindListener(listener: (() => void) | null): void {
+  windowScopeRebindListener = listener
+}
+
 export function getWindowScopeSnapshotForWebContents(webContentsId: number): WindowScopeSnapshot {
   return {
     scope: resolveWindowScopeForWebContents(webContentsId),
@@ -109,6 +117,7 @@ export function bindWindowToProjectGroup(
   }
   setMainWindowProjectLabel(window, args.projectLabel)
   notifyWindowScopeChanged(window, seed)
+  windowScopeRebindListener?.()
   return { status: 'bound', scope }
 }
 
@@ -126,6 +135,7 @@ export function releaseWindowScope(
   rebindWebContentsToWindowId(window.webContents.id, createWindowId())
   setMainWindowProjectLabel(window, null)
   notifyWindowScopeChanged(window, seed)
+  windowScopeRebindListener?.()
   return { status: 'released' }
 }
 

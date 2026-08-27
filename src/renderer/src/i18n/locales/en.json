@@ -3098,6 +3098,14 @@
             "d9f3c6e2a4": "Desktop keyboard is paused. Take back this terminal to type here, take back all terminals your phone controls, or collapse to keep watching.",
             "a6b1d8f3e2": "Your phone session ended. Restore to desktop size for this terminal, or for all terminals your phone left at phone size."
           },
+          "ForeignWindowPaneOverlay": {
+            "eyebrow": "Another window",
+            "runningInFreeWindow": "Running in another window",
+            "runningInProjectWindowUnnamed": "Running in another project window",
+            "runningInProjectWindow": "Running in the {{project}} window",
+            "body": "Output goes to that window; what you see here is a snapshot. Bring the terminal here to watch it live and type into it.",
+            "bringHere": "Bring here"
+          },
           "TerminalAgentSessionForkDialog": {
             "17fc841e59": "Copy context",
             "0c8a8629b1": "The fork appears as its own workspace, not as a nested child. The new agent receives a bounded transcript as an editable draft.",

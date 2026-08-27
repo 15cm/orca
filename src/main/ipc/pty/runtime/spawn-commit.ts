@@ -265,6 +265,8 @@ export async function commitRuntimePtySpawn(ctx: RuntimePtySpawnState) {
     })
   }
   // Why: runtime-owned/background spawns bypass mounted-pane state, so inventory consumers need an explicit signal.
+  // PTY delivery ownership follows the window that completed its spawn.
+  ctx.deps.runtime?.registerPtyOwnerWindow(ctx.result.id, ctx.deps.mainWindow.id)
   ctx.deps.sendPtySpawnedToRenderer(ctx.result.id)
   if (!args.connectionId) {
     ctx.deps.options?.onCodexHomePtySpawned?.({

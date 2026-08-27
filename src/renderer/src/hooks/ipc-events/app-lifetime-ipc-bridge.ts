@@ -12,6 +12,7 @@ import { createDirectSshBridgeRuntime } from './direct-ssh-bridge-runtime'
 import { registerDirectSshStateIpcBridge } from './direct-ssh-state-ipc-bridge'
 import { registerMobileAndTerminalCloseIpcBridge } from './mobile-terminal-close-ipc-bridge'
 import { registerMobileDriverIpcBridge } from './mobile-driver-ipc-bridge'
+import { registerPtyWindowOwnershipIpcBridge } from './pty-window-ownership-ipc-bridge'
 import { registerOrcaProfileAuthIpcBridge } from './orca-profile-auth-ipc-bridge'
 import { registerOsMarkdownFileOpenBridge } from './os-markdown-file-open-bridge'
 import { registerProjectCatalogIpcBridge } from './project-catalog-ipc-bridge'
@@ -44,6 +45,7 @@ function remountTerminalTabsAwaitingHostHydration(): void {
 export type IpcEventsCleanupPhase =
   | 'agent.disposeAsyncState'
   | 'mobile.disposeHydration'
+  | 'ptyWindowOwnership.disposeHydration'
   | 'runtimeStore.unsubscribe'
   | 'agentStore.unsubscribe'
   | 'ipc.dispose'
@@ -120,12 +122,18 @@ export function installAppLifetimeIpcEvents(
     unsubs,
     isRuntimeEnvironmentActive
   )
+  const disposePtyWindowOwnershipHydration = registerPtyWindowOwnershipIpcBridge(
+    unsubs,
+    isRuntimeEnvironmentActive
+  )
 
   return () => {
     agentStatusBridge.disposeAsyncState()
     onCleanupPhase?.('agent.disposeAsyncState')
     disposeMobileDriverHydration()
     onCleanupPhase?.('mobile.disposeHydration')
+    disposePtyWindowOwnershipHydration()
+    onCleanupPhase?.('ptyWindowOwnership.disposeHydration')
     unsubscribeRuntimeEnvironmentStore()
     onCleanupPhase?.('runtimeStore.unsubscribe')
     agentStatusBridge.unsubscribeStore()

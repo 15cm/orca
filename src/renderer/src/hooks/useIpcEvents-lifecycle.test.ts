@@ -21,6 +21,7 @@ const EXPECTED_DIRECT_CALLBACK_METHODS = [
   'keybindings.onChanged',
   'orcaProfiles.onAuthStatusChanged',
   'pty.onExit',
+  'pty.onWindowOwnershipChanged',
   'rateLimits.onUpdate',
   'remoteWorkspace.onChanged',
   'repos.onChanged',
@@ -203,7 +204,8 @@ const EXPECTED_CALLBACK_REGISTRATION_SEQUENCE = [
   'runtime.onNativeChatLaunchDraftResolved',
   'runtime.onBrowserDriverChanged',
   'runtime.onBrowserRemoteViewersChanged',
-  'runtime.onClientHostedBrowserRowsChanged'
+  'runtime.onClientHostedBrowserRowsChanged',
+  'pty.onWindowOwnershipChanged'
 ] as const
 
 type ListenerRecord = {
@@ -470,9 +472,10 @@ describe('useIpcEvents App-lifetime lifecycle', () => {
       .filter((entry) => entry.startsWith('ipc.') && entry !== 'ipc.dispose')
       .map((entry) => entry.slice('ipc.'.length))
     expect(ipcCleanupOrder).toEqual(EXPECTED_CALLBACK_REGISTRATION_SEQUENCE)
-    expect(cleanupOrder.slice(0, 6)).toEqual([
+    expect(cleanupOrder.slice(0, 7)).toEqual([
       'agent.disposeAsyncState',
       'mobile.disposeHydration',
+      'ptyWindowOwnership.disposeHydration',
       'store.unsubscribe.0',
       'runtimeStore.unsubscribe',
       'store.unsubscribe.1',

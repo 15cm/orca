@@ -111,6 +111,50 @@ export function applyCumulativeAck(
   return acknowledged
 }
 
+/**
+ * The PTY now delivers to another window. Bytes in flight to the previous owner can never be
+ * ACKed against the new owner's counters, so settle them once (renderer accounting + provider
+ * credit) and drop the entry: the next send restarts the cumulative baseline the new renderer
+ * counts from. Pending bytes go with them — the owner-change restore marker repaints everything
+ * up to the current sequence from the model, so flushing them would double-paint.
+ */
+export function settleRendererDeliveryForOwnerTransfer(
+  session: PtyIpcSession,
+  id: string
+): { settledChars: number; droppedPendingChars: number } {
+  let settledChars = 0
+  const accounting = session.rendererDeliveryAccountingByPty.get(id)
+  if (accounting) {
+    settledChars = applyCumulativeAck(session, id, accounting.sentChars)
+    if (settledChars > 0) {
+      tryGetProviderForPty(id)?.acknowledgeDataEvent(id, settledChars)
+    }
+    session.rendererDeliveryAccountingByPty.delete(id)
+  }
+  let droppedPendingChars = 0
+  const pending = session.pendingData.get(id)
+  if (pending) {
+    if (pending.projectionAdmissionIds) {
+      session.sshOutputIntake?.transferProjections(
+        pending.projectionAdmissionIds,
+        'renderer-owner-transfer'
+      )
+    }
+    droppedPendingChars = pending.data.length
+    session.pendingDroppedChars += droppedPendingChars
+    deletePendingPtyData(session, id)
+    session.pendingOverflowMarkedPtys.delete(id)
+    session.updateProducerFlowControl(id)
+  }
+  if (settledChars > 0 || droppedPendingChars > 0) {
+    mainDeliveryBreadcrumbs.record('delivery-owner-transfer', {
+      settledChars,
+      droppedPendingChars
+    })
+  }
+  return { settledChars, droppedPendingChars }
+}
+
 export function schedulePendingDataAfterCreditReport(
   session: PtyIpcSession,
   creditedAny: boolean

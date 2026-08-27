@@ -231,7 +231,10 @@ export async function loadIpcEventsHarness(
         mobile: createApiNamespaceStub({
           consumePendingUnpairedDeviceAuthFailure: () => Promise.resolve(false)
         }),
-        remoteWorkspace: createApiNamespaceStub({ clientId: () => Promise.resolve(null) })
+        remoteWorkspace: createApiNamespaceStub({ clientId: () => Promise.resolve(null) }),
+        // Why explicit: the namespace auto-fill returns `() => {}`, which passes the bridge's
+        // `typeof === 'function'` guard and then dies on `.then`.
+        pty: createApiNamespaceStub({ getWindowOwnership: () => Promise.resolve([]) })
       } as Record<string, unknown>,
       { get: (target, prop: string) => target[prop] ?? createApiNamespaceStub() }
     )

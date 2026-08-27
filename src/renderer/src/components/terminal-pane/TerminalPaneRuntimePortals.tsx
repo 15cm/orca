@@ -4,11 +4,15 @@ import { TerminalSshReconnectOverlay } from './TerminalSshReconnectOverlay'
 import { TerminalRemoteRuntimeReconnectBanner } from './TerminalRemoteRuntimeReconnectBanner'
 import { TerminalProcessExitOverlay } from './TerminalProcessExitOverlay'
 import { MobileDriverOverlay } from './MobileDriverOverlay'
+import { ForeignWindowPaneOverlay } from './ForeignWindowPaneOverlay'
+import { shouldShowForeignWindowPaneOverlay } from './foreign-window-pane-overlay-visibility'
 import { getDriverForPty } from '@/lib/pane-manager/mobile-driver-state'
 import { getFitOverrideForPty } from '@/lib/pane-manager/mobile-fit-overrides'
 import { shouldShowMobileDriverOverlay } from './mobile-driver-overlay-visibility'
 import { shouldChatTakeOverMobileSurface } from '../native-chat/native-chat-send-eligibility'
 import type { TerminalPaneController } from './use-terminal-pane-controller'
+import { getForeignPtyOwnerWindow } from '@/lib/pane-manager/pty-window-ownership-state'
+import { useAppStore } from '../../store'
 
 export function TerminalPaneCodexRestartPortals({
   controller
@@ -190,6 +194,37 @@ export function TerminalPaneMobileDriverPortals({
           />,
           pane.container,
           `mobile-driver-banner-${pane.id}`
+        )
+      })}
+    </>
+  )
+}
+
+export function TerminalPaneForeignWindowPortals({
+  controller
+}: {
+  controller: TerminalPaneController
+}): React.JSX.Element {
+  const { managedPanes, paneTransportsRef } = controller
+  const scopedWindowsEnabled = useAppStore((store) => store.scopedWindowsEnabled)
+  return (
+    <>
+      {managedPanes.map((pane) => {
+        const ptyId = paneTransportsRef.current.get(pane.id)?.getPtyId()
+        const owner = ptyId ? getForeignPtyOwnerWindow(ptyId) : null
+        if (!ptyId || !shouldShowForeignWindowPaneOverlay(owner, scopedWindowsEnabled)) {
+          return null
+        }
+        return createPortal(
+          <ForeignWindowPaneOverlay
+            owner={owner}
+            rootClassName="foreign-window-banner"
+            onBringHere={async () => {
+              await window.api.pty.claimOwnerWindow?.(ptyId)
+            }}
+          />,
+          pane.container,
+          `foreign-window-banner-${pane.id}`
         )
       })}
     </>
