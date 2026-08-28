@@ -176,7 +176,8 @@ export function clearDeliveryResyncProbe(session: PtyIpcSession): void {
 }
 
 export function requestDeliveryResyncForGatedPty(session: PtyIpcSession): void {
-  if (session.deliveryResyncOutstandingRequestId !== null || session.mainWindow.isDestroyed()) {
+  const rendererWindow = session.resolveRendererWindow()
+  if (session.deliveryResyncOutstandingRequestId !== null || rendererWindow === null) {
     return
   }
   session.deliveryResyncRequestSerial += 1
@@ -199,7 +200,7 @@ export function requestDeliveryResyncForGatedPty(session: PtyIpcSession): void {
     })
   }, PTY_DELIVERY_RESYNC_TIMEOUT_MS)
   session.deliveryResyncTimer.unref?.()
-  session.mainWindow.webContents.send('pty:requestDeliveryResync', { requestId })
+  rendererWindow.webContents.send('pty:requestDeliveryResync', { requestId })
 }
 
 export function writeOffLostRendererDelivery(

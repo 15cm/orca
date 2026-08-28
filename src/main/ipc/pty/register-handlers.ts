@@ -151,6 +151,7 @@ export function registerPtyHandlers(
 
   const session = createPtyIpcSession({
     mainWindow,
+    headless: options?.headless === true,
     runtime,
     store,
     getSettings,

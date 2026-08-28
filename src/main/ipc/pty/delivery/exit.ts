@@ -49,7 +49,7 @@ export function preparePtyExitForRenderer(
   session: PtyIpcSession,
   payload: { id: string; code: number; incarnationId?: string }
 ): (() => void) | null {
-  if (session.mainWindow.isDestroyed()) {
+  if (session.resolveRendererWindow() === null) {
     session.sshOutputIntake?.transferPtyProjections(payload.id, 'renderer-destroyed')
     return () => {}
   }
@@ -115,7 +115,7 @@ export function finalizePtyExitForRenderer(
   session: PtyIpcSession,
   payload: { id: string; code: number; incarnationId?: string }
 ): void {
-  if (session.mainWindow.isDestroyed()) {
+  if (session.resolveRendererWindow() === null) {
     session.rendererCreditBeforeExitByPty.delete(payload.id)
     return
   }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { getPtyIpc } from '../../pty-host-bindings'
 import { parseTerminalKittyKeyboardFlags } from '../../../../shared/terminal-kitty-keyboard-flags'
 import { isMainWindowPtyIpcEvent } from './write-input'
+import { getPtyRendererWindow } from '../delivery/owner-window'
 import type { PtyIpcSession, SerializeResult } from '../session'
 
 export function settleSerializeRequest(
@@ -85,7 +86,10 @@ export function requestSerializedBuffer(
   ptyId: string,
   opts?: { scrollbackRows?: number }
 ): Promise<SerializeResult> {
-  if (session.mainWindow.isDestroyed()) {
+  // Why the owner window and not the session's: the buffer lives in the renderer that renders
+  // this pane, so asking any other window returns nothing and the request just times out.
+  const rendererWindow = getPtyRendererWindow(session, ptyId)
+  if (!rendererWindow) {
     return Promise.resolve(null)
   }
 
@@ -103,6 +107,6 @@ export function requestSerializedBuffer(
     if (opts) {
       payload.opts = opts
     }
-    session.mainWindow.webContents.send('pty:serializeBuffer:request', payload)
+    rendererWindow.webContents.send('pty:serializeBuffer:request', payload)
   })
 }

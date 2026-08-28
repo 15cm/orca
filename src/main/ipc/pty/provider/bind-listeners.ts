@@ -27,14 +27,11 @@ export function bindProviderListeners(session: PtyIpcSession): void {
   // just the pane whose write happened to detect the dead endpoint (STA-2373).
   setLocalWriteUnavailableUnsub(
     localProvider.onWriteUnavailable?.((payload) => {
-      if (
-        session.mainWindow.isDestroyed() ||
-        (typeof session.mainWindow.webContents.isDestroyed === 'function' &&
-          session.mainWindow.webContents.isDestroyed())
-      ) {
+      const rendererWindow = session.resolveRendererWindow()
+      if (!rendererWindow) {
         return
       }
-      session.mainWindow.webContents.send('pty:writeUnavailable', { id: payload.id })
+      rendererWindow.webContents.send('pty:writeUnavailable', { id: payload.id })
     }) ?? null
   )
 

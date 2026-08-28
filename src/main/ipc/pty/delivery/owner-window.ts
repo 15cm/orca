@@ -4,14 +4,15 @@ import { getRuntimeDesktopSurface } from '../../../runtime/runtime-desktop-surfa
 import type { PtyIpcSession } from '../session'
 
 // Why: a PTY belongs to the window whose renderer published the pane that owns it.
-// Falling back to the registering window keeps single-window behavior unchanged and
-// covers PTYs that have not reached a published graph yet.
+// Falling back to the session's resolved renderer window keeps single-window behavior
+// unchanged and covers PTYs that have not reached a published graph yet — without pinning
+// delivery to a registering window that may since have closed.
 export function getPtyRendererWindow(session: PtyIpcSession, id: string): BrowserWindow | null {
   const ownerWindowId = session.runtime?.resolveOwnerWindowIdForPtyId?.(id) ?? null
   const owner =
     ownerWindowId === null ? null : getRuntimeDesktopSurface().findWindowById(ownerWindowId)
-  const target = owner ?? session.mainWindow
-  if (target.isDestroyed()) {
+  const target = owner ?? session.resolveRendererWindow()
+  if (!target || target.isDestroyed()) {
     return null
   }
   const webContentsDestroyed =

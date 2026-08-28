@@ -58,7 +58,8 @@ describe('registerPtyHandlers', () => {
     getPtySetRendererPtyVisibleListener,
     getPtyRendererDispatcherReadyListener,
     getMainWindowWebContentsListener,
-    getMainFrameNavigationListener
+    getMainFrameNavigationListener,
+    trackTestMainWindow
   } = setupPtyIpcSuite()
 
   it('batches PTY output when it is not responding to recent input', async () => {
@@ -165,6 +166,53 @@ describe('registerPtyHandlers', () => {
       expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
         id: spawnResult.id,
         data: 'visible output'
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('does not background a visible PTY just because a second window registered', async () => {
+    vi.useFakeTimers()
+    const mockProc = createMockProc()
+    spawnMock.mockReturnValue(mockProc.proc)
+    const secondWindow = {
+      id: 2,
+      on: vi.fn(),
+      once: vi.fn(),
+      removeListener: vi.fn(),
+      isDestroyed: () => false,
+      isFocused: () => false,
+      isVisible: () => true,
+      isMinimized: () => false,
+      webContents: {
+        on: vi.fn(),
+        send: vi.fn(),
+        removeListener: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      }
+    }
+
+    try {
+      registerPtyHandlers(mainWindow as never)
+      const spawnResult = (await handlers.get('pty:spawn')!(null, {
+        cols: 80,
+        rows: 24,
+        cwd: '/tmp'
+      })) as { id: string }
+      getPtySetRendererPtyVisibleListener()(null, { id: spawnResult.id, visible: true })
+
+      // Opening a window is not a page death, so the visible pane must stay foreground —
+      // `background: true` makes the renderer drop the frame for every alt-screen TUI.
+      trackTestMainWindow(secondWindow)
+      registerPtyHandlers(secondWindow as never)
+      secondWindow.webContents.send.mockClear()
+
+      mockProc.emitData('visible output after the second window opened')
+      vi.advanceTimersByTime(2)
+
+      expect(secondWindow.webContents.send).toHaveBeenCalledWith('pty:data', {
+        id: spawnResult.id,
+        data: 'visible output after the second window opened'
       })
     } finally {
       vi.useRealTimers()

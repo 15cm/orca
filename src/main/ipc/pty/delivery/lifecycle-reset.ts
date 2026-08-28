@@ -59,8 +59,19 @@ export function clearRendererLifecycleResetHandlers(): void {
 }
 
 export function registerRendererLifecycleResetHandlers(webContents: WebContents): void {
+  const previousWebContents = rendererLifecycleResetWebContents
   clearRendererLifecycleResetHandlers()
-  markRendererPtysHiddenForRendererLifecycleReset()
+  // Why conditional: opening a second window re-registers here and is not a page death. Wiping
+  // visibility while leaving rendererVisibilityKnownPtys intact makes every live PTY read as
+  // hidden, so its output ships `background: true` and the renderer drops the frame for any
+  // alt-screen TUI. A real reload/crash still resets through the listeners installed below.
+  const previousRendererGone =
+    !previousWebContents ||
+    previousWebContents === webContents ||
+    (typeof previousWebContents.isDestroyed === 'function' && previousWebContents.isDestroyed())
+  if (previousRendererGone) {
+    markRendererPtysHiddenForRendererLifecycleReset()
+  }
   const handler = markRendererPtysHiddenForRendererLifecycleReset
   const navigationHandler = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
     if (!details.isMainFrame || details.isSameDocument) {

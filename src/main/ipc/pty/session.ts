@@ -48,6 +48,9 @@ export type SerializeResult = {
 } | null
 
 export type PtyIpcSessionOptions = {
+  // Why: `orca serve` has no renderer at all, so delivery must never fall back to the
+  // main-window registry there — it would ship bytes and charge credit for a page nobody has.
+  headless?: boolean
   prepareCodexSessionResume?: PrepareCodexSessionResume
   awaitLocalPtyStartup?: () => Promise<void>
   awaitLocalPtyProviderStartup?: () => Promise<void>
@@ -59,6 +62,10 @@ export type PtyIpcSessionOptions = {
 
 export type PtyIpcSession = {
   mainWindow: BrowserWindow
+  // Why explicit: `orca serve` fakes a destroyed window to mean "no renderer"; without this flag
+  // resolveRendererWindow() could not tell that apart from a window that merely closed.
+  headless: boolean
+  resolveRendererWindow: () => BrowserWindow | null
   runtime?: OrcaRuntimeService
   store?: Store
   getSettings?: () => GlobalSettings
@@ -180,6 +187,7 @@ const unsetSessionFn = (): never => {
 
 export function createPtyIpcSession(args: {
   mainWindow: BrowserWindow
+  headless?: boolean
   runtime?: OrcaRuntimeService
   store?: Store
   getSettings?: () => GlobalSettings
@@ -187,6 +195,8 @@ export function createPtyIpcSession(args: {
 }): PtyIpcSession {
   const session: PtyIpcSession = {
     mainWindow: args.mainWindow,
+    headless: args.headless === true,
+    resolveRendererWindow: unsetSessionFn,
     runtime: args.runtime,
     store: args.store,
     getSettings: args.getSettings,

@@ -57,11 +57,13 @@ import {
   transitionHiddenRendererPtyDeliveryState,
   transitionSpawnHiddenRendererPtyDeliveryState
 } from './hidden-transition'
+import { resolveSessionRendererWindow } from '../session-renderer-window'
 import { requestSerializedBuffer } from '../ipc/serialize-buffer'
 import { shutdownProviderAndDetectExit } from '../provider/shutdown-detect'
 import type { PtyIpcSession } from '../session'
 
 export function wirePtyIpcSession(session: PtyIpcSession): void {
+  session.resolveRendererWindow = () => resolveSessionRendererWindow(session)
   session.canSendPtyDataToRenderer = (id, options) => canSendPtyDataToRenderer(session, id, options)
   session.schedulePendingDataFlush = (delayMs) => schedulePendingDataFlush(session, delayMs)
   session.flushPendingData = () => flushPendingData(session)
