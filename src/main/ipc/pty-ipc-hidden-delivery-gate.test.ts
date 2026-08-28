@@ -61,7 +61,8 @@ describe('registerPtyHandlers', () => {
     getPtySetRendererPtyVisibleListener,
     getMainFrameNavigationListener,
     getPtySetHiddenRendererPtyListener,
-    getPtySetDeliveryInterestListener
+    getPtySetDeliveryInterestListener,
+    trackTestMainWindow
   } = setupPtyIpcSuite()
 
   describe('hidden renderer delivery gate', () => {
@@ -209,6 +210,58 @@ describe('registerPtyHandlers', () => {
         })
       } finally {
         warnSpy.mockRestore()
+        vi.useRealTimers()
+      }
+    })
+    it('lets a foreground window veto a second window hiding the same PTY', async () => {
+      vi.useFakeTimers()
+      const daemon = installObservableDaemonTestProvider()
+      try {
+        registerPtyHandlers(mainWindow as never)
+        const result = (await handlers.get('pty:spawn')!(null, {
+          cols: 80,
+          rows: 24,
+          sessionId: 'daemon-session'
+        })) as { id: string }
+        // A project window opens and mounts the shared session's panes offscreen. Its hidden
+        // report used to overwrite a process-wide set and starve the window showing the pane.
+        const secondWindow = {
+          id: 2,
+          isDestroyed: () => false,
+          on: vi.fn(),
+          once: vi.fn(),
+          webContents: { on: vi.fn(), send: vi.fn(), removeListener: vi.fn() }
+        }
+        trackTestMainWindow(secondWindow)
+        const setHidden = getPtySetHiddenRendererPtyListener()
+        const setVisible = getPtySetRendererPtyVisibleListener()
+
+        setVisible(mainWindowIpcEvent, { id: result.id, visible: true })
+        setHidden(mainWindowIpcEvent, { id: result.id, hidden: false })
+        setHidden({ sender: secondWindow.webContents }, { id: result.id, hidden: true })
+
+        daemon.emitData(result.id, 'foreground output')
+        vi.advanceTimersByTime(50)
+
+        expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
+          hiddenDeliveryGatedVisiblePtyCount: 0,
+          hiddenDeliveryDroppedChars: 0
+        })
+        expect(mainWindow.webContents.send).toHaveBeenCalledWith(
+          'pty:data',
+          expect.objectContaining({ id: result.id, data: 'foreground output' })
+        )
+
+        // Once the window showing it also reports hidden, every claiming window agrees and the gate closes.
+        setVisible(mainWindowIpcEvent, { id: result.id, visible: false })
+        setHidden(mainWindowIpcEvent, { id: result.id, hidden: true })
+        daemon.emitData(result.id, 'background output')
+        vi.advanceTimersByTime(50)
+
+        expect(getPtyRendererDeliveryDebugSnapshot()).toMatchObject({
+          hiddenDeliveryDroppedChars: 'background output'.length
+        })
+      } finally {
         vi.useRealTimers()
       }
     })

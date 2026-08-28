@@ -16,7 +16,6 @@ import { paneKeyPtyId, paneKeyTeardownListeners, ptyPaneKey } from '../pane/key-
 import { ptyIncarnationById, ptyOwnership } from './ownership-state'
 import { clearBackgroundedDeliverySyncForPty } from './listener-lifecycle'
 import {
-  activeRendererPtys,
   deliveredHiddenRendererResizeOutputPtys,
   interactiveOutputCharsByPty,
   invalidatePendingPtyDrainPolicy,
@@ -25,8 +24,7 @@ import {
   pendingHiddenRendererResizeOutputPtys,
   providerSnapshotRequiredPtys,
   ptySizes,
-  rendererVisibilityKnownPtys,
-  visibleRendererPtys
+  rendererVisibilityKnownPtys
 } from '../delivery/visibility-state'
 
 /**
@@ -57,14 +55,13 @@ export function clearProviderPtyState(
   ptyIncarnationById.delete(id)
   lastInputAtByPty.delete(id)
   interactiveOutputCharsByPty.delete(id)
-  const activeChanged = activeRendererPtys.delete(id)
-  visibleRendererPtys.delete(id)
   rendererVisibilityKnownPtys.delete(id)
   pendingHiddenRendererResizeOutputPtys.delete(id)
   deliveredHiddenRendererResizeOutputPtys.delete(id)
   // Why: every teardown path funnels through here — hidden/interest gate bits must not outlive the PTY or a reused map entry could silently gate a new one.
   const deliveryPolicyChanged = isHiddenRendererPty(id)
-  clearHiddenRendererPtyDeliveryState(id)
+  // Clears every window's visible/active/hidden claim on this PTY, not just the derived unions.
+  const { activeChanged } = clearHiddenRendererPtyDeliveryState(id)
   if (activeChanged) {
     invalidatePendingPtyDrainPriority(id, false)
   }

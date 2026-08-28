@@ -174,7 +174,9 @@ export function registerPtyHandlers(
   clearRendererGateResetHandlers()
   const resetRendererPtyDeliveryGateState = (): void => {
     const gateDebug = getHiddenRendererPtyDeliveryDebug()
-    resetRendererScopedHiddenPtyDeliveryState()
+    // Why scoped: this fires on one window's reload/crash; a global reset would drop the hidden
+    // marks its siblings reported and force-feed PTYs no live pane is showing.
+    resetRendererScopedHiddenPtyDeliveryState(mainWindow.id)
     if (gateDebug.hiddenDeliveryGatedPtyCount > 0 || gateDebug.deliveryInterestPtyCount > 0) {
       invalidatePendingPtyDrainPolicy()
     }

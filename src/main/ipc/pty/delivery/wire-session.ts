@@ -98,8 +98,8 @@ export function wirePtyIpcSession(session: PtyIpcSession): void {
     syncPtyBackgroundedDelivery(session, id, caller)
   session.resyncBackgroundedDeliveriesAfterGateReset = () =>
     resyncBackgroundedDeliveriesAfterGateReset(session)
-  session.transitionHiddenRendererPtyDeliveryState = (id, hidden) =>
-    transitionHiddenRendererPtyDeliveryState(session, id, hidden)
+  session.transitionHiddenRendererPtyDeliveryState = (id, hidden, windowId) =>
+    transitionHiddenRendererPtyDeliveryState(session, id, hidden, windowId)
   session.transitionSpawnHiddenRendererPtyDeliveryState = (id, hidden) =>
     transitionSpawnHiddenRendererPtyDeliveryState(session, id, hidden)
   session.rendererPtyIsKnownHidden = rendererPtyIsKnownHidden

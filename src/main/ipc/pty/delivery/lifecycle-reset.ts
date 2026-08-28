@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { getMainWindowForWebContents } from '../../../window/main-window-registry'
 import {
   didFinishLoadHandlersByWebContents,
   rendererDidStartNavigationHandler,
@@ -12,10 +13,11 @@ import {
 } from '../provider/listener-lifecycle'
 import { mainDeliveryBreadcrumbs, resetRendererDeliveryAccountingForLifecycleReset } from './debug'
 import {
-  activeRendererPtys,
-  invalidatePendingPtyDrainPriority,
-  visibleRendererPtys
-} from './visibility-state'
+  clearRendererPtyWindowClaims,
+  IMPLICIT_RENDERER_WINDOW_ID,
+  resetAllRendererPtyWindowClaims
+} from './renderer-pty-window-claims'
+import { invalidatePendingPtyDrainPriority } from './visibility-state'
 
 export function clearDidFinishLoadHandler(): void {
   for (const [contents, handler] of didFinishLoadHandlersByWebContents) {
@@ -24,13 +26,15 @@ export function clearDidFinishLoadHandler(): void {
   didFinishLoadHandlersByWebContents.clear()
 }
 
-export function markRendererPtysHiddenForRendererLifecycleReset(): void {
+/** `windowId` scopes the reset to the page that died — a sibling window's claims must survive it. */
+export function markRendererPtysHiddenForRendererLifecycleReset(windowId?: number): void {
   // A reload/crash in the breadcrumb history is load-bearing context for any freeze report.
   mainDeliveryBreadcrumbs.record('renderer-lifecycle-reset')
   // Why: renderer-owned hints die with the page; clear visibility so surviving daemon/SSH PTYs fail closed until the new renderer reports.
-  const activePriorityChanged = activeRendererPtys.size > 0
-  activeRendererPtys.clear()
-  visibleRendererPtys.clear()
+  const activePriorityChanged =
+    windowId === undefined
+      ? resetAllRendererPtyWindowClaims()
+      : clearRendererPtyWindowClaims(windowId)
   // Why: the dead page never ACKs its in-flight bytes, so leaked accounting would delivery-gate surviving PTYs forever after a reload/crash.
   resetRendererDeliveryAccountingForLifecycleReset()
   if (activePriorityChanged) {
@@ -69,15 +73,18 @@ export function registerRendererLifecycleResetHandlers(webContents: WebContents)
     !previousWebContents ||
     previousWebContents === webContents ||
     (typeof previousWebContents.isDestroyed === 'function' && previousWebContents.isDestroyed())
+  // Why the window id: a reload of one window must not wipe the visibility its siblings reported.
+  // A sender with no registered window (paired web, pop-out) resets only the implicit bucket.
+  const resetWindowId = getMainWindowForWebContents(webContents)?.id ?? IMPLICIT_RENDERER_WINDOW_ID
   if (previousRendererGone) {
-    markRendererPtysHiddenForRendererLifecycleReset()
+    markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
   }
-  const handler = markRendererPtysHiddenForRendererLifecycleReset
+  const handler = (): void => markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
   const navigationHandler = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
     if (!details.isMainFrame || details.isSameDocument) {
       return
     }
-    markRendererPtysHiddenForRendererLifecycleReset()
+    markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
   }
   setRendererLifecycleResetState({
     contents: webContents,

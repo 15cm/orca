@@ -7,12 +7,19 @@ import {
   markHiddenRendererPty,
   recordHiddenRendererPtyDataDrop,
   resetRendererScopedHiddenPtyDeliveryState,
+  consumeHiddenRendererPtyDropLatch,
   setRendererPtyDeliveryInterest,
   shouldDropHiddenRendererPtyData,
   unmarkHiddenRendererPty
 } from './pty-hidden-delivery-gate'
 
 const PTY_ID = 'pty-1'
+
+/** The drop latch moved to the drop-policy transition; single-window unhide always flips it. */
+function unhideAndConsumeDropLatch(id: string): boolean {
+  unmarkHiddenRendererPty(id)
+  return consumeHiddenRendererPtyDropLatch(id)
+}
 
 describe('pty hidden delivery gate', () => {
   beforeEach(() => {
@@ -46,9 +53,9 @@ describe('pty hidden delivery gate', () => {
     expect(recordHiddenRendererPtyDataDrop(PTY_ID, 10).shouldEmitRestoreMarker).toBe(true)
     expect(recordHiddenRendererPtyDataDrop(PTY_ID, 10).shouldEmitRestoreMarker).toBe(false)
 
-    // Why: unmark consumes the latch (and re-emits via its own return value);
-    // the next hidden period's first drop reports again.
-    unmarkHiddenRendererPty(PTY_ID)
+    // Why: leaving the hidden state consumes the latch, so the next hidden
+    // period's first drop reports again.
+    unhideAndConsumeDropLatch(PTY_ID)
     markHiddenRendererPty(PTY_ID)
     expect(recordHiddenRendererPtyDataDrop(PTY_ID, 10).shouldEmitRestoreMarker).toBe(true)
   })
@@ -59,16 +66,16 @@ describe('pty hidden delivery gate', () => {
     markHiddenRendererPty(PTY_ID)
     recordHiddenRendererPtyDataDrop(PTY_ID, 10)
     markHiddenRendererPty(PTY_ID)
-    expect(unmarkHiddenRendererPty(PTY_ID).droppedWhileHidden).toBe(true)
+    expect(unhideAndConsumeDropLatch(PTY_ID)).toBe(true)
   })
 
   it('reports drops on unhide so reveal can heal a replaced renderer view', () => {
     markHiddenRendererPty(PTY_ID)
-    expect(unmarkHiddenRendererPty(PTY_ID).droppedWhileHidden).toBe(false)
+    expect(unhideAndConsumeDropLatch(PTY_ID)).toBe(false)
 
     markHiddenRendererPty(PTY_ID)
     recordHiddenRendererPtyDataDrop(PTY_ID, 10)
-    expect(unmarkHiddenRendererPty(PTY_ID).droppedWhileHidden).toBe(true)
+    expect(unhideAndConsumeDropLatch(PTY_ID)).toBe(true)
     expect(shouldDropHiddenRendererPtyData(PTY_ID, {})).toBe(false)
   })
 
@@ -91,7 +98,7 @@ describe('pty hidden delivery gate', () => {
     expect(shouldDropHiddenRendererPtyData('pty-2', {})).toBe(true)
     // Drop memory survives so the new renderer's first unhide still restores.
     markHiddenRendererPty(PTY_ID)
-    expect(unmarkHiddenRendererPty(PTY_ID).droppedWhileHidden).toBe(true)
+    expect(unhideAndConsumeDropLatch(PTY_ID)).toBe(true)
   })
 
   it('clears all per-PTY state on teardown and tracks debug counters', () => {

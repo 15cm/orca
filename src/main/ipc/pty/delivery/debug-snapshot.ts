@@ -7,7 +7,8 @@ import {
 import {
   getHiddenRendererPtyDeliveryDebug,
   getHiddenRendererPtyIds,
-  isHiddenRendererPty
+  isHiddenRendererPty,
+  shouldDropHiddenRendererPtyData
 } from '../../pty-hidden-delivery-gate'
 import {
   lastPowerResumeAtMs,
@@ -21,6 +22,7 @@ import type { PtyIpcSession } from '../session'
 
 export function buildMainDeliveryDiagnostics(session: PtyIpcSession): PtyMainDeliveryDiagnostics {
   const now = Date.now()
+  const settings = session.getSettings?.()
   // Include hidden/visible/active members even without an accounting entry: a pty gated before its first byte is exactly the wedge case to surface.
   const ids = new Set([
     ...session.rendererDeliveryAccountingByPty.keys(),
@@ -39,6 +41,7 @@ export function buildMainDeliveryDiagnostics(session: PtyIpcSession): PtyMainDel
       inFlightChars: accounting ? accounting.sentChars - accounting.ackedChars : 0,
       pendingChars: session.pendingData.get(id)?.data.length ?? 0,
       hidden: isHiddenRendererPty(id),
+      droppable: shouldDropHiddenRendererPtyData(id, settings),
       visible: visibleRendererPtys.has(id),
       active: activeRendererPtys.has(id),
       msSinceLastSend: accounting ? now - accounting.lastSendAtMs : null,
@@ -80,16 +83,19 @@ export function readCurrentPtyRendererDeliveryDebugSnapshot(
     }
     maxRendererInFlightCharsByPty = Math.max(maxRendererInFlightCharsByPty, inFlight)
   }
-  // Why: a pty both hidden-gated and reported visible means main is starving a visible pane (v1.4.124-rc.2.perf field lead).
+  // Why: a pty whose bytes are actually dropped while a renderer reports it visible means main is
+  // starving a visible pane (v1.4.124-rc.2.perf field lead). Read the effective drop policy, not the
+  // hidden mark: with several windows a background window's mark alone no longer starves anyone.
+  const settings = session.getSettings?.()
   let hiddenDeliveryGatedVisiblePtyCount = 0
   for (const id of visibleRendererPtys) {
-    if (isHiddenRendererPty(id)) {
+    if (shouldDropHiddenRendererPtyData(id, settings)) {
       hiddenDeliveryGatedVisiblePtyCount++
     }
   }
   let hiddenDeliveryGatedActivePtyCount = 0
   for (const id of activeRendererPtys) {
-    if (isHiddenRendererPty(id)) {
+    if (shouldDropHiddenRendererPtyData(id, settings)) {
       hiddenDeliveryGatedActivePtyCount++
     }
   }

@@ -170,7 +170,8 @@ export type PtyIpcSession = {
   resyncBackgroundedDeliveriesAfterGateReset: () => void
   transitionHiddenRendererPtyDeliveryState: (
     id: string,
-    hidden: boolean
+    hidden: boolean,
+    windowId?: number
   ) => { droppable: boolean; droppedWhileHidden: boolean; policyChanged: boolean }
   transitionSpawnHiddenRendererPtyDeliveryState: (id: string, hidden: boolean) => void
   rendererPtyIsKnownHidden: (id: string) => boolean

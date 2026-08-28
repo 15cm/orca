@@ -1,3 +1,4 @@
+import type { IpcMainEvent } from 'electron'
 import { getPtyIpc } from '../../pty-host-bindings'
 import type {
   PtyDeliveryWriteOff,
@@ -14,7 +15,11 @@ import {
 } from '../../pty-hidden-delivery-gate'
 import { tryGetProviderForPty, closeStartupQueryAuthorityForPty } from '../provider/registry'
 import {
-  activeRendererPtys,
+  recordActiveRendererPtyWindowClaim,
+  recordVisibleRendererPtyWindowClaim,
+  resolveRendererPtyClaimWindowId
+} from '../delivery/renderer-pty-window-claims'
+import {
   deliveredHiddenRendererResizeOutputPtys,
   invalidatePendingPtyDrainPolicy,
   invalidatePendingPtyDrainPriority,
@@ -31,11 +36,21 @@ import { PTY_DELIVERY_HEAL_MIN_ACK_SILENCE_MS } from '../delivery/constants'
 import { applyCumulativeAck } from '../delivery/accounting'
 import { sendModelRestoreNeededMarker } from '../delivery/payload'
 import { isMainWindowPtyIpcEvent } from './write-input'
+import { getMainWindowForWebContents } from '../../../window/main-window-registry'
 import type { PtyIpcSession } from '../session'
 
 export function installPtyResizeVisibilityIpc(session: PtyIpcSession): void {
   const ipcMain = getPtyIpc()
   const { runtime } = session
+
+  // Why: visibility/hidden/active reports are per window. A sender with no registered window
+  // (synthetic replay, paired web, pop-out) falls back to the window main would deliver to,
+  // which is the single-window bucket — the pre-multi-window behavior.
+  const claimWindowId = (event: IpcMainEvent | null | undefined): number => {
+    const sender = event?.sender
+    const senderWindow = sender ? getMainWindowForWebContents(sender) : null
+    return resolveRendererPtyClaimWindowId(senderWindow ?? session.resolveRendererWindow())
+  }
 
   // Why: resize is fire-and-forget — ipcMain.on (not .handle) halves IPC traffic by skipping the empty acknowledgement reply.
   ipcMain.removeAllListeners('pty:resize')
@@ -148,49 +163,45 @@ export function installPtyResizeVisibilityIpc(session: PtyIpcSession): void {
   })
 
   ipcMain.removeAllListeners('pty:setActiveRendererPty')
-  ipcMain.on('pty:setActiveRendererPty', (_event, args: { id: string; active: boolean }) => {
+  ipcMain.on('pty:setActiveRendererPty', (event, args: { id: string; active: boolean }) => {
     if (typeof args.id !== 'string' || !args.id) {
       return
     }
     // Why: renderer scheduling hint only — active panes just get first chance at the bounded output reserve; reads/state/notifications continue for inactive terminals.
-    if (args.active) {
-      if (activeRendererPtys.has(args.id)) {
-        return
-      }
-      activeRendererPtys.add(args.id)
-    } else if (!activeRendererPtys.delete(args.id)) {
+    if (!recordActiveRendererPtyWindowClaim(claimWindowId(event), args.id, args.active === true)) {
       return
     }
     invalidatePendingPtyDrainPriority(args.id)
   })
 
   ipcMain.removeAllListeners('pty:setRendererPtyVisible')
-  ipcMain.on('pty:setRendererPtyVisible', (_event, args: { id: string; visible: boolean }) => {
+  ipcMain.on('pty:setRendererPtyVisible', (event, args: { id: string; visible: boolean }) => {
     if (typeof args.id !== 'string' || !args.id) {
       return
     }
     // Why: data produced while no renderer can see this PTY must keep that origin through batching, even if the user switches back before the flush lands.
     rendererVisibilityKnownPtys.add(args.id)
+    recordVisibleRendererPtyWindowClaim(claimWindowId(event), args.id, args.visible === true)
     if (args.visible) {
-      visibleRendererPtys.add(args.id)
       closeStartupQueryAuthorityForPty(args.id)
-    } else {
-      visibleRendererPtys.delete(args.id)
     }
     session.syncPtyBackgroundedDelivery(args.id, 'visibility-report')
   })
 
   ipcMain.removeAllListeners('pty:setHiddenRendererPty')
-  ipcMain.on('pty:setHiddenRendererPty', (_event, args: { id: string; hidden: boolean }) => {
+  ipcMain.on('pty:setHiddenRendererPty', (event, args: { id: string; hidden: boolean }) => {
     if (typeof args.id !== 'string' || !args.id) {
       return
     }
+    const windowId = claimWindowId(event)
     mainDeliveryBreadcrumbs.record(args.hidden === true ? 'gate-mark' : 'gate-unmark', {
-      id: redactPtyIdForDiagnostics(args.id)
+      id: redactPtyIdForDiagnostics(args.id),
+      windowId
     })
     const transition = session.transitionHiddenRendererPtyDeliveryState(
       args.id,
-      args.hidden === true
+      args.hidden === true,
+      windowId
     )
     if (args.hidden === true) {
       closeStartupQueryAuthorityForPty(args.id)
@@ -247,14 +258,14 @@ export function installPtyResizeVisibilityIpc(session: PtyIpcSession): void {
   })
 
   ipcMain.removeAllListeners('pty:setPtyDeliveryInterest')
-  ipcMain.on('pty:setPtyDeliveryInterest', (_event, args: { id: string; interested: boolean }) => {
+  ipcMain.on('pty:setPtyDeliveryInterest', (event, args: { id: string; interested: boolean }) => {
     if (typeof args.id !== 'string' || !args.id) {
       return
     }
     // Why: any delivery interest suppresses the hidden-delivery gate (raw-byte consumers keep receiving while hidden); not synced to the daemon pacer so interest churn can't un-pace a flood.
     const settings = session.getSettings?.()
     const wasDroppable = shouldDropHiddenRendererPtyData(args.id, settings)
-    setRendererPtyDeliveryInterest(args.id, args.interested === true)
+    setRendererPtyDeliveryInterest(args.id, args.interested === true, claimWindowId(event))
     if (wasDroppable !== shouldDropHiddenRendererPtyData(args.id, settings)) {
       invalidatePendingPtyDrainPolicy(args.id)
     }

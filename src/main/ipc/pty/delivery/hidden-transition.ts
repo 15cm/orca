@@ -1,25 +1,30 @@
 import {
+  consumeHiddenRendererPtyDropLatch,
   markHiddenRendererPty,
   shouldDropHiddenRendererPtyData,
   unmarkHiddenRendererPty
 } from '../../pty-hidden-delivery-gate'
+import { IMPLICIT_RENDERER_WINDOW_ID } from './renderer-pty-window-claims'
 import { invalidatePendingPtyDrainPolicy } from './visibility-state'
 import type { PtyIpcSession } from '../session'
 
 export function transitionHiddenRendererPtyDeliveryState(
   session: PtyIpcSession,
   id: string,
-  hidden: boolean
+  hidden: boolean,
+  windowId: number = IMPLICIT_RENDERER_WINDOW_ID
 ): { droppable: boolean; droppedWhileHidden: boolean; policyChanged: boolean } {
   const settings = session.getSettings?.()
   const wasDroppable = shouldDropHiddenRendererPtyData(id, settings)
-  let droppedWhileHidden = false
   if (hidden) {
-    markHiddenRendererPty(id)
+    markHiddenRendererPty(id, windowId)
   } else {
-    droppedWhileHidden = unmarkHiddenRendererPty(id).droppedWhileHidden
+    unmarkHiddenRendererPty(id, windowId)
   }
   const droppable = shouldDropHiddenRendererPtyData(id, settings)
+  // Why the policy transition owns the latch: with several windows a sibling's unmark can leave
+  // the PTY droppable, and consuming there would swallow the restore the revealing window needs.
+  const droppedWhileHidden = wasDroppable && !droppable && consumeHiddenRendererPtyDropLatch(id)
   return { droppable, droppedWhileHidden, policyChanged: wasDroppable !== droppable }
 }
 

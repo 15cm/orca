@@ -76,6 +76,8 @@ export type PtyPerPtyDeliveryDiagnostics = {
   inFlightChars: number
   pendingChars: number
   hidden: boolean
+  /** Effective drop policy: `hidden` is only "some window marked it", this is what main acts on. */
+  droppable?: boolean
   visible: boolean
   active: boolean
   msSinceLastSend: number | null
