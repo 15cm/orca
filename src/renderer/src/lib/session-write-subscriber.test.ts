@@ -115,6 +115,26 @@ describe('createSessionWriteSubscriber', () => {
     cleanup()
   })
 
+  it('never writes from a window that opened with nothing open', () => {
+    // Why: this window hydrated no session, so a single debounce would replace the persisted
+    // tabs of every other window — and of the next launch — with its empty maps.
+    const persist = vi.fn<(payload: WorkspaceSessionWrite) => void>()
+    const cleanup = createSessionWriteSubscriber({ store: useAppStore, persist })
+
+    useAppStore.setState({
+      workspaceSessionReady: true,
+      hydrationSucceeded: true,
+      workspaceSessionAdoption: 'empty'
+    })
+    vi.advanceTimersByTime(200)
+    expect(persist).not.toHaveBeenCalled()
+
+    useAppStore.setState(makeTerminalSessionState('Terminal') as never)
+    vi.advanceTimersByTime(200)
+    expect(persist).not.toHaveBeenCalled()
+    cleanup()
+  })
+
   it('ignores mutations to fields outside SESSION_RELEVANT_FIELDS', () => {
     const persist = vi.fn<(payload: WorkspaceSessionWrite) => void>()
     const cleanup = createSessionWriteSubscriber({ store: useAppStore, persist })

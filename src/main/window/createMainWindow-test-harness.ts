@@ -30,13 +30,15 @@ export const routePartitionAllowedMock: Mock<(partition: string) => boolean> = v
 export const isMock = { dev: false }
 export const macosTahoeMock = { value: false }
 export const getMainWindowForWebContentsMock: MainWindowSpy = vi.fn()
+export const hasLiveMainWindowsMock: MainWindowSpy = vi.fn(() => false)
 export function mainWindowRegistryMock(): Record<string, MainWindowSpy> {
   return {
     registerMainWindow: vi.fn(),
     getMainWindowForWebContents: getMainWindowForWebContentsMock,
     getLastActiveMainWindow: vi.fn(() => null),
     getFocusedOrLastActiveMainWindow: vi.fn(() => null),
-    getMainWindows: vi.fn(() => [])
+    getMainWindows: vi.fn(() => []),
+    hasLiveMainWindows: hasLiveMainWindowsMock
   }
 }
 
@@ -124,6 +126,8 @@ export function browserManagerMock(): BrowserManagerModuleMock {
 
 export function resetMainWindowMocks(): void {
   browserWindowMock.mockReset()
+  hasLiveMainWindowsMock.mockReset()
+  hasLiveMainWindowsMock.mockReturnValue(false)
   openExternalMock.mockReset()
   attachGuestPoliciesMock.mockReset()
   attachRouteGuestMock.mockReset()

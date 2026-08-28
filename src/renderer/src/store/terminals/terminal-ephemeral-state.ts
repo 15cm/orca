@@ -10,6 +10,7 @@ export function createTerminalEphemeralActions(
   TerminalSlice,
   | 'markDefaultTerminalTabsApplied'
   | 'setHydrationSucceeded'
+  | 'setWorkspaceSessionAdoption'
   | 'setRecentQuickCommandForGroup'
   | 'claimAutomaticAgentResume'
   | 'seedNativeChatLaunchPrompt'
@@ -41,6 +42,9 @@ export function createTerminalEphemeralActions(
       }),
     setHydrationSucceeded: (value) => {
       set({ hydrationSucceeded: value })
+    },
+    setWorkspaceSessionAdoption: (adoption) => {
+      set({ workspaceSessionAdoption: adoption })
     },
     setRecentQuickCommandForGroup: (groupId, quickCommandId) => {
       set((s) => ({

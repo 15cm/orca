@@ -13,7 +13,10 @@ vi.mock('../app-icon', async () => (await import('./createMainWindow-test-harnes
 vi.mock('../browser/browser-manager', async () =>
   (await import('./createMainWindow-test-harness')).browserManagerMock()
 )
-vi.mock('./main-window-registry', () => ({ registerMainWindow: vi.fn() }))
+vi.mock('./main-window-registry', () => ({
+  registerMainWindow: vi.fn(),
+  hasLiveMainWindows: vi.fn(() => false)
+}))
 vi.mock('../browser/browser-route-session-runtime', async () => ({
   browserRouteSessionRegistry: {
     isAllowedPartition: (await import('./createMainWindow-test-harness')).routePartitionAllowedMock
@@ -156,7 +159,8 @@ describe('createMainWindow', () => {
           sandbox: true,
           // Why: the sandboxed preload learns its window id from argv, not IPC.
           additionalArguments: expect.arrayContaining([
-            expect.stringMatching(/^--orca-window-id=.+$/)
+            expect.stringMatching(/^--orca-window-id=.+$/),
+            '--orca-window-session=shared'
           ])
         })
       })

@@ -61,6 +61,7 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   defaultTerminalTabsAppliedByWorktreeId: {},
   closedTerminalTabTombstonesByTabId: {},
   hydrationSucceeded: false,
+  workspaceSessionAdoption: 'shared',
   pendingReconnectWorktreeIds: [],
   pendingReconnectTabByWorktree: {},
   pendingReconnectPtyIdByTabId: {},

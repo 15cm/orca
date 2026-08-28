@@ -71,8 +71,9 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     ...createWebSettingsApi(),
     keybindings: createWebKeybindingsApi(),
     ui: createWebUiApi(),
-    // Why null: a browser tab has no main window; the renderer degrades to one implicit window.
-    windowIdentity: { windowId: null },
+    // Why null: a browser tab has no main window; the renderer degrades to one implicit window,
+    // which is the window that owns the shared session.
+    windowIdentity: { windowId: null, sessionAdoption: 'shared' },
     ...createWebDiagnosticsApi(),
     ...createWebWorkspaceSessionApi(),
     ...createWebOnboardingApi(),

@@ -29,6 +29,7 @@ function makeActions(): StartupActions {
     fetchBrowserSessionProfiles: vi.fn(),
     reconnectPersistedTerminals: vi.fn(),
     setTerminalStartupRestorationReady: vi.fn(),
+    setWorkspaceSessionAdoption: vi.fn(),
     setDeferredSshReconnectTargets: vi.fn(),
     removeDeferredSshReconnectTarget: vi.fn(),
     setSshConnectionState: vi.fn(),

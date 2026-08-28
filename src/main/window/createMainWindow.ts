@@ -19,7 +19,7 @@ import {
 export { closeWindowAfterConfirmation, requestWindowCloseForQuit }
 import type { CreateMainWindowOptions, MainWindowLoadObserver } from './main-window-contracts'
 import { mainWindowLoadErrorCode } from './main-window-load-error-code'
-import { registerMainWindow } from './main-window-registry'
+import { hasLiveMainWindows, registerMainWindow } from './main-window-registry'
 import { installMainWindowFocusLifecycle } from './main-window-focus-lifecycle'
 import { installMainWindowShortcutRouting } from './main-window-shortcut-routing'
 import { installMainWindowStateLifecycle } from './main-window-state-lifecycle'
@@ -37,6 +37,12 @@ import { rectHasVisibleAreaOnAnyDisplay } from './window-bounds-validation'
 import { installWindowsPathRegistryChangeListener } from '../pty/windows-path-registry-change'
 import { formatWindowIdArgument } from '../../shared/window-identity'
 import {
+  formatWindowSessionAdoptionArgument,
+  resolveWindowSessionAdoption
+} from '../../shared/window-session-adoption'
+import { parseWindowScopeKey } from '../../shared/window-scope'
+import {
+  areScopedWindowsEnabled,
   bindWindowIdToWebContents,
   createWindowId,
   unbindWindowIdFromWebContents
@@ -106,7 +112,13 @@ export function createMainWindow(
   const platformBlurOptions =
     blur && process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}
   const windowId = opts?.windowId ?? createWindowId()
-
+  // Why frozen here rather than derived from the live scope: a later rebind ("change project")
+  // must not empty a window that already adopted the session. See shared/window-session-adoption.
+  const sessionAdoption = resolveWindowSessionAdoption({
+    scope: parseWindowScopeKey(windowId),
+    scopedWindowsEnabled: areScopedWindowsEnabled(),
+    otherMainWindowsOpen: hasLiveMainWindows()
+  })
   const mainWindow = new BrowserWindow({
     width: savedBounds?.width ?? defaultBounds.width,
     height: savedBounds?.height ?? defaultBounds.height,
@@ -149,7 +161,8 @@ export function createMainWindow(
       // handler registration it could wait on.
       additionalArguments: [
         formatBrowserClientHostIdArgument(getBrowserClientHostId()),
-        formatWindowIdArgument(windowId)
+        formatWindowIdArgument(windowId),
+        formatWindowSessionAdoptionArgument(sessionAdoption)
       ]
     }
   })

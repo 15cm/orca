@@ -13,10 +13,8 @@ vi.mock('@/lib/agent-status', async (importOriginal) => {
 // @ts-expect-error -- mocked browser preload API
 globalThis.window = { api: {} }
 
-import {
-  buildWorkspaceSessionPayload,
-  shouldPersistWorkspaceSession
-} from '@/lib/workspace-session'
+import { buildWorkspaceSessionPayload } from '@/lib/workspace-session'
+import { shouldPersistWorkspaceSession } from '@/lib/workspace-session-persistence-gate'
 import { createTestStore, makeTab, makeWorktree } from './store-test-helpers'
 
 const WORKTREE_ID = 'repo1::/path/degraded'

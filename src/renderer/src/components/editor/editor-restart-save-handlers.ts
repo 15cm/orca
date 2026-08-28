@@ -1,5 +1,5 @@
 import type { OpenFile } from '@/store/slices/editor'
-import { shouldPersistWorkspaceSession } from '@/lib/workspace-session'
+import { shouldPersistWorkspaceSession } from '@/lib/workspace-session-persistence-gate'
 import { canAutoSaveOpenFile } from './editor-autosave'
 import { flushPendingEditorChange } from './editor-pending-flush'
 import { getDuplicateDirtySavePaths } from './editor-autosave-state-projections'
@@ -99,8 +99,13 @@ export function createEditorRestartSaveHandlers({
       }
 
       if (dirtyFiles.length > 0 && !shouldPersistWorkspaceSession(state)) {
+        // Why two messages: a window that opened empty never adopts the session, so there is no
+        // restore to wait for — telling the user to wait would strand them. See
+        // docs/reference/window-session-adoption.md.
         detail.reject(
-          'Unsaved editor changes cannot be backed up until workspace restore finishes.'
+          state.workspaceSessionAdoption === 'shared'
+            ? 'Unsaved editor changes cannot be backed up until workspace restore finishes.'
+            : 'Save your changes before restarting: this window opened without adopting the workspace session, so its unsaved edits cannot be checkpointed here.'
         )
         return
       }

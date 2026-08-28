@@ -4,6 +4,7 @@ import { closeTerminalTab } from '@/components/terminal/terminal-tab-actions'
 import { detectLanguage } from '@/lib/language-detect'
 import { runSleepWorktree } from '@/components/sidebar/sleep-worktree-flow'
 import { buildWorkspaceSessionPayload } from '@/lib/workspace-session'
+import { shouldPersistWorkspaceSession } from '@/lib/workspace-session-persistence-gate'
 import { persistWorkspaceSessionByHost } from '@/lib/workspace-session-host-persistence'
 import { useAppStore } from '../../store'
 
@@ -86,11 +87,16 @@ export function registerMobileAndTerminalCloseIpcBridge(
             onClosed: () => {
               void (async () => {
                 const state = useAppStore.getState()
-                await persistWorkspaceSessionByHost(
-                  window.api.session,
-                  buildWorkspaceSessionPayload(state),
-                  state
-                )
+                // Why the gate: this writes the whole session, not a patch. A window that
+                // opened with nothing open owns a tab as soon as the user makes one there,
+                // and its near-empty payload would replace every other window's on disk.
+                if (shouldPersistWorkspaceSession(state)) {
+                  await persistWorkspaceSessionByHost(
+                    window.api.session,
+                    buildWorkspaceSessionPayload(state),
+                    state
+                  )
+                }
                 respond()
               })().catch((error: unknown) => {
                 respond(error instanceof Error ? error.message : 'terminal_tab_close_failed')

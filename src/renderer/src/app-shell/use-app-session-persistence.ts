@@ -10,10 +10,8 @@ import {
   isIntentionalAppRestartInProgress,
   registerUpdaterBeforeUnloadBypass
 } from '../lib/updater-beforeunload'
-import {
-  buildWorkspaceSessionPayload,
-  shouldPersistWorkspaceSession
-} from '../lib/workspace-session'
+import { buildWorkspaceSessionPayload } from '../lib/workspace-session'
+import { shouldPersistWorkspaceSession } from '../lib/workspace-session-persistence-gate'
 import {
   buildWorkspaceSessionHostSnapshots,
   patchWorkspaceSessionByHost

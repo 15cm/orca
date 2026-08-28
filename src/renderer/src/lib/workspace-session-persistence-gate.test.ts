@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { shouldPersistWorkspaceSession } from './workspace-session'
+import { shouldPersistWorkspaceSession } from './workspace-session-persistence-gate'
 
 describe('shouldPersistWorkspaceSession', () => {
   it('returns false before either flag is set', () => {
     expect(
       shouldPersistWorkspaceSession({
         workspaceSessionReady: false,
-        hydrationSucceeded: false
+        hydrationSucceeded: false,
+        workspaceSessionAdoption: 'shared'
       })
     ).toBe(false)
   })
@@ -17,7 +18,8 @@ describe('shouldPersistWorkspaceSession', () => {
     expect(
       shouldPersistWorkspaceSession({
         workspaceSessionReady: true,
-        hydrationSucceeded: false
+        hydrationSucceeded: false,
+        workspaceSessionAdoption: 'shared'
       })
     ).toBe(false)
   })
@@ -26,7 +28,8 @@ describe('shouldPersistWorkspaceSession', () => {
     expect(
       shouldPersistWorkspaceSession({
         workspaceSessionReady: false,
-        hydrationSucceeded: true
+        hydrationSucceeded: true,
+        workspaceSessionAdoption: 'shared'
       })
     ).toBe(false)
   })
@@ -35,8 +38,21 @@ describe('shouldPersistWorkspaceSession', () => {
     expect(
       shouldPersistWorkspaceSession({
         workspaceSessionReady: true,
-        hydrationSucceeded: true
+        hydrationSucceeded: true,
+        workspaceSessionAdoption: 'shared'
       })
     ).toBe(true)
+  })
+
+  it('returns false for a window that opened with nothing open, however far startup got', () => {
+    // Why: this window hydrated no session, so its writes would replace every keyed map on
+    // disk with the empty one it holds — the other windows' tabs and the next launch's.
+    expect(
+      shouldPersistWorkspaceSession({
+        workspaceSessionReady: true,
+        hydrationSucceeded: true,
+        workspaceSessionAdoption: 'empty'
+      })
+    ).toBe(false)
   })
 })

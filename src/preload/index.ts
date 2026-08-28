@@ -85,6 +85,7 @@ import { mobileApi } from './api/mobile-bridge'
 import { agentStatusApi } from './api/agent-status-bridge'
 import { speechApi } from './api/speech-bridge'
 import { parseWindowIdFromArgv } from '../shared/window-identity'
+import { parseWindowSessionAdoptionFromArgv } from '../shared/window-session-adoption'
 
 installNativeFileDropHandlers()
 installBrowserFindListener()
@@ -183,7 +184,11 @@ const api = {
   mobile: mobileApi,
   agentStatus: agentStatusApi,
   speech: speechApi,
-  windowIdentity: { windowId: parseWindowIdFromArgv(process.argv) }
+  windowIdentity: {
+    windowId: parseWindowIdFromArgv(process.argv),
+    // Older main processes omit this flag; preserve their shared-session behavior.
+    sessionAdoption: parseWindowSessionAdoptionFromArgv(process.argv) ?? 'shared'
+  }
 } satisfies PreloadApi
 
 if (process.contextIsolated) {

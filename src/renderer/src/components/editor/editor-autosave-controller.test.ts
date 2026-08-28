@@ -112,6 +112,7 @@ function makeSessionReadyState(): Partial<AppState> {
   return {
     workspaceSessionReady: true,
     hydrationSucceeded: true,
+    workspaceSessionAdoption: 'shared' as const,
     activeRepoId: 'repo-1',
     activeTabId: 'tab-1',
     tabsByWorktree: {

@@ -145,6 +145,31 @@ describe('useIpcEvents browser tab close routing', () => {
     )
   })
 
+  it('acknowledges a whole-tab close from a window that opened empty without persisting', async () => {
+    // Why: this path writes the whole session rather than a patch, so a window holding an
+    // empty one must answer the close and leave the persisted session alone.
+    const listenerRef: { current: TerminalTabCloseRequestListener | null } = { current: null }
+    const persistWorkspaceSession = vi.fn().mockResolvedValue(undefined)
+    const respondTerminalTabClose = vi.fn()
+    closeTerminalTabMock.mockImplementation((_tabId: string, options: { onClosed?: () => void }) =>
+      options.onClosed?.()
+    )
+    await useIpcEventsForCloseRouting({
+      getState: () => ({}),
+      terminalTabCloseRequestListenerRef: listenerRef,
+      respondTerminalTabClose,
+      persistWorkspaceSession,
+      shouldPersistWorkspaceSession: vi.fn(() => false)
+    })
+
+    listenerRef.current?.({ requestId: 'close-empty-window', tabId: 'terminal-1' })
+
+    await vi.waitFor(() =>
+      expect(respondTerminalTabClose).toHaveBeenCalledWith({ requestId: 'close-empty-window' })
+    )
+    expect(persistWorkspaceSession).not.toHaveBeenCalled()
+  })
+
   it('rejects a pinned whole-tab close without persisting or reporting success', async () => {
     const listenerRef: { current: TerminalTabCloseRequestListener | null } = { current: null }
     const persistWorkspaceSession = vi.fn().mockResolvedValue(undefined)

@@ -3,7 +3,6 @@ import { syncZoomCSSVar } from '@/lib/ui-zoom'
 import { installCodexDetachedPaneRestartExecutor } from '@/components/terminal-pane/codex-detached-pane-restart-scheduler'
 import { useAppStore } from '../store'
 import { reconcileHydratedWorkspaceTabModels } from './reconcile-hydrated-workspace-tab-models'
-import { useStartupActions } from './use-app-startup-actions'
 import { WORKTREE_REFRESH_CONCURRENCY } from '../store/slices/worktrees'
 import { sweepRestoredCodexPanesForStaleAccounts } from '../lib/codex-stale-pane-sweep'
 import { fetchWorkspaceSessionWithRuntimeHostOwners } from '../lib/workspace-session-host-hydration'
@@ -12,7 +11,9 @@ import {
   collectWorktreeHydrationRepoIdsFromSession
 } from '../lib/workspace-session-hydration-keys'
 import { hydratePersistedUIAfterStartupRead } from '../lib/startup-ui-hydration'
-import { getRendererWindowId } from '../lib/window-identity'
+import { useStartupActions } from './use-app-startup-actions'
+import { adoptWorkspaceSessionRead } from '../lib/empty-window-workspace-session'
+import { getRendererWindowId, getRendererWindowSessionAdoption } from '../lib/window-identity'
 import {
   logRendererStartupDiagnostic,
   timeRendererStartupStep,
@@ -76,9 +77,16 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
     let uiHydrated = false
     // Why (issue #1158): track whether success-path reconnect started so the catch doesn't re-run it — re-entering on partially-mutated state would double-set ptyIds and drain pending* twice.
     let reconnectStarted = false
+    // Why read once, before the chain: a project window opened next to a live one holds no
+    // session, and the write gate must know that before hydration can unlock the writer.
+    const sessionAdoption = getRendererWindowSessionAdoption()
+    actions.setWorkspaceSessionAdoption(sessionAdoption)
     void (async () => {
       const startupStartedAt = performance.now()
-      logRendererStartupDiagnostic('startup-chain-start', { windowId: getRendererWindowId() })
+      logRendererStartupDiagnostic('startup-chain-start', {
+        windowId: getRendererWindowId(),
+        sessionAdoption
+      })
       try {
         // Why: nothing in the hydration chain reads profile state synchronously, so don't let it add a serial IPC round-trip before fetchSettings.
         void actions.fetchOrcaProfiles()
@@ -135,16 +143,20 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
             actions.fetchFolderWorkspacesForAllHosts({ remoteHosts: 'skip' })
           )
         })()
-        const sessionReadPromise = runtimeHostsPromise.then((startupRuntimeHostIds) =>
-          // Why: include saved runtime host ids so per-host worktree session slices restore from local settings without waiting on network reachability; unreadable partitions skip.
-          timeRendererStartupStep('session-get', () =>
-            fetchWorkspaceSessionWithRuntimeHostOwners(
-              window.api.session,
-              useAppStore.getState().repos,
-              startupRuntimeHostIds
+        const sessionReadPromise = runtimeHostsPromise
+          .then((startupRuntimeHostIds) =>
+            // Why: include saved runtime host ids so per-host worktree session slices restore from local settings without waiting on network reachability; unreadable partitions skip.
+            timeRendererStartupStep('session-get', () =>
+              fetchWorkspaceSessionWithRuntimeHostOwners(
+                window.api.session,
+                useAppStore.getState().repos,
+                startupRuntimeHostIds
+              )
             )
           )
-        )
+          // Why here: every step below reads the session — worktree prefetch, the store
+          // hydrations, the SSH restore — so an empty window drops it once, at the source.
+          .then((sessionRead) => adoptWorkspaceSessionRead(sessionRead, sessionAdoption))
         const hydrationSessionChain = sessionReadPromise.then(async (sessionRead) => {
           const hydrationRepoIds = collectWorktreeHydrationRepoIdsFromSession(
             sessionRead.session,

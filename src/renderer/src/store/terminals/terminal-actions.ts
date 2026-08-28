@@ -1,5 +1,6 @@
 import type { TerminalState } from './terminal-state'
 import type { Tab } from '../../../../shared/tab-types'
+import type { WindowSessionAdoption } from '../../../../shared/window-session-adoption'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { WorkspaceSessionState } from '../../../../shared/workspace-session-state-types'
@@ -50,6 +51,7 @@ export type TerminalActions = {
   clearNativeChatLaunchDraft: (tabId: string) => void
   markDefaultTerminalTabsApplied: (worktreeId: string) => void
   setHydrationSucceeded: (value: boolean) => void
+  setWorkspaceSessionAdoption: (adoption: WindowSessionAdoption) => void
   consumePendingSnapshot: (ptyId: string) => {
     snapshot: string
     cols?: number

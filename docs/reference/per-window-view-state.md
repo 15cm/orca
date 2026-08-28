@@ -171,6 +171,10 @@ snapshot are unchanged.
 
 ## Out of scope today, and where it plugs in
 
+- **Partitioning the workspace session per window.** A scoped window opened next to a live one
+  already starts with nothing open and never writes the session
+  ([`window-session-adoption.md`](./window-session-adoption.md)); that document holds the plan for
+  giving each window a partition of its own, which is what phase 2 below depends on.
 - **Reopening scoped windows at launch** (`openWindowScopes`): a startup step that calls
   `openMainWindow({ windowId: projectGroupWindowScopeKey(id) })` for each recorded scope. The
   registry and binding need no change; only the record of open scopes is new.

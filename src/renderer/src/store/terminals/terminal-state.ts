@@ -1,5 +1,6 @@
 import type { ClosedTerminalTabTombstonesByTabId } from '../../../../shared/closed-terminal-tab-tombstones'
 import type { TerminalLayoutSnapshot, TerminalTab } from '../../../../shared/terminal-tab-types'
+import type { WindowSessionAdoption } from '../../../../shared/window-session-adoption'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { SetupSplitDirection } from '../../../../shared/worktree/launch-types'
 import type {
@@ -104,6 +105,8 @@ export type TerminalState = {
   defaultTerminalTabsAppliedByWorktreeId: Record<string, true>
   closedTerminalTabTombstonesByTabId: ClosedTerminalTabTombstonesByTabId
   hydrationSucceeded: boolean
+  /** 'empty' windows read no persisted session and must never write one back over the shared blob. */
+  workspaceSessionAdoption: WindowSessionAdoption
   pendingReconnectWorktreeIds: string[]
   pendingReconnectTabByWorktree: Record<string, string[]>
   /** Prior daemon/relay identities are wake hints; they are not proof of current liveness. */

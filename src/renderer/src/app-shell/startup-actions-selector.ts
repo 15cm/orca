@@ -21,6 +21,7 @@ export type StartupActions = Pick<
   | 'fetchBrowserSessionProfiles'
   | 'reconnectPersistedTerminals'
   | 'setTerminalStartupRestorationReady'
+  | 'setWorkspaceSessionAdoption'
   | 'setDeferredSshReconnectTargets'
   | 'removeDeferredSshReconnectTarget'
   | 'setSshConnectionState'
@@ -59,6 +60,7 @@ export function selectStartupActions(state: StartupActions): StartupActions {
     cachedStartupActions.reconnectPersistedTerminals === state.reconnectPersistedTerminals &&
     cachedStartupActions.setTerminalStartupRestorationReady ===
       state.setTerminalStartupRestorationReady &&
+    cachedStartupActions.setWorkspaceSessionAdoption === state.setWorkspaceSessionAdoption &&
     cachedStartupActions.setDeferredSshReconnectTargets === state.setDeferredSshReconnectTargets &&
     cachedStartupActions.removeDeferredSshReconnectTarget ===
       state.removeDeferredSshReconnectTarget &&
@@ -93,6 +95,7 @@ export function selectStartupActions(state: StartupActions): StartupActions {
     fetchBrowserSessionProfiles: state.fetchBrowserSessionProfiles,
     reconnectPersistedTerminals: state.reconnectPersistedTerminals,
     setTerminalStartupRestorationReady: state.setTerminalStartupRestorationReady,
+    setWorkspaceSessionAdoption: state.setWorkspaceSessionAdoption,
     setDeferredSshReconnectTargets: state.setDeferredSshReconnectTargets,
     removeDeferredSshReconnectTarget: state.removeDeferredSshReconnectTarget,
     setSshConnectionState: state.setSshConnectionState,
