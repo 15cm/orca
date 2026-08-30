@@ -9,12 +9,8 @@ export function shouldPersistWorkspaceSession(
   state: Pick<AppState, 'workspaceSessionReady' | 'hydrationSucceeded' | 'workspaceSessionAdoption'>
 ): boolean {
   // Why (issue #1158): require both flags so a hydration failure can't overwrite orca-data.json with empty error-path state.
-  // Why the adoption check: a window that opened with nothing open holds an empty in-memory
-  // session, and every write replaces whole keyed maps — one debounce would wipe the other
-  // windows' tabs off disk. See docs/reference/window-session-adoption.md.
-  return (
-    state.workspaceSessionReady &&
-    state.hydrationSucceeded &&
-    state.workspaceSessionAdoption === 'shared'
-  )
+  // Why no adoption check any more: main rebases a scoped window's write onto the keys it does
+  // not own, so a second writer can no longer wipe the other windows' tabs off disk.
+  // See docs/reference/window-session-adoption.md.
+  return state.workspaceSessionReady && state.hydrationSucceeded
 }

@@ -3,25 +3,37 @@
 "Open in new window" on a project group gives that project its own window. Before this, the new
 window ran the same startup chain as every other one, read the same `session:get`, and came up
 showing every workspace and tab the window it was opened from was already showing. A project
-window now opens **empty**: its sidebar shows its project, and nothing is open inside it.
+window now opens **with its own project already open**, and what happens in it is durable.
 
-That is a feature, but it is also the first cut of a much larger seam. **The workspace session is
-one global object with no per-window routing.** `session:get` / `session:set` / `session:patch`
-(`src/main/ipc/session.ts`) take an optional `hostId` and nothing else; every renderer runs the
-same `session-get` in `use-app-startup-hydration.ts` and the same write subscriber in
-`use-app-session-persistence.ts`. This document is where the window dimension gets added.
+It did not always. The first cut opened empty, because the workspace session was one global object
+with no per-window routing and every write replaced whole keyed maps — a second writer would have
+erased the first window's tabs from disk. **Main now partitions that one session along the window
+axis**, which is what this document describes.
 
 ## The rule
 
-A window's **session adoption** is decided once, when the window is created, and frozen for its
-lifetime (reloads included):
+There is still exactly one stored session. What changes is **who owns which keys**, and main —
+not the renderer — decides:
 
-| Adoption   | Reads                                            | Writes |
-| ---------- | ------------------------------------------------ | ------ |
-| `'shared'` | the profile-wide session, exactly as before       | yes    |
-| `'empty'`  | nothing but the history and ledgers listed below  | never  |
+| Window          | Reads                                            | Writes                          |
+| --------------- | ------------------------------------------------ | ------------------------------- |
+| project (scoped)| the keys of its project group, subgroups included | those keys, rebased onto the rest |
+| free (shared)   | every key no project window is serving            | those keys, rebased onto the rest |
 
-`resolveWindowSessionAdoption` (`src/shared/window-session-adoption.ts`) answers `'empty'` for a
+`partitionWorkspaceSessionByWorktrees` (`shared/workspace-session-window-rebase.ts`) is the single
+operation behind all of it: it splits a session into the keys a set of worktrees owns and
+everything else. A scoped read is the first half, a free read is the second, and a rebased write
+is `rest` of what is stored merged with `owned` of what came in.
+
+**Main resolves the ownership, never the renderer.** A renderer-declared list would let one window
+overwrite another's tabs, and the renderer cannot know the answer at hydration time anyway:
+project groups load in parallel with the session read, so the window has repos but not yet the
+group tree its scope needs. `main/window/window-scoped-session-keys.ts` does the resolving, and
+`main/ipc/session.ts` applies it to all three channels.
+
+A window's **session adoption** is still decided once at creation and frozen for its lifetime:
+
+`resolveWindowSessionAdoption` (`src/shared/window-session-adoption.ts`) answers `'scoped'` for a
 **scoped window opened while another main window is already up**, and `'shared'` for everything
 else. Three consequences worth stating outright:
 
@@ -53,13 +65,13 @@ live window, so the renderer asks for it and listens for changes (see
 An older preload appends no flag and a renderer without a main window — the paired web client, the
 dashboard pop-out — reports `'shared'`: they are the implicit window, which owns the session.
 
-## What an empty window still reads
+## The carry/drop policy, and why it stayed
 
-`emptyWindowWorkspaceSession` (`renderer/src/lib/empty-window-workspace-session.ts`) projects the
-read session down. `EMPTY_WINDOW_SESSION_FIELD_POLICY` classifies **every** field of
-`WorkspaceSessionState` as `carry` or `drop`, with the same exhaustiveness guard
-`workspace-session-host-field-ownership.ts` uses, so a new session field cannot leak into an empty
-window by defaulting to "kept".
+`EMPTY_WINDOW_SESSION_FIELD_POLICY` (`renderer/src/lib/empty-window-workspace-session.ts`)
+classifies **every** field of `WorkspaceSessionState` as `carry` or `drop`. Main's partition has
+made its projection unnecessary — `adoptWorkspaceSessionRead` no longer reduces anything — but the
+table and its exhaustiveness guard stay: they are what forces a new session field to be classified
+instead of silently leaking into a window that has no project of its own.
 
 Three fields are carried, because none of them is a thing the user would call open:
 
@@ -75,60 +87,60 @@ workspace snapshot, and the window would fill back up with the workspaces it jus
 connection is dialed on demand instead, and it is a process-wide connection in main, so nothing is
 lost — see [`ssh-execution-boundary.md`](./ssh-execution-boundary.md).
 
-## Why it must never write
+## Why the write is rebased
 
 Every session write replaces whole keyed maps: `tabsByWorktree`, `unifiedTabs`, `tabGroups` and
-the rest are sent entire, not merged per worktree. A window holding an empty session that wrote
-once would erase every other window's tabs from disk, and the next launch's with them.
+the rest are sent entire, not merged per worktree. That is why a second writer used to be
+forbidden outright — one debounce would have erased every other window's tabs from disk.
 
-So `shouldPersistWorkspaceSession` — the single predicate the debounced writer, the shutdown
-checkpoint and the periodic sleeping-agent capture all consult — requires `'shared'` on top of
+`rebaseWorkspaceSessionWrite` removes the hazard instead of avoiding it: the window's own keys
+come from the incoming session, every other key is preserved from what is stored. So
+`shouldPersistWorkspaceSession` no longer checks the adoption; it is back to requiring only
 `workspaceSessionReady` and `hydrationSucceeded`.
+
+Two rules the rebase keeps, both deliberate:
+
+- **Global fields stay with the free window.** `activeRepoId`, `activeTabId` and friends describe
+  one window's focus and there is one slot for them.
+- **A key whose worktree cannot be resolved stays with the free window.** Losing it is worse than
+  a stale entry, and only that window can be sure nothing else claims it.
 
 Two write paths do not run through the debounced subscriber and were audited:
 
 - **`remoteWorkspace.setForConnectedTargets`** is chained off the local write in
   `use-app-session-persistence.ts`, so no local write means no remote push. The other caller,
   `hooks/remote-workspace-target-sync.ts`, pushes only when the window has local tabs for the
-  target, which an empty window does not.
+  target, which a window not serving that target does not.
 - **`mobile-terminal-close-ipc-bridge.ts`** persists the *whole* session when the CLI or mobile
-  closes a terminal tab. Main routes that request to the tab's owner window, and a window that
-  opened empty owns a tab as soon as the user makes one there — so the call is gated on
-  `shouldPersistWorkspaceSession` too.
+  closes a terminal tab. Main routes that request to the tab's owner window, and that write goes
+  through the same rebase, so it can only touch the keys that window serves.
 
-The consequence is honest and worth stating: **what the user does in an empty window is not
-durable.** It survives for the window's life; a reload or a close loses it. Scoped windows do not
-survive a relaunch in this phase either, so nothing is lost that phase 2 was not already going to
-have to build.
+Both now ride the partition rather than being held back by a gate.
 
-## What this buys the PTY ownership problem
+## Separate partitions were considered and dropped
 
-A window can only own a PTY it actually publishes
-([`per-window-view-state.md`](./per-window-view-state.md), "Terminal ownership"). An empty window
-publishes nothing, so it contests nothing: the window that had the terminals keeps them, and the
-"Running in another window" mirror overlay stops appearing merely because a second window was
-opened. Two windows now diverge only where the user made them diverge.
+An earlier plan gave each window its own stored partition. Two decisions made that unnecessary and
+worse:
 
-## Where the per-window partition plugs in
+- **A project moves, it is not copied.** The window it was opened from releases it, so one key has
+  one owner and no terminal is contested — no "Running in another window" overlay, nothing to
+  bring across.
+- **Closing a project window returns its project to the free window.** Its keys were always in the
+  shared session, so they simply stop being served by anyone and the free window reads them again.
 
-The end state is one session partition per window, which makes an empty window durable and lets
-the open windows come back at launch (phase 2). Everything needed to get there attaches to the
-type in `shared/window-session-adoption.ts`:
+With separate partitions, a closed project window's work would sit in a partition nothing reopens
+until the user reopens that exact window — and reopening windows at launch does not exist. One
+session with owned keys has no such hole.
 
-1. **Give `WindowSessionAdoption` a third arm** carrying a partition key — the scope key
-   (`group:<projectGroupId>`) for a scoped window, since that is already durable.
-   `resolveWindowSessionAdoption` returns it instead of `'empty'`, and the argv flag carries it.
-2. **Add the window dimension to the session channels.** `session:get` / `set` / `patch` in
-   `src/main/ipc/session.ts` take a partition key beside `hostId`; `Store.getWorkspaceSession`
-   grows the same second dimension. Old renderers that send neither keep reading the shared
-   partition, which is what makes this safe to ship incrementally.
-3. **Route the reads and writes.** `fetchWorkspaceSessionWithRuntimeHostOwners` and
-   `patchWorkspaceSessionByHost` take the key from the store; `adoptWorkspaceSessionRead` stops
-   projecting and becomes the partitioned read. `shouldPersistWorkspaceSession` drops the
-   `'shared'` check — with a partition of its own, every window may write.
-4. **Record which scopes were open** so `openWindowScopes` can reopen them at launch. Only then
-   does the "first window always adopts" rule need revisiting: the window that reopens the shared
-   partition should be the free one, not merely the first.
+## What is still missing
 
-Steps 1 and 3 touch the two renderer call sites this feature already isolated — startup adoption
-and the write gate. Step 2 is the real work, and nothing above it needs to change to do it.
+**The release is not live yet.** Opening a project window gives that window its project, but the
+window it was opened from keeps showing it until that window reloads or Orca restarts, because it
+is already hydrated. Main has the answer (`resolveScopesServedByOtherWindows`); what is missing is
+telling the already-open window to drop those keys from its store without spawning or killing
+anything. `hydrateWorkspaceSession` is the closest existing path, but it is written for startup
+and for remote snapshots — it handles PTY ownership transfers and runtime placeholders — so
+subtracting a project through it needs its own design pass rather than a quick call.
+
+Reopening project windows at launch is also still absent, and deliberately so: with a project
+returning to the free window on close, nothing is lost without it.

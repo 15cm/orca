@@ -9,7 +9,7 @@ import {
 import { stripRetiredGlobalSettings } from '../applying-settings/terminal-settings-migrations'
 import { omitDefaultWorktreeMetaFieldsInMap } from '../../../shared/worktree/meta-persisted-defaults'
 import { projectWorktreeMetaByIdentityOntoLocators } from './worktree-meta-alias-projection'
-import { withoutRedundantPartitionGlobals } from '../../../shared/workspace-session-host-field-ownership'
+import { withoutRedundantPartitionGlobals } from '../../../shared/workspace-session-field-ownership'
 
 import {
   applySecretSentinelSubstitutions,

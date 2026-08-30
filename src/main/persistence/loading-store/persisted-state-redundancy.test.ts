@@ -17,7 +17,7 @@ import type { WorkspaceSessionState } from '../../../shared/workspace-session-st
 import type { WorktreeMeta } from '../../../shared/worktree/meta-types'
 import type { BrowserHistoryEntry } from '../../../shared/browser-workspace-types'
 import { WORKTREE_META_PERSISTED_DEFAULTS } from '../../../shared/worktree/meta-persisted-defaults'
-import { HOST_PARTITION_REDUNDANT_GLOBAL_FIELDS } from '../../../shared/workspace-session-host-field-ownership'
+import { HOST_PARTITION_REDUNDANT_GLOBAL_FIELDS } from '../../../shared/workspace-session-field-ownership'
 
 vi.mock('electron', () => ({
   app: {

@@ -9,14 +9,14 @@ import type { WindowScope } from './window-scope'
 const PROJECT_SCOPE: WindowScope = { type: 'project-group', projectGroupId: 'group-1' }
 
 describe('resolveWindowSessionAdoption', () => {
-  it('opens a project window empty when another window is already up', () => {
+  it('gives a project window its own partition when another window is already up', () => {
     expect(
       resolveWindowSessionAdoption({
         scope: PROJECT_SCOPE,
         scopedWindowsEnabled: true,
         otherMainWindowsOpen: true
       })
-    ).toBe('empty')
+    ).toBe('scoped')
   })
 
   it('adopts the shared session in the launch’s first window even when it is scoped', () => {
@@ -59,9 +59,9 @@ describe('window session adoption argv', () => {
     expect(
       parseWindowSessionAdoptionFromArgv([
         '--orca-window-id=group:perc',
-        formatWindowSessionAdoptionArgument('empty')
+        formatWindowSessionAdoptionArgument('scoped')
       ])
-    ).toBe('empty')
+    ).toBe('scoped')
   })
 
   it('reports null for argv without the flag or with an unknown value', () => {

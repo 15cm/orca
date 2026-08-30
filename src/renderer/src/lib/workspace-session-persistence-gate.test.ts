@@ -44,14 +44,25 @@ describe('shouldPersistWorkspaceSession', () => {
     ).toBe(true)
   })
 
-  it('returns false for a window that opened with nothing open, however far startup got', () => {
-    // Why: this window hydrated no session, so its writes would replace every keyed map on
-    // disk with the empty one it holds — the other windows' tabs and the next launch's.
+  it('lets a scoped window write, because main rebases its write onto the keys it does not own', () => {
+    // Why this flipped: the gate used to be the only thing standing between a second writer and
+    // the other windows' tabs. Main now partitions the write, so a project window persists its
+    // own project instead of losing it on reload. See workspace-session-window-rebase.ts.
     expect(
       shouldPersistWorkspaceSession({
         workspaceSessionReady: true,
         hydrationSucceeded: true,
-        workspaceSessionAdoption: 'empty'
+        workspaceSessionAdoption: 'scoped'
+      })
+    ).toBe(true)
+  })
+
+  it('still refuses to write before hydration succeeded', () => {
+    expect(
+      shouldPersistWorkspaceSession({
+        workspaceSessionReady: true,
+        hydrationSucceeded: false,
+        workspaceSessionAdoption: 'shared'
       })
     ).toBe(false)
   })

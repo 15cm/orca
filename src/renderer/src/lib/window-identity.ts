@@ -20,5 +20,5 @@ export function getRendererWindowId(): string {
 export function getRendererWindowSessionAdoption(): WindowSessionAdoption {
   const adoption = (globalThis as { api?: { windowIdentity?: { sessionAdoption?: unknown } } }).api
     ?.windowIdentity?.sessionAdoption
-  return adoption === 'empty' ? 'empty' : 'shared'
+  return adoption === 'scoped' ? 'scoped' : 'shared'
 }

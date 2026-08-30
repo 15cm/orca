@@ -5,7 +5,7 @@ import {
   type ExecutionHostId
 } from '../../../shared/execution-host'
 import { parseWorkspaceSessionSalvaging } from '../../../shared/workspace-session-salvage'
-import { withoutRedundantGlobalFields } from '../../../shared/workspace-session-host-field-ownership'
+import { withoutRedundantGlobalFields } from '../../../shared/workspace-session-field-ownership'
 
 export function workspaceSessionSalvageLogDetails(result: {
   droppedCount: number

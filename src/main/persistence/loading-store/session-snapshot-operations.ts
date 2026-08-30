@@ -5,6 +5,10 @@ import type {
 } from '../../../shared/workspace-session-state-types'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import { pruneWorkspaceSessionBrowserHistory } from '../../../shared/workspace-session-browser-history'
+import {
+  rebaseWorkspaceSessionWrite,
+  type OwnedWorktreeIds
+} from '../../../shared/workspace-session-window-rebase'
 
 import { workspaceSessionPatchNeedsFullNormalization } from './terminal-session-cleanup'
 
@@ -41,13 +45,32 @@ export class SessionSnapshotOperations {
     this[sessionSnapshotOperationsContext] = { runtime, sessions, bindingRecovery, scheduling }
   }
 
-  setWorkspaceSession(session: PersistedState['workspaceSession'], hostId?: string | null): void {
+  /** A window that declares owned worktrees writes only their keys; everything else is preserved. */
+  private rebaseForWindow(
+    session: PersistedState['workspaceSession'],
+    resolvedHostId: string,
+    owned: OwnedWorktreeIds | undefined
+  ): PersistedState['workspaceSession'] {
+    if (!owned || owned.size === 0) {
+      return session
+    }
+    const current =
+      this[sessionSnapshotOperationsContext].sessions.getWorkspaceSession(resolvedHostId)
+    return rebaseWorkspaceSessionWrite(current, session, owned)
+  }
+
+  setWorkspaceSession(
+    session: PersistedState['workspaceSession'],
+    hostId?: string | null,
+    owned?: OwnedWorktreeIds
+  ): void {
     const resolved = resolveHostId(hostId)
+    const next = this.rebaseForWindow(session, resolved, owned)
     if (resolved === LOCAL_EXECUTION_HOST_ID) {
-      setLocalWorkspaceSession(this, session)
+      setLocalWorkspaceSession(this, next)
       return
     }
-    setHostWorkspaceSession(this[sessionSnapshotOperationsContext].sessions, resolved, session)
+    setHostWorkspaceSession(this[sessionSnapshotOperationsContext].sessions, resolved, next)
   }
 
   stageWorkspaceSessionBeforeUnload(
@@ -62,13 +85,19 @@ export class SessionSnapshotOperations {
     setHostWorkspaceSession(this[sessionSnapshotOperationsContext].sessions, resolved, session)
   }
 
-  patchWorkspaceSession(patch: WorkspaceSessionPatch, hostId?: string | null): void {
+  patchWorkspaceSession(
+    patch: WorkspaceSessionPatch,
+    hostId?: string | null,
+    owned?: OwnedWorktreeIds
+  ): void {
     const resolved = resolveHostId(hostId)
+    const current = this[sessionSnapshotOperationsContext].sessions.getWorkspaceSession(resolved)
     // Why: the debounced hot path sends only changed slices; scalar/UI patches skip terminal normalization, topology patches keep stale-PTY protections.
-    let next: WorkspaceSessionState = {
-      ...this[sessionSnapshotOperationsContext].sessions.getWorkspaceSession(resolved),
-      ...patch
-    }
+    const merged: WorkspaceSessionState = { ...current, ...patch }
+    // Why rebase after the spread: a patch replaces the whole field, so a scoped window's
+    // partial map would drop every other window's keys without this.
+    let next: WorkspaceSessionState =
+      owned && owned.size > 0 ? rebaseWorkspaceSessionWrite(current, merged, owned) : merged
     if (workspaceSessionPatchNeedsFullNormalization(patch)) {
       this.setWorkspaceSession(next, resolved)
       return

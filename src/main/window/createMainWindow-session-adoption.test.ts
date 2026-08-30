@@ -75,13 +75,13 @@ describe('createMainWindow session adoption', () => {
     _resetWindowViewStateRegistryForTests()
   })
 
-  it('opens a project window empty while another window is up', () => {
+  it('marks a project window scoped while another window is up', () => {
     setScopedWindowsEnabled(true)
     hasLiveMainWindowsMock.mockReturnValue(true)
 
     createMainWindow(null, { windowId: projectGroupWindowScopeKey('perc') })
 
-    expect(rendererArgv()).toContain('--orca-window-session=empty')
+    expect(rendererArgv()).toContain('--orca-window-session=scoped')
   })
 
   it('hydrates the shared session in the launch’s first window, scope or not', () => {

@@ -45,33 +45,20 @@ function persistedSessionRead(): WorkspaceSessionHostRead {
   }
 }
 
-describe('startup hydration for a window that opens empty', () => {
-  it('leaves a project window with no active workspace and no tabs', () => {
-    const store = createTestStore()
-    seedCatalog(store)
-
-    const read = adoptWorkspaceSessionRead(persistedSessionRead(), 'empty')
-    store.getState().hydrateWorkspaceSession(read.session)
-    store.getState().hydrateTabsSession(read.session)
-
-    const state = store.getState()
-    expect(state.activeWorkspaceKey).toBeNull()
-    expect(state.activeWorktreeId).toBeNull()
-    expect(state.activeRepoId).toBeNull()
-    expect(state.activeTabId).toBeNull()
-    expect(state.tabsByWorktree).toEqual({})
-    expect(state.unifiedTabsByWorktree).toEqual({})
-    expect(state.pendingReconnectWorktreeIds).toEqual([])
-    // Why: a startup SSH restore would pull that target's remote workspace back into the window.
-    expect(read.session.activeConnectionIdsAtShutdown ?? []).toEqual([])
+describe('startup hydration for a scoped window', () => {
+  it('uses main’s already-partitioned read without a renderer projection', () => {
+    const persisted = persistedSessionRead()
+    const read = adoptWorkspaceSessionRead(persisted, 'scoped')
+    expect(read).toBe(persisted)
   })
 
-  it('keeps the ledgers an empty window still needs', () => {
-    const read = adoptWorkspaceSessionRead(persistedSessionRead(), 'empty')
-
-    // Why: dropping this one re-runs the repo's default tab template — and its commands.
-    expect(read.session.defaultTerminalTabsAppliedByWorktreeId).toEqual({ [WORKTREE_ID]: true })
-    expect(read.session.lastVisitedAtByWorktreeId).toEqual({ [WORKTREE_ID]: 1_700_000_000_000 })
+  it('hydrates the keys main assigned to the project window', () => {
+    const store = createTestStore()
+    seedCatalog(store)
+    const read = adoptWorkspaceSessionRead(persistedSessionRead(), 'scoped')
+    store.getState().hydrateWorkspaceSession(read.session)
+    expect(store.getState().activeWorktreeId).toBe(WORKTREE_ID)
+    expect(store.getState().tabsByWorktree[WORKTREE_ID]).toHaveLength(1)
   })
 
   it('still hydrates everything in the launch’s first window', () => {

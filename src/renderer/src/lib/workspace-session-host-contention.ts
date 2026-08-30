@@ -10,11 +10,11 @@ import {
   getWorktreeIdFromHostIdentity,
   isWorktreeHostIdentity
 } from '../../../shared/worktree/host-qualified-identity'
-import { WORKSPACE_SESSION_FIELD_OWNERSHIP } from '../../../shared/workspace-session-host-field-ownership'
+import { WORKSPACE_SESSION_FIELD_OWNERSHIP } from '../../../shared/workspace-session-field-ownership'
 import {
   isWorkspaceSessionRecord,
   type WorkspaceSessionRecord
-} from './workspace-session-host-records'
+} from '../../../shared/workspace-session-key-resolution'
 import type { WorkspaceRuntimeOwnerProjection } from './workspace-runtime-host-ownership'
 import {
   mergeWorkspaceSessionsFromHosts,

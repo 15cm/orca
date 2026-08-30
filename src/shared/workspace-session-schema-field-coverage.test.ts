@@ -16,7 +16,7 @@ import type { WorkspaceSessionState } from './workspace-session-state-types'
  * green, and the fix still did not survive a quit-and-relaunch.
  *
  * Two sibling tables (`profile-project-session-field-disposition.ts`,
- * `workspace-session-host-field-ownership.ts`) already pin themselves with
+ * `workspace-session-field-ownership.ts`) already pin themselves with
  * `satisfies Record<keyof WorkspaceSessionState, ...>`. This schema had no such guard and is the one
  * that fell behind, so the ratchet below is the same shape.
  */

@@ -12,10 +12,10 @@ import type { WindowScope } from './window-scope'
 export type WindowSessionAdoption =
   /** Reads and writes the profile-wide session: every window before scoped windows existed. */
   | 'shared'
-  /** Opens with nothing open and never writes; what happens in it lives for the window's life. */
-  | 'empty'
+  /** Reads and writes only the keys of its project group; main resolves which those are. */
+  | 'scoped'
 
-const WINDOW_SESSION_ADOPTIONS: readonly WindowSessionAdoption[] = ['shared', 'empty']
+const WINDOW_SESSION_ADOPTIONS: readonly WindowSessionAdoption[] = ['shared', 'scoped']
 
 /**
  * Why argv rather than IPC: this is frozen at creation, so it rides the same sandboxed-preload
@@ -42,13 +42,11 @@ export function parseWindowSessionAdoptionFromArgv(
 }
 
 /**
- * A project window opened while another window is already up starts empty: that other window
- * already shows the shared session and owns its writes, so adopting it would render the same
- * workspaces twice and put a second writer on one blob.
+ * A project window opened while another window is already up serves its own project: it reads the
+ * keys of its group and writes them back, and the window it was opened from releases them.
  *
- * The launch's first window always adopts, scoped or not — relaunching into a window with no tabs
- * is the regression this rule exists to prevent, and it is also the seam phase 2 needs: once the
- * open scopes reopen at launch, each gets its own partition instead of this all-or-nothing answer.
+ * The launch's first window is always the shared one, scoped or not — it has to be, because it is
+ * what shows everything nothing else claimed.
  */
 export function resolveWindowSessionAdoption(input: {
   scope: WindowScope | null
@@ -56,6 +54,6 @@ export function resolveWindowSessionAdoption(input: {
   otherMainWindowsOpen: boolean
 }): WindowSessionAdoption {
   return input.scopedWindowsEnabled && input.scope !== null && input.otherMainWindowsOpen
-    ? 'empty'
+    ? 'scoped'
     : 'shared'
 }

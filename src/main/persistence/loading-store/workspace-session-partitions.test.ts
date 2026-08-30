@@ -13,7 +13,7 @@ import type { WorkspaceSessionState } from '../../../shared/workspace-session-st
 import {
   HOST_PARTITION_REDUNDANT_GLOBAL_FIELDS,
   WORKSPACE_SESSION_FIELD_OWNERSHIP
-} from '../../../shared/workspace-session-host-field-ownership'
+} from '../../../shared/workspace-session-field-ownership'
 import { WORKSPACE_SESSION_WORKTREE_REFERENCE_KIND } from '../restoring-sessions/session-worktree-ownership'
 import { parseWorkspaceSessionsByHostId } from './workspace-session-partitions'
 

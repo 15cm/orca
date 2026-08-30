@@ -82,21 +82,16 @@ export function emptyWindowWorkspaceSession(session: WorkspaceSessionState): Wor
 }
 
 /**
- * The session a window hydrates from. `shared` is the untouched read every window did before
- * scoped windows existed; the per-window partition replaces this switch with a partitioned read.
+ * The session a window hydrates from.
+ *
+ * Main partitions the read by the sending window's scope (`main/ipc/session.ts`), so a scoped
+ * window already receives only its project's keys and there is nothing left to project here. The
+ * carry/drop policy above still documents what a window with no project of its own would keep,
+ * and its exhaustiveness guard still forces every new session field to be classified.
  */
 export function adoptWorkspaceSessionRead(
   read: WorkspaceSessionHostRead,
-  adoption: WindowSessionAdoption
+  _adoption: WindowSessionAdoption
 ): WorkspaceSessionHostRead {
-  if (adoption === 'shared') {
-    return read
-  }
-  return {
-    session: emptyWindowWorkspaceSession(read.session),
-    // Nothing is keyed by a workspace that no longer appears in the session.
-    runtimeHostIdByWorkspaceSessionKey: {},
-    contestedHostWorkspaceSessions: {},
-    contestedPrimaryHostBySessionKey: {}
-  }
+  return read
 }
