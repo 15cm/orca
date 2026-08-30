@@ -36,18 +36,12 @@ export function useEmulatorPaneSession({
   autoAttachOnMount
 }: UseEmulatorPaneSessionArgs) {
   const [devices, setDevices] = useState<SimulatorDeviceRow[]>([])
-  const configuredDefaultUdid = useAppStore(
-    (state) => state.settings?.mobileEmulatorDefaultDeviceUdid ?? null
-  )
   // Why the lazy initializer: the consume deletes the handoff entry, and a `useRef(expr)` argument
   // re-runs every render — so a prelaunch registered after mount was consumed and then discarded.
   const [prelaunchedSession] = useState<EmulatorPaneSession['info'] | null>(() =>
     consumePrelaunchedSimulatorSession(worktreeId)
   )
-  const prelaunchedState = buildPrelaunchedEmulatorSessionState(
-    prelaunchedSession,
-    configuredDefaultUdid
-  )
+  const prelaunchedState = buildPrelaunchedEmulatorSessionState(prelaunchedSession)
   const [selectedUdid, setSelectedUdid] = useState<string | null>(prelaunchedState.selectedUdid)
   const [session, setSession] = useState<EmulatorPaneSession | null>(prelaunchedState.session)
   const [loading, setLoading] = useState(
@@ -177,26 +171,23 @@ export function useEmulatorPaneSession({
         if (list.length === 0 && deviceRefreshErrorRef.current) {
           throw deviceRefreshErrorRef.current
         }
-        const target = resolveEmulatorAttachTarget({
-          configuredDefaultUdid,
-          devices: list,
-          deviceTarget,
-          selectedUdid
-        })
-        if (!target) {
+        if (list.length === 0) {
           throw new Error(
             'No emulator devices found. Add an iOS Simulator in Xcode, or an Android Virtual Device in Android Studio.'
           )
         }
+        const target = resolveEmulatorAttachTarget({ deviceTarget, selectedUdid })
         requestedTarget = target
-        setSelectedUdid(target)
-        if (target !== liveTargetRef.current) {
-          // Why: switching devices should show an explicit connecting state,
-          // not a frozen frame from the previously attached emulator.
-          setSession(null)
-          setStreamKey(null)
-          liveTargetRef.current = null
-          resetVisualOrientation()
+        if (target) {
+          setSelectedUdid(target)
+          if (target !== liveTargetRef.current) {
+            // Why: switching devices should show an explicit connecting state,
+            // not a frozen frame from the previously attached emulator.
+            setSession(null)
+            setStreamKey(null)
+            liveTargetRef.current = null
+            resetVisualOrientation()
+          }
         }
         const res = (await callRuntimeRpc({ kind: 'local' }, 'emulator.attach', {
           device: target,
@@ -242,7 +233,6 @@ export function useEmulatorPaneSession({
     },
     [
       applySession,
-      configuredDefaultUdid,
       devices,
       loading,
       refreshDevices,
@@ -252,12 +242,6 @@ export function useEmulatorPaneSession({
       worktreeId
     ]
   )
-
-  useEffect(() => {
-    if (!selectedUdid && configuredDefaultUdid) {
-      setSelectedUdid(configuredDefaultUdid)
-    }
-  }, [configuredDefaultUdid, selectedUdid])
 
   const shutdown = useEmulatorPaneShutdown({
     loading,

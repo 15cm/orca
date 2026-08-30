@@ -13,12 +13,11 @@ export type PrelaunchedEmulatorSessionState = {
 }
 
 export function buildPrelaunchedEmulatorSessionState(
-  info: EmulatorStreamInfo | null | undefined,
-  configuredDefaultUdid: string | null
+  info: EmulatorStreamInfo | null | undefined
 ): PrelaunchedEmulatorSessionState {
   const liveTarget = info?.deviceUdid || info?.device || null
   return {
-    selectedUdid: liveTarget || configuredDefaultUdid,
+    selectedUdid: liveTarget,
     session: info
       ? {
           attached: true,

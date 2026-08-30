@@ -22,6 +22,19 @@ describe('EmulatorSessionRegistry backend tagging', () => {
     expect(session?.streamCodec).toBe('mjpeg')
   })
 
+  it('reports devices other worktrees hold, excluding the asking worktree', () => {
+    const registry = new EmulatorSessionRegistry()
+    registry.registerActive('wt1', { deviceUdid: 'device-a', wsUrl: '', streamUrl: '' })
+    registry.registerActive('wt2', { deviceUdid: 'device-b', wsUrl: '', streamUrl: '' })
+    expect([...registry.getKeysClaimedByOtherWorktrees('wt1')]).toEqual(['device-b'])
+    expect([...registry.getKeysClaimedByOtherWorktrees('wt3')].sort()).toEqual([
+      'device-a',
+      'device-b'
+    ])
+    registry.unregisterWorktree('wt2')
+    expect([...registry.getKeysClaimedByOtherWorktrees('wt1')]).toEqual([])
+  })
+
   it('carries streamCodec back through getActiveForWorktree', () => {
     const registry = new EmulatorSessionRegistry()
     registry.registerActive(

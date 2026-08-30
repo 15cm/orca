@@ -59,6 +59,18 @@ export class EmulatorSessionRegistry {
     return [...this.activeByWorktree.values()].some((activeKey) => activeKey === key)
   }
 
+  // Devices another worktree is already streaming, so a default pick can skip
+  // them instead of colliding two workspaces on one emulator.
+  getKeysClaimedByOtherWorktrees(worktreeId?: string): Set<string> {
+    const claimed = new Set<string>()
+    for (const [activeWorktreeId, key] of this.activeByWorktree.entries()) {
+      if (activeWorktreeId !== worktreeId) {
+        claimed.add(key)
+      }
+    }
+    return claimed
+  }
+
   listSessions(): EmulatorSessionState[] {
     return [...this.sessions.values()]
   }

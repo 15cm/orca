@@ -243,6 +243,44 @@ describe('useEmulatorPaneSession', () => {
     expect(latest?.visualOrientation).toBe('portrait')
   })
 
+  it('leaves the device choice to main when the user picked none', async () => {
+    consumePrelaunchedSimulatorSession(WORKTREE_ID)
+    useAppStore.setState({ settings: { mobileEmulatorDefaultDeviceUdid: 'device-a' } as never })
+    const runtimeCall = vi.fn(async ({ method }: RuntimeCallRequest) => {
+      if (method === 'emulator.listDevices') {
+        return runtimeSuccess(deviceList)
+      }
+      if (method === 'emulator.attach') {
+        return runtimeSuccess({
+          attached: true,
+          info: {
+            deviceUdid: 'device-b',
+            displayName: 'iPhone B',
+            streamUrl: 'http://127.0.0.1:3101/stream.mjpeg',
+            wsUrl: 'ws://127.0.0.1:3101/ws'
+          }
+        })
+      }
+      throw new Error(`Unexpected RPC method: ${method}`)
+    })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: { runtime: { call: runtimeCall } }
+    })
+
+    await act(async () => {
+      root.render(<AutoAttachProbe />)
+    })
+
+    await vi.waitFor(() => expect(latest?.session?.attached).toBe(true))
+    const attachCall = runtimeCall.mock.calls.find(
+      ([request]) => request.method === 'emulator.attach'
+    )
+    expect((attachCall?.[0].params as { device?: string })?.device).toBeUndefined()
+    // Main's answer, not the global default, is what the pane ends up on.
+    expect(latest?.selectedUdid).toBe('device-b')
+  })
+
   it('keeps simulator discovery setup errors during auto attach', async () => {
     const message =
       'Xcode Simulator tools are unavailable. Install full Xcode, open it once, then select it with `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`.'

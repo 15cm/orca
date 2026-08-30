@@ -5,7 +5,13 @@ import {
   inspectEmulatorAvailability,
   type EmulatorAvailability
 } from '../emulator/emulator-availability'
-import { resolveDefaultAttachDevice } from '../emulator/emulator-default-attach-device'
+import { attachEmulatorForWorktree } from './emulator-attach-orchestration'
+import {
+  captureEmulatorLogcat,
+  installEmulatorApp,
+  launchEmulatorApp,
+  setEmulatorAppPermission
+} from './emulator-app-capability-commands'
 import { setConfiguredAndroidSdkPath } from '../emulator/android/android-sdk-host-discovery'
 import type { EmulatorGesturePoint } from '../emulator/emulator-gesture-sender'
 import type { EmulatorSessionInfo } from '../emulator/emulator-types'
@@ -131,66 +137,17 @@ export class RuntimeEmulatorCommands {
     if (settings.mobileEmulatorEnabled === false) {
       throw new EmulatorError('emulator_disabled', 'Mobile Emulator is disabled in Settings.')
     }
-    const bridge = this.requireEmulatorBridge()
-    let device = params.device ?? settings.mobileEmulatorDefaultDeviceUdid ?? undefined
-    if (!device) {
-      device = await resolveDefaultAttachDevice(bridge)
-    }
-    if (!device) {
-      throw new EmulatorError(
-        'emulator_device_not_found',
-        'No emulator device specified. Choose a default device in Settings > Mobile Emulator or pass a device.'
-      )
-    }
-    const worktreeId = await this.resolveWorktreeId(params.worktree)
-    if (worktreeId) {
-      const reusable = await bridge.getReusableActiveForWorktree(worktreeId, device)
-      if (reusable) {
-        // Why: renderer remounts should reconnect to the existing stream, not
-        // kill it and create the stream-disconnected reload loop users see.
-        this.notifyRendererEmulatorAutoAttach(worktreeId, reusable)
-        if (params.focus) {
-          this.notifyRendererEmulatorPaneFocus(worktreeId)
-        }
-        return { attached: true, info: reusable }
-      }
-      // A different requested device is an explicit switch; the bridge keeps a
-      // slow-to-boot Android emulator alive for instant switch-back.
-      await bridge.stopActiveForSwitch(worktreeId)
-    }
-    const lease = await bridge.acquireHelperForDevice(device)
-    const { info } = lease
-    if (worktreeId) {
-      try {
-        const currentWorktreeId = await this.resolveWorktreeId(params.worktree)
-        if (currentWorktreeId !== worktreeId) {
-          throw new EmulatorError(
-            'emulator_no_active',
-            'The workspace changed while the emulator was starting. Reattach the emulator.'
-          )
-        }
-      } catch (error) {
-        // Why: the workspace can disappear while a slow Android device boots.
-        await lease.release({ cleanupIfUnused: true }).catch(() => {})
-        if (error instanceof Error && error.message === 'selector_not_found') {
-          throw new EmulatorError(
-            'emulator_no_active',
-            'The workspace changed while the emulator was starting. Reattach the emulator.'
-          )
-        }
-        throw error
-      }
-      bridge.registerActiveEmulator(worktreeId, info, { managed: true })
-      await lease.release()
-      this.notifyRendererEmulatorAutoAttach(worktreeId, info)
-      if (params.focus) {
-        this.notifyRendererEmulatorPaneFocus(worktreeId)
-      }
-    } else {
-      await lease.release()
-    }
-    // Default: no auto steal (mirror browser tab create/switch). --focus sends emulator:pane-focus only when requested.
-    return { attached: true, info }
+    return attachEmulatorForWorktree(
+      {
+        bridge: this.requireEmulatorBridge(),
+        configuredDefaultDeviceUdid: settings.mobileEmulatorDefaultDeviceUdid ?? undefined,
+        resolveWorktreeId: () => this.resolveWorktreeId(params.worktree),
+        notifyAutoAttach: (worktreeId, info) =>
+          this.notifyRendererEmulatorAutoAttach(worktreeId, info),
+        notifyPaneFocus: (worktreeId) => this.notifyRendererEmulatorPaneFocus(worktreeId)
+      },
+      params
+    )
   }
 
   async emulatorList(_params: { worktree?: string } = {}): Promise<unknown> {
@@ -237,11 +194,10 @@ export class RuntimeEmulatorCommands {
   async emulatorInstall(
     params: EmulatorTargetParams & { path: string; reinstall?: boolean }
   ): Promise<{ ok: true }> {
-    const worktreeId = await this.resolveWorktreeId(params.worktree)
-    await this.requireEmulatorBridge().runCapability(
-      'install',
-      { device: params.device ?? params.emulator, worktreeId },
-      (backend, device) => backend.installApp!(device, params.path, { reinstall: params.reinstall })
+    await installEmulatorApp(
+      this.requireEmulatorBridge(),
+      await this.capabilityTarget(params),
+      params
     )
     return RuntimeEmulatorCommands.OK
   }
@@ -249,11 +205,10 @@ export class RuntimeEmulatorCommands {
   async emulatorLaunch(
     params: EmulatorTargetParams & { package: string; activity?: string }
   ): Promise<{ ok: true }> {
-    const worktreeId = await this.resolveWorktreeId(params.worktree)
-    await this.requireEmulatorBridge().runCapability(
-      'launch',
-      { device: params.device ?? params.emulator, worktreeId },
-      (backend, device) => backend.launchApp!(device, params.package, params.activity)
+    await launchEmulatorApp(
+      this.requireEmulatorBridge(),
+      await this.capabilityTarget(params),
+      params
     )
     return RuntimeEmulatorCommands.OK
   }
@@ -265,12 +220,10 @@ export class RuntimeEmulatorCommands {
       permission?: string
     }
   ): Promise<{ ok: true }> {
-    const worktreeId = await this.resolveWorktreeId(params.worktree)
-    await this.requireEmulatorBridge().runCapability(
-      'permissions',
-      { device: params.device ?? params.emulator, worktreeId },
-      (backend, device) =>
-        backend.setPermission!(device, params.op, params.package ?? '', params.permission)
+    await setEmulatorAppPermission(
+      this.requireEmulatorBridge(),
+      await this.capabilityTarget(params),
+      params
     )
     return RuntimeEmulatorCommands.OK
   }
@@ -286,12 +239,20 @@ export class RuntimeEmulatorCommands {
   async emulatorLogcat(
     params: EmulatorTargetParams & { lines?: number; filters?: string[] }
   ): Promise<unknown> {
-    const worktreeId = await this.resolveWorktreeId(params.worktree)
-    return this.requireEmulatorBridge().runCapability(
-      'logcat',
-      { device: params.device ?? params.emulator, worktreeId },
-      (backend, device) => backend.logcat!(device, { lines: params.lines, filters: params.filters })
+    return captureEmulatorLogcat(
+      this.requireEmulatorBridge(),
+      await this.capabilityTarget(params),
+      params
     )
+  }
+
+  private async capabilityTarget(
+    params: EmulatorTargetParams
+  ): Promise<{ device?: string; worktreeId?: string }> {
+    return {
+      device: params.device ?? params.emulator,
+      worktreeId: await this.resolveWorktreeId(params.worktree)
+    }
   }
 
   async emulatorKill(params: {

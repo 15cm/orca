@@ -10,7 +10,7 @@ import {
   type EmulatorStartLease
 } from './emulator-start-lease-registry'
 import { listAvailableEmulatorDevices } from './emulator-device-inventory'
-import { deriveAxUrlFromStreamUrl } from './serve-sim-detached-session'
+import { requestEmulatorAccessibilityTree } from './emulator-accessibility-tree-request'
 import { IosEmulatorBackend } from './backends/ios-emulator-backend'
 import { AndroidEmulatorBackend } from './backends/android-emulator-backend'
 import type {
@@ -77,6 +77,10 @@ export class EmulatorBridge {
 
   getActiveForWorktree(worktreeId?: string): EmulatorSessionInfo | null {
     return this.sessionRegistry.getActiveForWorktree(worktreeId)
+  }
+
+  getDevicesClaimedByOtherWorktrees(worktreeId?: string): Set<string> {
+    return this.sessionRegistry.getKeysClaimedByOtherWorktrees(worktreeId)
   }
 
   // On a device switch, keep slow-to-boot Android emulators running for instant
@@ -199,29 +203,15 @@ export class EmulatorBridge {
   }
 
   async accessibilityTree(opts?: EmulatorTargetOpts): Promise<unknown> {
-    return this.runCapability('accessibilityTree', opts, async (backend, device) => {
-      if (backend.kind !== 'ios') {
-        return backend.accessibilityTree!(device)
-      }
-      const udid = await backend.resolveDeviceId(device)
-      const worktreeId = opts?.worktreeId
-      // Fall back to the udid-keyed session so an explicit --device read works
-      // from a worktree with no active emulator (matching tap/type reachability);
-      // sessions are stored once per udid, so both lookups hit the same state.
-      const session =
-        (worktreeId ? this.getActiveForWorktree(worktreeId) : null) ??
-        this.sessionRegistry.getSession(udid)
-      if (worktreeId && session && session.deviceUdid !== udid) {
-        throw new EmulatorError(
-          'emulator_no_active',
-          `iOS simulator ${udid} is not active for this worktree (active: ${session.deviceUdid}); attach the requested simulator first.`
-        )
-      }
-      // Heal sessions registered without an axUrl (parse-time derivation only
-      // covers fresh --detach output) by deriving it from the mjpeg stream URL.
-      const axUrl = session?.axUrl ?? deriveAxUrlFromStreamUrl(session?.streamUrl)
-      return backend.accessibilityTree!(udid, axUrl)
-    })
+    return this.runCapability('accessibilityTree', opts, (backend, device) =>
+      requestEmulatorAccessibilityTree(backend, device, opts?.worktreeId, {
+        forWorktree: (worktreeId) => this.getActiveForWorktree(worktreeId),
+        forDevice: (udid) => {
+          const session = this.sessionRegistry.getSession(udid)
+          return session ? this.sessionRegistry.toSessionInfo(session) : null
+        }
+      })
+    )
   }
 
   // Runs a capability-gated verb against the resolved target, rejecting backends
