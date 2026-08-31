@@ -131,6 +131,10 @@ export type CliStatusResult = {
 export type RuntimeSyncedTab = {
   tabId: string
   worktreeId: string
+  /** Optional for mixed-version peers; absent means local execution host. */
+  executionHostId?: ExecutionHostId
+  /** Top-level tab selection; activeLeafId alone can remain populated on background tabs. */
+  selected?: boolean
   title: string | null
   activeLeafId: string | null
   layout: TerminalPaneLayoutNode | null
@@ -139,6 +143,8 @@ export type RuntimeSyncedTab = {
 export type RuntimeSyncedLeaf = {
   tabId: string
   worktreeId: string
+  /** Optional for mixed-version peers; absent means local execution host. */
+  executionHostId?: ExecutionHostId
   leafId: string
   paneRuntimeId: number
   ptyId: string | null

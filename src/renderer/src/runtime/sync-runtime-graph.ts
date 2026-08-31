@@ -30,6 +30,7 @@ import { isTerminalLeafId, makePaneKey, parsePaneKey } from '../../../shared/sta
 import { isWebTerminalSurfaceTabId } from '../../../shared/terminal-surface-id'
 import { isClaudeManagementTitle } from '../../../shared/agent-detection'
 import { parseWorkspaceKey } from '../../../shared/workspace-scope'
+import { getResolvedExecutionHostIdForWorktree } from '../lib/resolved-worktree-execution-host'
 import type { Tab, TabGroup, TabGroupLayoutNode } from '../../../shared/tab-types'
 import type {
   TerminalLayoutSnapshot,
@@ -722,6 +723,8 @@ async function syncRuntimeGraph(): Promise<void> {
   }
   // Why: can't import the store directly (terminal slice imports this module); inject the getter to break the construction cycle.
   const state = getStoreState()
+  const executionHostIdForWorktree = (worktreeId: string) =>
+    getResolvedExecutionHostIdForWorktree(state, worktreeId) ?? undefined
   const systemPrefersDark = getSystemPrefersDark()
   // Why: build lookup maps once per sync instead of re-flattening every worktree's tabs for each registered terminal.
   const terminalTabById = new Map(
@@ -758,6 +761,10 @@ async function syncRuntimeGraph(): Promise<void> {
     graph.tabs.push({
       tabId,
       worktreeId: registeredTab.worktreeId,
+      executionHostId: executionHostIdForWorktree(registeredTab.worktreeId),
+      selected:
+        state.activeTabIdByWorktree?.[registeredTab.worktreeId] === tabId ||
+        state.activeTabId === tabId,
       title: resolveRuntimeTerminalTitle(tab, generatedTitlesEnabled),
       activeLeafId: activePaneId === null ? null : (manager?.getLeafId(activePaneId) ?? null),
       layout: serializePaneTree(root)
@@ -782,6 +789,7 @@ async function syncRuntimeGraph(): Promise<void> {
       graph.leaves.push({
         tabId,
         worktreeId: registeredTab.worktreeId,
+        executionHostId: executionHostIdForWorktree(registeredTab.worktreeId),
         leafId,
         paneRuntimeId: pane.id,
         ptyId,
@@ -834,6 +842,9 @@ async function syncRuntimeGraph(): Promise<void> {
       graph.tabs.push({
         tabId: tab.id,
         worktreeId,
+        executionHostId: executionHostIdForWorktree(worktreeId),
+        selected:
+          state.activeTabIdByWorktree?.[worktreeId] === tab.id || state.activeTabId === tab.id,
         title,
         activeLeafId:
           savedActiveLeafId && publishedLeafIds.has(savedActiveLeafId)
@@ -857,6 +868,7 @@ async function syncRuntimeGraph(): Promise<void> {
         graph.leaves.push({
           tabId: tab.id,
           worktreeId,
+          executionHostId: executionHostIdForWorktree(worktreeId),
           leafId,
           paneRuntimeId: parkedPaneId ?? index + 1,
           ptyId,

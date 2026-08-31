@@ -4,11 +4,13 @@ import type { WorkspaceKey } from './folder-workspace-types'
 import type { Tab, TabGroup, TabGroupLayoutNode, WorkspaceVisibleTabType } from './tab-types'
 import type { TerminalLayoutSnapshot, TerminalTab } from './terminal-tab-types'
 import type { BrowserHistoryEntry, BrowserPage, BrowserWorkspace } from './browser-workspace-types'
+import type { SharedTabCatalogPersistedState } from './shared-tab-catalog-types'
 
 /** Minimal subset of OpenFile persisted across restarts.
  *  Only edit-mode files are saved — diffs, conflict reviews, and other
  *  transient views are reconstructed on demand from git state. */
 export type PersistedOpenFile = {
+  catalogEntityId?: string
   filePath: string
   relativePath: string
   worktreeId: string
@@ -30,6 +32,8 @@ export type PersistedOpenFile = {
 }
 
 export type WorkspaceSessionState = {
+  /** Process-local multi-window tab membership; renderer checkpoints cannot replace it. */
+  sharedTabCatalog?: SharedTabCatalogPersistedState
   activeRepoId: string | null
   /** Scope-aware active owner for folder workspaces. Legacy worktree UI still reads activeWorktreeId. */
   activeWorkspaceKey?: WorkspaceKey | null

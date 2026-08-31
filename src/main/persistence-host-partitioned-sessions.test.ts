@@ -350,6 +350,24 @@ describe('Store host-partitioned workspace sessions', () => {
     expect(store.getWorkspaceSession('local').activeRepoId).toBe('repo-local')
   })
 
+  it('protects canonical catalog from renderer fast-path and unload snapshots per host', async () => {
+    const store = await createStore()
+    const catalog = {
+      partitions: {
+        '["runtime:env-a","repo-a::/worktree"]': {
+          revision: 2,
+          tabs: [],
+          tombstones: ['closed-tab']
+        }
+      }
+    }
+    store.persistSharedTabCatalog(catalog, 'runtime:env-a')
+    const stale = { ...makeHostSession('repo-a'), sharedTabCatalog: { partitions: {} } }
+    store.patchWorkspaceSession({ sharedTabCatalog: { partitions: {} } }, 'runtime:env-a')
+    store.stageWorkspaceSessionBeforeUnload(stale, 'runtime:env-a')
+    expect(store.getWorkspaceSession('runtime:env-a').sharedTabCatalog).toEqual(catalog)
+  })
+
   it('preserves and enforces equal repo-id topology authority independently per host', async () => {
     const store = await createStore()
     const worktreeId = 'duplicate::/worktree'

@@ -43,7 +43,8 @@ export const WORKSPACE_SESSION_FIELD_OWNERSHIP = {
   terminalPtyIncarnationsByPaneKey: 'paneKeyed',
   // Why: this host-issued fence must never collide while unified renderer state merges equal repo ids across hosts.
   terminalTopologyRevisionByRepoId: 'hostPrivate',
-  terminalSurfaceTombstonesByPaneKey: 'surfaceTombstoneKeyed'
+  terminalSurfaceTombstonesByPaneKey: 'surfaceTombstoneKeyed',
+  sharedTabCatalog: 'hostPrivate'
 } as const satisfies Record<keyof WorkspaceSessionState, WorkspaceSessionFieldOwnership>
 
 // Why: an unclassified persisted field would otherwise disappear from every non-local host.

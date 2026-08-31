@@ -15,11 +15,8 @@ import { z } from 'zod'
 import type { WorkspaceKey } from './folder-workspace-types'
 import type { TabGroupLayoutNode } from './tab-types'
 import type { TerminalPaneLayoutNode } from './terminal-tab-types'
-import type { TuiAgent } from './tui-agent'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
-import { isValidTerminalTabId } from './terminal-tab-id'
 import { parseExecutionHostId, type ExecutionHostId } from './execution-host'
-import { isTuiAgent } from './tui-agent-config'
 import { isWorkspaceKey } from './workspace-scope'
 import {
   browserHistoryEntriesSchema,
@@ -28,14 +25,14 @@ import {
 } from './workspace-session-browser-schema'
 import { sleepingAgentSessionsByPaneKeySchema } from './workspace-session-sleeping-agents'
 import { salvagedField, salvagedOptional, salvagingArray, salvagingRecord } from './zod-salvage'
+import {
+  persistedCatalogIdentitySchema,
+  sharedTabCatalogFieldSchema
+} from './workspace-session-catalog-schema'
+import { terminalTabIdSchema, terminalTabSchema } from './workspace-session-terminal-tab-schema'
 
 // ─── Terminal pane layout (recursive) ───────────────────────────────
-
 const terminalPaneSplitDirectionSchema = z.enum(['vertical', 'horizontal'])
-const terminalTabIdSchema = z
-  .string()
-  .min(1)
-  .refine(isValidTerminalTabId, 'terminal tab id must not contain ":"')
 const workspaceKeySchema = z.custom<WorkspaceKey>(
   (value) => typeof value === 'string' && isWorkspaceKey(value)
 )
@@ -70,42 +67,6 @@ const terminalLayoutSnapshotSchema = z.object({
   titlesByLeafId: salvagedOptional('titlesByLeafId', leafStringsSchema)
 })
 
-// ─── Terminal tab (legacy) ──────────────────────────────────────────
-
-const terminalTabSchema = z.object({
-  id: terminalTabIdSchema,
-  ptyId: z.string().nullable(),
-  worktreeId: z.string(),
-  title: z.string(),
-  defaultTitle: z.string().optional(),
-  generatedTitle: z.string().nullable().optional(),
-  aiVaultTitle: z
-    .object({
-      agent: z.enum(['claude', 'codex']),
-      sessionId: z.string(),
-      title: z.string()
-    })
-    .nullable()
-    .optional()
-    .catch(undefined),
-  quickCommandLabel: z.string().nullable().optional(),
-  customTitle: z.string().nullable(),
-  color: z.string().nullable(),
-  isPinned: z.boolean().optional(),
-  sortOrder: z.number(),
-  createdAt: z.number(),
-  generation: z.number().optional(),
-  startupCwd: z.string().min(1).optional(),
-  // Why: persist the launched agent so a restored idle agent tab keeps its
-  // provider icon before any hook fires. `.catch(undefined)` keeps a stale or
-  // unknown agent id from failing the whole-session parse (which would reset
-  // every terminal/editor/browser to defaults).
-  launchAgent: z
-    .custom<TuiAgent>((v) => isTuiAgent(v))
-    .optional()
-    .catch(undefined)
-})
-
 // ─── Unified tab model ──────────────────────────────────────────────
 
 const tabContentTypeSchema = z.enum([
@@ -126,6 +87,8 @@ const executionHostIdSchema = z.custom<ExecutionHostId>(
 
 const tabSchema = z.object({
   id: z.string(),
+  catalogTabId: persistedCatalogIdentitySchema.optional().catch(undefined),
+  catalogEntityId: persistedCatalogIdentitySchema.optional().catch(undefined),
   entityId: z.string(),
   groupId: z.string(),
   worktreeId: z.string(),
@@ -186,6 +149,7 @@ const tabGroupLayoutNodeSchema: z.ZodType<TabGroupLayoutNode> = z.lazy(() =>
 // ─── Editor ─────────────────────────────────────────────────────────
 
 const persistedOpenFileSchema = z.object({
+  catalogEntityId: persistedCatalogIdentitySchema.optional().catch(undefined),
   filePath: z.string(),
   relativePath: z.string(),
   worktreeId: z.string(),
@@ -213,6 +177,7 @@ const terminalSurfaceTombstoneSchema = z.object({
 const worktreeIdSchema = z.string()
 
 export const workspaceSessionStateSchema: z.ZodType<WorkspaceSessionState> = z.object({
+  sharedTabCatalog: sharedTabCatalogFieldSchema,
   activeRepoId: salvagedField('activeRepoId', z.string().nullable(), () => null),
   activeWorkspaceKey: salvagedOptional('activeWorkspaceKey', workspaceKeySchema.nullable()),
   activeWorkspaceExecutionHostId: salvagedOptional(

@@ -54,6 +54,7 @@ import type {
   WorkspaceSessionPatch,
   WorkspaceSessionState
 } from '../../../shared/workspace-session-state-types'
+import type { SharedTabCatalogPersistedState } from '../../../shared/shared-tab-catalog-types'
 import type { SparsePreset } from '../../../shared/worktree/create-types'
 import type { WorkspaceLineage, WorktreeLineage } from '../../../shared/worktree/lineage-types'
 import type { WorktreeMeta } from '../../../shared/worktree/meta-types'
@@ -2817,6 +2818,17 @@ export class Store {
     this.setHostWorkspaceSession(resolved, session)
   }
 
+  /** Main-owned catalog writer; renderer session payloads cannot call this path. */
+  persistSharedTabCatalog(state: SharedTabCatalogPersistedState, hostId?: string | null): void {
+    const resolved = this.resolveHostId(hostId)
+    const session = { ...this.getWorkspaceSession(resolved), sharedTabCatalog: state }
+    if (resolved === LOCAL_EXECUTION_HOST_ID) {
+      this.setLocalWorkspaceSession(session, false, false)
+    } else {
+      this.setHostWorkspaceSession(resolved, session, false)
+    }
+  }
+
   removeWorkspaceSessionStateForWorktree(
     worktreeId: string,
     hostId?: ExecutionHostId | null,
@@ -2875,14 +2887,21 @@ export class Store {
   ): void {
     const resolved = this.resolveHostId(hostId)
     if (resolved === LOCAL_EXECUTION_HOST_ID) {
-      this.setLocalWorkspaceSession(session, true)
+      this.setLocalWorkspaceSession(session, true, true)
       return
     }
-    this.setHostWorkspaceSession(resolved, session)
+    this.setHostWorkspaceSession(resolved, session, true)
   }
 
   /** Persist a non-'local' host partition; remote hosts skip setLocalWorkspaceSession's local-daemon PTY-binding race guards. */
-  private setHostWorkspaceSession(hostId: ExecutionHostId, session: WorkspaceSessionState): void {
+  private setHostWorkspaceSession(
+    hostId: ExecutionHostId,
+    session: WorkspaceSessionState,
+    preserveCatalog = true
+  ): void {
+    if (preserveCatalog) {
+      session = this.withCanonicalSharedTabCatalog(session, hostId)
+    }
     // Why: each partition owns its topology fence; renderer writes omit it and must rebase locally.
     session = sanitizeWorkspaceSessionTerminalRetirements(
       session,
@@ -2900,9 +2919,13 @@ export class Store {
 
   private setLocalWorkspaceSession(
     session: PersistedState['workspaceSession'],
-    deferSnapshotFiles = false
+    deferSnapshotFiles = false,
+    preserveCatalog = true
   ): void {
     const prior = this.state.workspaceSession
+    if (preserveCatalog) {
+      session = this.withCanonicalSharedTabCatalog(session, LOCAL_EXECUTION_HOST_ID)
+    }
     session = sanitizeWorkspaceSessionTerminalRetirements(session, prior)
     session = pruneWorkspaceSessionBrowserHistory(
       pruneLocalTerminalScrollbackBuffers(session, this.state.repos)
@@ -3052,6 +3075,19 @@ export class Store {
     this.scheduleSave()
   }
 
+  /** Renderer snapshots may carry stale catalog data; only the main-owned shutdown checkpoint may replace it. */
+  private withCanonicalSharedTabCatalog(
+    session: WorkspaceSessionState,
+    hostId: ExecutionHostId
+  ): WorkspaceSessionState {
+    const canonical = this.getWorkspaceSession(hostId).sharedTabCatalog
+    if (canonical === undefined) {
+      const { sharedTabCatalog: _ignored, ...rendererSession } = session
+      return rendererSession
+    }
+    return { ...session, sharedTabCatalog: canonical }
+  }
+
   private enqueueTerminalScrollbackSnapshotWork(
     prior: WorkspaceSessionState | undefined,
     staged: WorkspaceSessionState
@@ -3110,6 +3146,7 @@ export class Store {
       ...this.getWorkspaceSession(resolved),
       ...patch
     }
+    next = this.withCanonicalSharedTabCatalog(next, resolved)
     if (workspaceSessionPatchNeedsFullNormalization(patch)) {
       this.setWorkspaceSession(next, resolved)
       return

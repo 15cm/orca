@@ -39,6 +39,9 @@ export function toVisibleTabType(contentType: TabContentType): WorkspaceVisibleT
 
 export type Tab = {
   id: string // UUID for terminals, filePath for editors (preserves current convention)
+  /** Canonical catalog ID retained when id uses a host-qualified internal identity. */
+  catalogTabId?: string
+  catalogEntityId?: string
   entityId: string // ID of the backing content (terminal tab ID, file path, browser workspace ID)
   groupId: string
   worktreeId: string

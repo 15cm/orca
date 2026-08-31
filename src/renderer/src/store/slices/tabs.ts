@@ -74,6 +74,8 @@ export type TabsSlice = {
       Pick<
         Tab,
         | 'id'
+        | 'catalogTabId'
+        | 'catalogEntityId'
         | 'entityId'
         | 'executionHostId'
         | 'label'
@@ -101,6 +103,8 @@ export type TabsSlice = {
       Pick<
         Tab,
         | 'id'
+        | 'catalogTabId'
+        | 'catalogEntityId'
         | 'entityId'
         | 'executionHostId'
         | 'label'
@@ -131,6 +135,7 @@ export type TabsSlice = {
       recordInteraction?: boolean
       terminalRetirementHandled?: boolean
       worktreeId?: string
+      executionHostId?: string
     }
   ) => { closedTabId: string; wasLastTab: boolean; worktreeId: string } | null
   reorderUnifiedTabs: (
@@ -886,6 +891,8 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
         init?.executionHostId ?? getActiveExecutionHostIdForWorktree(state, worktreeId)
       created = {
         id,
+        ...(init?.catalogTabId !== undefined ? { catalogTabId: init.catalogTabId } : {}),
+        ...(init?.catalogEntityId !== undefined ? { catalogEntityId: init.catalogEntityId } : {}),
         entityId: init?.entityId ?? id,
         groupId: group.id,
         worktreeId,
@@ -1155,7 +1162,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
     const found = opts?.worktreeId
       ? (() => {
           const tab = (state.unifiedTabsByWorktree[opts.worktreeId] ?? []).find(
-            (candidate) => candidate.id === tabId
+            (candidate) =>
+              candidate.id === tabId &&
+              (opts.executionHostId === undefined ||
+                (candidate.executionHostId ?? 'local') === opts.executionHostId)
           )
           return tab ? { tab, worktreeId: opts.worktreeId } : null
         })()
@@ -1198,7 +1208,10 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
 
     set((current) => {
       const nextTabs = (current.unifiedTabsByWorktree[worktreeId] ?? []).filter(
-        (item) => item.id !== tabId
+        (item) =>
+          item.id !== tabId ||
+          (opts?.executionHostId !== undefined &&
+            (item.executionHostId ?? 'local') !== opts.executionHostId)
       )
       // Why: close-to-right/others bypass terminals.closeTab, so clear the entityId-keyed unread flag here or a stale dot leaks.
       let nextUnreadTerminalTabs = current.unreadTerminalTabs

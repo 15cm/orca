@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { spawnMock } from './pty-ipc-mock-registry'
+import { browserWindowsByWebContents, spawnMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { redactPtyIdForDiagnostics } from '../../shared/pty-delivery-diagnostics'
-import { registerPtyHandlers, getPtyRendererDeliveryDebugSnapshot } from './pty'
+import {
+  registerPtyHandlers,
+  getPtyRendererDeliveryDebugSnapshot,
+  resetPtyRendererDeliveryForOwnershipTransfer
+} from './pty'
+import { registerMainWindow } from '../window/main-window-registry'
+import { OrcaRuntimeService } from '../runtime/orca-runtime'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -65,6 +71,105 @@ describe('registerPtyHandlers', () => {
   } = setupPtyIpcSuite()
 
   describe('hidden renderer delivery gate', () => {
+    it('transfers IPC ownership atomically and routes output only to the focused owner', async () => {
+      vi.useFakeTimers()
+      const secondWindow = {
+        id: 2,
+        isDestroyed: () => false,
+        isFocused: () => true,
+        isVisible: () => true,
+        isMinimized: () => false,
+        webContents: { on: vi.fn(), send: vi.fn(), removeListener: vi.fn() },
+        on: vi.fn(),
+        once: vi.fn(),
+        removeListener: vi.fn()
+      }
+      browserWindowsByWebContents.set(secondWindow.webContents, secondWindow)
+      registerMainWindow(mainWindow as never)
+      registerMainWindow(secondWindow as never)
+      const runtime = new OrcaRuntimeService({
+        getWorkspaceSession: () => ({
+          activeRepoId: null,
+          activeWorktreeId: 'repo::/worktree',
+          activeTabId: null,
+          tabsByWorktree: {},
+          terminalLayoutsByTabId: {}
+        }),
+        getRepos: () => [],
+        getSettings: () => ({})
+      } as never)
+      runtime.setNotifier({
+        ptyOwnershipChanged: (ptyId, windowId) => {
+          resetPtyRendererDeliveryForOwnershipTransfer(ptyId)
+          const target = windowId === 2 ? secondWindow : mainWindow
+          target.webContents.send('pty:modelRestoreNeeded', { id: ptyId, reason: 'owner-transfer' })
+        }
+      } as never)
+      registerPtyHandlers(mainWindow as never, runtime as never)
+      const proc = createMockProc()
+      spawnMock.mockReturnValue(proc.proc)
+      const spawnResult = (await handlers.get('pty:spawn')!(mainWindowIpcEvent, {
+        cols: 80,
+        rows: 24,
+        cwd: '/tmp'
+      })) as { id: string }
+      const graph = (selected: boolean) => ({
+        tabs: [
+          {
+            tabId: 'terminal-tab',
+            worktreeId: 'repo::/worktree',
+            title: 'Terminal',
+            selected,
+            activeLeafId: 'terminal-leaf',
+            layout: null
+          }
+        ],
+        leaves: [
+          {
+            tabId: 'terminal-tab',
+            worktreeId: 'repo::/worktree',
+            leafId: 'terminal-leaf',
+            paneRuntimeId: 1,
+            ptyId: spawnResult.id
+          }
+        ]
+      })
+      runtime.syncWindowGraph(1, graph(true))
+      runtime.syncWindowGraph(2, graph(true))
+      const write = getPtyWriteListener()
+      secondWindow.webContents.send.mockClear()
+      write({ sender: secondWindow.webContents }, { id: spawnResult.id, data: 'first-key' })
+      expect(proc.proc.write).toHaveBeenCalledTimes(1)
+      expect(proc.proc.write).toHaveBeenCalledWith('first-key')
+      expect(
+        secondWindow.webContents.send.mock.calls.filter(
+          ([channel]) => channel === 'pty:modelRestoreNeeded'
+        )
+      ).toHaveLength(1)
+      const writesAfterTransfer = proc.proc.write.mock.calls.length
+      // Native focus moved; a stale renderer must fail the focused-window gate too.
+      mainWindow.isFocused = () => false
+      write(mainWindowIpcEvent, { id: spawnResult.id, data: 'stale-key' })
+      expect(proc.proc.write).toHaveBeenCalledTimes(writesAfterTransfer)
+      const ack = getPtyAckDataListener()
+      const before = getPtyRendererDeliveryDebugSnapshot()
+      ack(mainWindowIpcEvent, { id: spawnResult.id, processedChars: 999 })
+      await handlers.get('pty:reportRendererDeliveryState')?.(mainWindowIpcEvent, {
+        processedCharsByPty: { [spawnResult.id]: 999 },
+        receivedCharsByPty: { [spawnResult.id]: 999 },
+        rendererPtyDispatcherReady: true
+      })
+      const after = getPtyRendererDeliveryDebugSnapshot()
+      expect({ ...after, mainUptimeMs: 0 }).toEqual({ ...before, mainUptimeMs: 0 })
+      proc.emitData('first-output')
+      vi.advanceTimersByTime(50)
+      expect(secondWindow.webContents.send).toHaveBeenCalledWith(
+        'pty:data',
+        expect.objectContaining({ id: spawnResult.id, data: 'first-output' })
+      )
+      mainWindow.isFocused = () => true
+      vi.useRealTimers()
+    })
     it('foregrounds a preserved daemon PTY after handler recreation loses sync memory', async () => {
       const daemon = installObservableDaemonTestProvider()
       const firstRuntime = {
@@ -166,6 +271,61 @@ describe('registerPtyHandlers', () => {
           pendingPtyCount: 0,
           rendererInFlightChars: 0
         })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+    it('resets only transferred PTY accounting while preserving unrelated state', async () => {
+      vi.useFakeTimers()
+      try {
+        const daemon = installObservableDaemonTestProvider()
+        registerPtyHandlers(mainWindow as never)
+        const spawn = async (sessionId: string) =>
+          (await handlers.get('pty:spawn')!(null, { cols: 80, rows: 24, sessionId })) as {
+            id: string
+          }
+        const ptyA = await spawn('transfer-a')
+        const ptyB = await spawn('transfer-b')
+        const setVisible = getPtySetRendererPtyVisibleListener()
+        const setActive = getPtySetActiveRendererPtyListener()
+        const setHidden = getPtySetHiddenRendererPtyListener()
+        setVisible(null, { id: ptyA.id, visible: true })
+        setActive(null, { id: ptyA.id, active: true })
+        setHidden(null, { id: ptyA.id, hidden: true })
+        setVisible(null, { id: ptyB.id, visible: true })
+        setActive(null, { id: ptyB.id, active: true })
+        setHidden(null, { id: ptyB.id, hidden: true })
+        daemon.emitData(ptyA.id, 'pending-a')
+        daemon.emitData(ptyB.id, 'pending-b')
+        vi.advanceTimersByTime(50)
+        const before = getPtyRendererDeliveryDebugSnapshot()
+        const beforeB = before.diagnostics.perPty.find(
+          (entry) => entry.id === redactPtyIdForDiagnostics(ptyB.id)
+        )
+        resetPtyRendererDeliveryForOwnershipTransfer(ptyA.id)
+        const after = getPtyRendererDeliveryDebugSnapshot()
+        const afterA = after.diagnostics.perPty.find(
+          (entry) => entry.id === redactPtyIdForDiagnostics(ptyA.id)
+        )
+        const afterB = after.diagnostics.perPty.find(
+          (entry) => entry.id === redactPtyIdForDiagnostics(ptyB.id)
+        )
+        // Transferred PTY is fully detached; every accounting/gating field reads zero/false.
+        expect(afterA).toBeUndefined()
+        // Unrelated PTY remains byte-for-byte equivalent for state fields.
+        expect(afterB).toMatchObject({
+          sentChars: beforeB?.sentChars,
+          ackedChars: beforeB?.ackedChars,
+          inFlightChars: beforeB?.inFlightChars,
+          pendingChars: beforeB?.pendingChars,
+          hidden: beforeB?.hidden,
+          visible: beforeB?.visible,
+          active: beforeB?.active
+        })
+        expect(after.hiddenDeliveryGatedPtyCount).toBe(before.hiddenDeliveryGatedPtyCount - 1)
+        expect(after.hiddenDeliveryGatedActivePtyCount).toBe(
+          before.hiddenDeliveryGatedActivePtyCount - 1
+        )
       } finally {
         vi.useRealTimers()
       }

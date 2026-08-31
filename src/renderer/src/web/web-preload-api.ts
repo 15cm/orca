@@ -559,6 +559,12 @@ function createWebPreloadApi(): Partial<PreloadApi> {
 
   return {
     app: {
+      tabs: {
+        catalogBootstrap: async () => null,
+        catalogBootstrapAll: async () => [],
+        catalogMutate: async () => null,
+        onCatalogChanged: () => () => {}
+      },
       getIdentity: () =>
         Promise.resolve({
           name: 'Orca',

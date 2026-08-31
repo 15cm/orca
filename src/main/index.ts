@@ -265,6 +265,7 @@ import {
   registerMainWindow,
   sendToWindow
 } from './window/main-window-registry'
+import { registerSharedTabCatalogIpc } from './window/shared-tab-catalog'
 import {
   revealExistingMainWindow,
   shouldReuseExistingMainWindow
@@ -1682,6 +1683,7 @@ function openMainWindow(
     }
   })
   registerMainWindow(window)
+  registerSharedTabCatalogIpc(store)
   const installsAgentHookBroadcaster = agentHookBroadcasterLease.acquire()
   recordCrashBreadcrumb('main_window_created')
   logStartupMilestone('window-created')
@@ -1802,7 +1804,10 @@ function openMainWindow(
   rateLimits.attach(window)
   // Why: quota probes spawn CLIs and hit network, so don't fetch immediately and compete with first paint; show/focus listeners refresh later.
   rateLimits.start({ fetchImmediately: false })
-  window.on('focus', () => updateAutomationWindow(window))
+  window.on('focus', () => {
+    runtime?.claimPtyOwnershipForWindow(window.id)
+    updateAutomationWindow(window)
+  })
   window.on('closed', () => {
     const releasedFinalAgentHookBroadcasterLease = agentHookBroadcasterLease.release()
     if (mainWindow === window) {

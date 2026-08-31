@@ -16,6 +16,7 @@ import { useGitStatusPolling } from '../components/right-sidebar/useGitStatusPol
 import { useOsc52ClipboardDefaultOnNotice } from '../components/terminal-pane/osc52-clipboard-default-on-notice'
 import { useWebSessionTabsSync } from '../runtime/web-session-tabs-sync'
 import { useRemoteRuntimeRecoveryTriggers } from '../runtime/use-remote-runtime-recovery-triggers'
+import { useSharedTabCatalogSync } from '../hooks/use-shared-tab-catalog-sync'
 
 /**
  * App-level subscriptions that must outlive any individual surface. Each one is here because
@@ -31,6 +32,7 @@ export function useAppShellServices(options: { floatingPanelVisible: boolean }):
 
   useRadixBodyPointerEventsRecovery()
   useWebSessionTabsSync()
+  useSharedTabCatalogSync()
   // Subscribe to IPC push events
   useIpcEvents()
   useRemoteRuntimeRecoveryTriggers()

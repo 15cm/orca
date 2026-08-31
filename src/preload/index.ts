@@ -532,6 +532,27 @@ ipcRenderer.on('ui:findInBrowserPage', (_event, source: unknown) => {
 // Custom APIs for renderer
 const api = {
   app: {
+    tabs: {
+      catalogBootstrap: (key: Parameters<PreloadApi['app']['tabs']['catalogBootstrap']>[0]) =>
+        ipcRenderer.invoke('tabs:catalogBootstrap', key),
+      catalogBootstrapAll: () => ipcRenderer.invoke('tabs:catalogBootstrapAll'),
+      catalogMutate: (mutation: Parameters<PreloadApi['app']['tabs']['catalogMutate']>[0]) =>
+        ipcRenderer.invoke('tabs:catalogMutate', mutation),
+      onCatalogChanged: (
+        callback: Parameters<PreloadApi['app']['tabs']['onCatalogChanged']>[0]
+      ) => {
+        const listener = (_event: Electron.IpcRendererEvent, change: unknown): void =>
+          callback(
+            change as Parameters<PreloadApi['app']['tabs']['onCatalogChanged']>[0] extends (
+              arg: infer T
+            ) => void
+              ? T
+              : never
+          )
+        ipcRenderer.on('tabs:catalogChanged', listener)
+        return () => ipcRenderer.removeListener('tabs:catalogChanged', listener)
+      }
+    },
     getIdentity: (): Promise<AppIdentity> => ipcRenderer.invoke('app:getIdentity'),
     getFeatureWallAssetBaseUrl: (): Promise<string> =>
       ipcRenderer.invoke('app:getFeatureWallAssetBaseUrl'),

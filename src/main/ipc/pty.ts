@@ -248,6 +248,7 @@ import {
 import { resolveLocalProjectRuntimeForWorktreeId } from '../local-project-runtime-resolution'
 import { isPtyIncarnationId } from '../../shared/pty-incarnation'
 import type { PtyListedSession } from '../../shared/pty-listed-session'
+import { isFocusedPtyOwnerWindow } from './pty-window-ownership'
 
 // ─── Provider Registry ──────────────────────────────────────────────
 // Routes PTY operations by connectionId (null = local provider).
@@ -2329,7 +2330,7 @@ let readPtyRendererDeliveryDebugSnapshot = (): PtyRendererDeliveryDebugSnapshot 
 })
 let resetPtyRendererDeliveryDebugSnapshot = (): void => {}
 // Bridged into the registerPtyHandlers closure so the module-scope lifecycle-reset handler can zero closure-owned delivery accounting on renderer reload/crash.
-let resetRendererDeliveryAccountingForLifecycleReset = (): void => {}
+let resetRendererDeliveryAccountingForLifecycleReset = (_ptyId?: string): void => {}
 // Bridged so a re-registration can cancel the prior closure's dispatcher-ready watchdog before wiring its own.
 let clearRendererDispatcherReadyWatchdog = (): void => {}
 
@@ -2339,6 +2340,10 @@ export function getPtyRendererDeliveryDebugSnapshot(): PtyRendererDeliveryDebugS
 
 export function resetPtyRendererDeliveryDebug(): void {
   resetPtyRendererDeliveryDebugSnapshot()
+}
+
+export function resetPtyRendererDeliveryForOwnershipTransfer(ptyId: string): void {
+  resetRendererDeliveryAccountingForLifecycleReset(ptyId)
 }
 
 function clearDidFinishLoadHandlers(): void {
@@ -2964,7 +2969,34 @@ export function registerPtyHandlers(
     resetHiddenRendererPtyDeliveryDebugCounters()
     seedPtyRendererDeliveryPeaksFromCurrentState()
   }
-  resetRendererDeliveryAccountingForLifecycleReset = () => {
+  resetRendererDeliveryAccountingForLifecycleReset = (ptyId?: string) => {
+    if (ptyId !== undefined) {
+      const accounting = rendererDeliveryAccountingByPty.get(ptyId)
+      if (accounting) {
+        rendererInFlightTotalChars = Math.max(
+          0,
+          rendererInFlightTotalChars - Math.max(0, accounting.sentChars - accounting.ackedChars)
+        )
+        rendererDeliveryAccountingByPty.delete(ptyId)
+      }
+      const pending = pendingData.get(ptyId)
+      if (pending?.projectionAdmissionIds) {
+        sshOutputIntake?.transferProjections(pending.projectionAdmissionIds, 'owner-transfer')
+      }
+      if (pending) {
+        pendingDroppedChars += pending.data.length
+        deletePendingPtyData(ptyId)
+      }
+      pendingOverflowMarkedPtys.delete(ptyId)
+      rendererDeliveryRestoreNeededPtys.delete(ptyId)
+      activeRendererPtys.delete(ptyId)
+      visibleRendererPtys.delete(ptyId)
+      rendererVisibilityKnownPtys.delete(ptyId)
+      clearHiddenRendererPtyDeliveryState(ptyId)
+      producerFlowControl.release(ptyId)
+      invalidatePendingPtyDrainPriority(ptyId)
+      return
+    }
     // Why lossless: pendingData bytes were bound for the dead page; the replacement repaints from main's authoritative sources, which superset it.
     lastLifecycleResetClearedChars = rendererInFlightTotalChars
     rendererLifecycleResetCount += 1
@@ -3075,6 +3107,29 @@ export function registerPtyHandlers(
       return ownerWindowId === senderWindow.id
     }
     return !canResolveOwner && senderWindow === mainWindow
+  }
+
+  function senderOwnsOrClaimsPty(
+    event: IpcMainEvent | IpcMainInvokeEvent | null,
+    ptyId: string
+  ): boolean {
+    const senderWindow = event?.sender ? getMainWindowForWebContents(event.sender) : null
+    // PTY input is only eligible from the native focused window; this also prevents
+    // a stale duplicate renderer from writing after ownership moved.
+    if (!senderWindow || !isFocusedPtyOwnerWindow(senderWindow)) {
+      return false
+    }
+    if (senderOwnsPty(event, ptyId)) {
+      // Revalidate selected top-level tab and active leaf even for retained owners;
+      // background duplicate renderers must fail closed after selection changes.
+      return typeof runtime?.claimPtyOwnershipForWindowPty === 'function'
+        ? runtime.claimPtyOwnershipForWindowPty(senderWindow.id, ptyId)
+        : true
+    }
+    return (
+      typeof runtime?.claimPtyOwnershipForWindowPty === 'function' &&
+      runtime.claimPtyOwnershipForWindowPty(senderWindow.id, ptyId) === true
+    )
   }
 
   function sendToPtyOwnerWindow(
@@ -7128,7 +7183,9 @@ export function registerPtyHandlers(
         ptyOwnership.set(result.id, args.connectionId ?? null)
         const ownerWindow = event?.sender ? getMainWindowForWebContents(event.sender) : null
         if (ownerWindow) {
-          runtime?.registerPtyOwnerWindow(result.id, ownerWindow.id)
+          if (typeof runtime?.registerPtyOwnerWindow === 'function') {
+            runtime.registerPtyOwnerWindow(result.id, ownerWindow.id)
+          }
         }
         if (result.incarnationId) {
           ptyIncarnationById.set(result.id, result.incarnationId)
@@ -7623,7 +7680,7 @@ export function registerPtyHandlers(
   const hostViewportClaimTails = new Map<string, Promise<boolean>>()
 
   ipc.on('pty:write', (event, args: unknown) => {
-    if (!isPtyWritePayload(args) || !senderOwnsPty(event, args.id)) {
+    if (!isPtyWritePayload(args) || !senderOwnsOrClaimsPty(event, args.id)) {
       return
     }
     const claimTail = hostViewportClaimTails.get(args.id)
@@ -7634,7 +7691,7 @@ export function registerPtyHandlers(
     writePtyInput(event, args)
   })
   ipc.handle('pty:writeAccepted', (event, args: unknown): boolean | Promise<boolean> => {
-    if (!isPtyWritePayload(args) || !senderOwnsPty(event, args.id)) {
+    if (!isPtyWritePayload(args) || !senderOwnsOrClaimsPty(event, args.id)) {
       return false
     }
     const claimTail = hostViewportClaimTails.get(args.id)

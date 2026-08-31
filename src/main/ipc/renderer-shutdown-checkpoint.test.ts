@@ -64,12 +64,12 @@ describe('registerRendererShutdownCheckpointHandler', () => {
 
     expect(store.stageWorkspaceSessionBeforeUnload).toHaveBeenNthCalledWith(
       1,
-      localSession,
+      { ...localSession, sharedTabCatalog: { partitions: {} } },
       undefined
     )
     expect(store.stageWorkspaceSessionBeforeUnload).toHaveBeenNthCalledWith(
       2,
-      remoteSession,
+      { ...remoteSession, sharedTabCatalog: { partitions: {} } },
       'runtime:host-1'
     )
     expect(store.updateUI).toHaveBeenCalledWith({ activeView: 'settings' })

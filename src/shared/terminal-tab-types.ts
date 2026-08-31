@@ -4,6 +4,7 @@ import type { TuiAgent } from './tui-agent'
 // ─── Terminal Tab (legacy — used by persistence and TerminalContentSlice) ─
 export type TerminalTab = {
   id: string
+  catalogTabId?: string
   ptyId: string | null
   worktreeId: string
   title: string

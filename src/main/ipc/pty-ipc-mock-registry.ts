@@ -46,9 +46,13 @@ export const getCodexPaneAccountMock: Mock = vi.fn()
 export const ensureCodexBackfillRecoveryMock: Mock<() => Promise<void>> = vi.fn(() =>
   Promise.resolve()
 )
+export const browserWindowsByWebContents = new Map<object, unknown>()
+export const browserWindowFromWebContentsMock = vi.fn(
+  (webContents: object) => browserWindowsByWebContents.get(webContents) ?? null
+)
 
 export type ElectronModuleMock = {
-  BrowserWindow: undefined
+  BrowserWindow: { fromWebContents: Mock; getFocusedWindow: Mock }
   app: { isPackaged: boolean; getPath: Mock; getVersion: () => string }
   powerMonitor: { on: Mock }
   nativeTheme: { shouldUseDarkColors: boolean }
@@ -56,8 +60,10 @@ export type ElectronModuleMock = {
 }
 
 export const electronModuleMock = (): ElectronModuleMock => ({
-  // Why defined-but-undefined: the real OrcaRuntimeService guards BrowserWindow with `?.`; vitest throws on reading exports the mock omits.
-  BrowserWindow: undefined,
+  BrowserWindow: {
+    fromWebContents: browserWindowFromWebContentsMock,
+    getFocusedWindow: vi.fn(() => null)
+  },
   app: {
     isPackaged: true,
     getPath: getPathMock,

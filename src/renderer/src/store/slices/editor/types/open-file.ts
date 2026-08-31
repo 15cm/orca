@@ -88,6 +88,7 @@ export type CombinedDiffSkippedConflict = {
 // `branchEntriesSnapshot` keeps a combined-branch tab's file list known after switching away from an inactive worktree whose compare data is stale.
 export type OpenFile = {
   id: string // use filePath as unique key
+  catalogEntityId?: string
   filePath: string // absolute path
   relativePath: string // relative to worktree root
   worktreeId: string

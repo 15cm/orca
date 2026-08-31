@@ -54,6 +54,7 @@ export type BrowserViewportOverride = {
 
 export type BrowserPage = {
   id: string
+  catalogPageId?: string
   workspaceId: string
   worktreeId: string
   url: string
@@ -73,6 +74,7 @@ export type BrowserPage = {
 
 export type BrowserWorkspace = {
   id: string
+  catalogEntityId?: string
   worktreeId: string
   /** Stable display label for the outer Orca tab ("Browser 1", "Browser 2", …).
    *  Optional so sessions persisted before this field was added fall back

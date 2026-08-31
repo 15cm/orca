@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { BrowserWorkspace } from './browser-workspace-types'
 import { normalizeBrowserHistoryEntries } from './workspace-session-browser-history'
 import { salvagingArray } from './zod-salvage'
+import { persistedCatalogIdentitySchema } from './workspace-session-catalog-schema'
 
 const browserLoadErrorSchema = z.object({
   code: z.number(),
@@ -29,6 +30,7 @@ const browserViewportPresetIdSchema = z.enum([
 // dropped on restore.
 export const browserWorkspaceSchema: z.ZodType<BrowserWorkspace> = z.object({
   id: z.string(),
+  catalogEntityId: persistedCatalogIdentitySchema.optional().catch(undefined),
   worktreeId: z.string(),
   label: z.string().optional(),
   sessionProfileId: z.string().nullable().optional(),
@@ -51,6 +53,7 @@ export const browserWorkspaceSchema: z.ZodType<BrowserWorkspace> = z.object({
 
 export const browserPageSchema = z.object({
   id: z.string(),
+  catalogPageId: persistedCatalogIdentitySchema.optional().catch(undefined),
   workspaceId: z.string(),
   worktreeId: z.string(),
   url: z.string(),

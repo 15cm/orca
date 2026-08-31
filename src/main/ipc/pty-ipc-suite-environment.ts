@@ -40,7 +40,9 @@ import {
   recordCodexPaneAccountMock,
   forgetCodexPaneAccountMock,
   getCodexPaneAccountMock,
-  ensureCodexBackfillRecoveryMock
+  ensureCodexBackfillRecoveryMock,
+  browserWindowsByWebContents,
+  browserWindowFromWebContentsMock
 } from './pty-ipc-mock-registry'
 import { makeDisposable } from './pty-ipc-test-constants'
 import { createPtyIpcProcessEnvScope } from './pty-ipc-process-env-scope'
@@ -52,17 +54,22 @@ import { setLocalPtyProvider, unregisterSshPtyProvider } from './pty'
 import { _resetHiddenRendererPtyDeliveryGateForTest } from './pty-hidden-delivery-gate'
 import { __resetShellStartupEnvCache } from '../pty/shell-startup-env'
 import { _resetWslCachesForTests } from '../wsl'
+import { registerMainWindow } from '../window/main-window-registry'
 
 /** The mocked webContents each suite asserts sends against. */
 export type PtyIpcTestWebContents = { on: Mock; send: Mock; removeListener: Mock }
 
 /** The mocked BrowserWindow handed to registerPtyHandlers. */
 export type PtyIpcTestMainWindow = {
+  id: number
   isDestroyed: () => boolean
   isFocused: () => boolean
   isVisible: () => boolean
   isMinimized: () => boolean
   webContents: PtyIpcTestWebContents
+  on: Mock
+  once: Mock
+  removeListener: Mock
 }
 
 export type PtyIpcSuiteEnvironment = {
@@ -76,6 +83,7 @@ export type PtyIpcSuiteEnvironment = {
 export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
   const handlers = new Map<string, (_event: unknown, args: unknown) => unknown>()
   const mainWindow = {
+    id: 1,
     isDestroyed: () => false,
     isFocused: () => true,
     isVisible: () => true,
@@ -84,7 +92,10 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
       on: vi.fn(),
       send: vi.fn(),
       removeListener: vi.fn()
-    }
+    },
+    on: vi.fn(),
+    once: vi.fn(),
+    removeListener: vi.fn()
   }
   const mainWindowIpcEvent = { sender: mainWindow.webContents }
   const foreignWindowIpcEvent = {
@@ -114,6 +125,11 @@ export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
     })
     envScope.applyTestEnvDefaults()
     handlers.clear()
+    mainWindow.isFocused = () => true
+    browserWindowsByWebContents.clear()
+    browserWindowFromWebContentsMock.mockClear()
+    browserWindowsByWebContents.set(mainWindow.webContents, mainWindow)
+    registerMainWindow(mainWindow as never)
     handleMock.mockReset()
     onMock.mockReset()
     removeHandlerMock.mockReset()

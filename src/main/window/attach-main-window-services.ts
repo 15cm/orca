@@ -20,6 +20,7 @@ import { registerWorkspaceCleanupHandlers } from '../ipc/workspace-cleanup'
 import {
   getLocalPtyProvider,
   registerPtyHandlers,
+  resetPtyRendererDeliveryForOwnershipTransfer,
   type CodexHomePtySpawnedLifecycleArgs,
   type GetSelectedCodexHomePath,
   type PrepareCodexSessionResume
@@ -370,6 +371,10 @@ function registerRuntimeWindowLifecycle(
   const broadcast = (channel: string, ...args: unknown[]): void =>
     broadcastToMainWindows(channel, ...args)
   runtime.setNotifier({
+    ptyOwnershipChanged: (ptyId, windowId) => {
+      resetPtyRendererDeliveryForOwnershipTransfer(ptyId)
+      sendToOwner(windowId, 'pty:modelRestoreNeeded', { id: ptyId, reason: 'owner-transfer' })
+    },
     worktreesChanged: (repoId, renamed) => {
       // Why: clear scan caches before the renderer handles this event, so it can't read stale TTL entries after a mutation.
       runWorktreeChangeInvalidators(repoId)

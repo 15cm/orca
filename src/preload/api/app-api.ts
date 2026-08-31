@@ -12,8 +12,21 @@ import type { FloatingTerminalCwdRequest } from '../../shared/ui-chrome-types'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
 import type { KeyboardLayoutSnapshot } from '../../shared/keyboard-layout-snapshot'
 import type { KeyboardLayoutChangeEvent } from '../../shared/keyboard-layout-events'
+import type {
+  SharedTabCatalogBootstrap,
+  SharedTabCatalogChange,
+  SharedTabCatalogKey,
+  SharedTabCatalogPartition,
+  SharedTabMutation
+} from '../../shared/shared-tab-catalog-types'
 
 export type AppApi = {
+  tabs: {
+    catalogBootstrap: (key: SharedTabCatalogKey) => Promise<SharedTabCatalogBootstrap | null>
+    catalogBootstrapAll: () => Promise<SharedTabCatalogPartition[]>
+    catalogMutate: (mutation: SharedTabMutation) => Promise<SharedTabCatalogChange | null>
+    onCatalogChanged: (callback: (change: SharedTabCatalogChange) => void) => () => void
+  }
   /** Returns the app identity currently exposed to native chrome and the titlebar. */
   getIdentity: () => Promise<AppIdentity>
   /** Returns a URL base for feature-wall assets. In dev this is Vite /@fs;
