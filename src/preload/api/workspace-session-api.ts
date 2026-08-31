@@ -10,6 +10,7 @@ import type {
   RemoteWorkspaceObservedPatchResult,
   RemoteWorkspaceObservedSnapshot
 } from '../../shared/remote-workspace-types'
+import type { WorkspaceSessionReleasePayload } from '../../shared/workspace-session-release'
 
 export type WorkspaceSessionApi = {
   session: {
@@ -20,6 +21,10 @@ export type WorkspaceSessionApi = {
     flush: () => Promise<void>
     readTerminalScrollback: (args: { ref: string }) => string | null
     setSync: (args: WorkspaceSessionState, hostId?: ExecutionHostId) => void
+    /** Main says another window now serves these workspaces; this one must let go of them. */
+    onWorkspacesReleased: (
+      callback: (payload: WorkspaceSessionReleasePayload) => void
+    ) => () => void
   }
   cache: {
     getGitHub: () => Promise<{

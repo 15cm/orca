@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  resolveScopeRepoIds,
-  resolveScopesServedByOtherWindows,
-  resolveScopeWorktreeIds
+  resolveScopeSessionKeys,
+  resolveScopesServedByOtherWindows
 } from './window-scoped-session-keys'
 import { getDefaultWorkspaceSession } from '../../shared/constants'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
@@ -26,24 +25,20 @@ function session(overrides: Partial<WorkspaceSessionState>): WorkspaceSessionSta
   return { ...getDefaultWorkspaceSession(), ...overrides }
 }
 
-describe('resolveScopeRepoIds', () => {
-  it('includes the repos of nested subgroups', () => {
-    expect(resolveScopeRepoIds(SCOPE, REPOS, GROUPS)).toEqual(new Set(['repo-a', 'repo-nested']))
-  })
+const FOLDER_WORKSPACES = [
+  { id: 'terminals', projectGroupId: 'perc' },
+  { id: 'nested-notes', projectGroupId: 'perc-sub' },
+  { id: 'ajeno', projectGroupId: 'otro' }
+]
 
-  it('excludes repos of other groups and ungrouped repos', () => {
-    const repoIds = resolveScopeRepoIds(SCOPE, REPOS, GROUPS)
-    expect(repoIds.has('repo-other')).toBe(false)
-    expect(repoIds.has('repo-loose')).toBe(false)
-  })
+const SOURCES = {
+  getRepo: (repoId: string) => REPOS.find((repo) => repo.id === repoId),
+  getFolderWorkspaces: () => FOLDER_WORKSPACES,
+  getProjectGroups: () => GROUPS
+}
 
-  it('is empty for a group with no repos, so the window owns nothing', () => {
-    expect(resolveScopeRepoIds({ ...SCOPE, projectGroupId: 'vacio' }, REPOS, GROUPS).size).toBe(0)
-  })
-})
-
-describe('resolveScopeWorktreeIds', () => {
-  it('selects the session keys whose worktree belongs to the scope repos', () => {
+describe('resolveScopeSessionKeys', () => {
+  it('selects the keys of the scope group and its subgroups', () => {
     const current = session({
       tabsByWorktree: {
         'repo-a::/wt/main': [],
@@ -52,21 +47,49 @@ describe('resolveScopeWorktreeIds', () => {
       }
     })
 
-    expect(resolveScopeWorktreeIds(current, new Set(['repo-a', 'repo-nested']))).toEqual(
+    expect(resolveScopeSessionKeys(SCOPE, current, SOURCES)).toEqual(
       new Set(['repo-a::/wt/main', 'repo-nested::/wt/feature'])
     )
   })
 
-  it('owns nothing when the scope has no repos', () => {
+  // Why: a folder workspace carries its own group, so reading a repo id out of the key drops it —
+  // and with it the project's own terminals, which is what left a project window opening empty.
+  it('selects folder workspaces of the scope, which carry their group directly', () => {
+    const current = session({
+      tabsByWorktree: {
+        'folder:terminals': [],
+        'folder:nested-notes': [],
+        'folder:ajeno': []
+      }
+    })
+
+    expect(resolveScopeSessionKeys(SCOPE, current, SOURCES)).toEqual(
+      new Set(['folder:terminals', 'folder:nested-notes'])
+    )
+  })
+
+  it('excludes other groups, ungrouped repos and unknown ids', () => {
+    const current = session({
+      tabsByWorktree: {
+        'repo-other::/wt/main': [],
+        'repo-loose::/wt/main': [],
+        'folder:desconocido': [],
+        'sin-separador': []
+      }
+    })
+    expect(resolveScopeSessionKeys(SCOPE, current, SOURCES).size).toBe(0)
+  })
+
+  it('owns nothing when the group has no workspaces', () => {
     const current = session({ tabsByWorktree: { 'repo-a::/wt/main': [] } })
-    expect(resolveScopeWorktreeIds(current, new Set()).size).toBe(0)
+    expect(
+      resolveScopeSessionKeys({ ...SCOPE, projectGroupId: 'vacio' }, current, SOURCES).size
+    ).toBe(0)
   })
 
   it('picks up worktrees that appear only in the shutdown list', () => {
     const current = session({ activeWorktreeIdsOnShutdown: ['repo-a::/wt/main'] })
-    expect(resolveScopeWorktreeIds(current, new Set(['repo-a']))).toEqual(
-      new Set(['repo-a::/wt/main'])
-    )
+    expect(resolveScopeSessionKeys(SCOPE, current, SOURCES)).toEqual(new Set(['repo-a::/wt/main']))
   })
 })
 

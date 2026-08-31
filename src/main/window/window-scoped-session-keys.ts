@@ -1,5 +1,5 @@
 /**
- * Which worktrees a window writes for, derived in main from the window's scope.
+ * Which workspaces a window serves, derived in main from the window's scope.
  *
  * Main is the authority on a window's scope (see docs/reference/per-window-view-state.md), so it
  * resolves this rather than trusting a renderer-declared list: a stale or wrong list would let
@@ -7,43 +7,34 @@
  * anyway — project groups load in parallel with the session read.
  */
 import { getProjectGroupSubtreeIds } from '../../shared/project-groups'
-import { getRepoIdFromWorktreeId } from '../../shared/worktree/id'
-import { parseWorkspaceKey } from '../../shared/workspace-scope'
+import {
+  resolveWorkspaceProjectGroupId,
+  type WorkspaceProjectGroupSources
+} from '../../shared/workspace-project-group'
 import type { ProjectGroup } from '../../shared/project-group-types'
-import type { Repo } from '../../shared/repo-types'
 import type { WindowScope } from '../../shared/window-scope'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
 import { collectWorkspaceSessionWorktreeKeys } from '../../shared/workspace-session-window-rebase'
 
-/** The repos of a scope's project group, subgroups included. */
-export function resolveScopeRepoIds(
+/**
+ * The session keys of a scope's project group, subgroups included.
+ *
+ * Every kind of workspace goes through `resolveWorkspaceProjectGroupId`: a git worktree is placed
+ * by its repo, a folder workspace by the group it carries itself. Reading the repo id out of the
+ * key would drop every `folder:<id>` — the project's own terminals — on the floor.
+ */
+export function resolveScopeSessionKeys(
   scope: WindowScope,
-  repos: readonly Pick<Repo, 'id' | 'projectGroupId'>[],
-  groups: readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
-): Set<string> {
-  const groupIds = getProjectGroupSubtreeIds(groups, scope.projectGroupId)
-  const repoIds = new Set<string>()
-  for (const repo of repos) {
-    if (repo.projectGroupId && groupIds.has(repo.projectGroupId)) {
-      repoIds.add(repo.id)
-    }
-  }
-  return repoIds
-}
-
-/** Session keys are worktree ids (or workspace keys wrapping one), and a worktree id carries its repo. */
-export function resolveScopeWorktreeIds(
   session: WorkspaceSessionState,
-  scopeRepoIds: ReadonlySet<string>
-): Set<string> {
-  const owned = new Set<string>()
-  if (scopeRepoIds.size === 0) {
-    return owned
+  sources: WorkspaceProjectGroupSources & {
+    getProjectGroups: () => readonly Pick<ProjectGroup, 'id' | 'parentGroupId'>[]
   }
+): Set<string> {
+  const groupIds = getProjectGroupSubtreeIds(sources.getProjectGroups(), scope.projectGroupId)
+  const owned = new Set<string>()
   for (const key of collectWorkspaceSessionWorktreeKeys(session)) {
-    const parsed = parseWorkspaceKey(key)
-    const worktreeId = parsed?.type === 'worktree' ? parsed.worktreeId : key
-    if (scopeRepoIds.has(getRepoIdFromWorktreeId(worktreeId))) {
+    const groupId = resolveWorkspaceProjectGroupId(sources, key)
+    if (groupId !== null && groupIds.has(groupId)) {
       owned.add(key)
     }
   }

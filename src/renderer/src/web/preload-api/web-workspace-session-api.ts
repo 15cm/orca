@@ -65,7 +65,9 @@ export function createWebWorkspaceSessionApi(): Partial<PreloadApi> {
       readTerminalScrollback: () => null,
       setSync: (session, hostId) => {
         writeJson(sessionStorageKeyForHost(hostId), sanitizeWebRuntimeWorkspaceSession(session))
-      }
+      },
+      // A paired web client is the implicit window and never shares its session with a second one.
+      onWorkspacesReleased: () => () => {}
     }
   }
 }

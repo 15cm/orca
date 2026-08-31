@@ -1,8 +1,3 @@
-import type { FolderWorkspace } from '../../shared/folder-workspace-types'
-import type { Repo } from '../../shared/repo-types'
-import { parseWorkspaceKey } from '../../shared/workspace-scope'
-import { splitWorktreeId } from '../../shared/worktree/id'
-
 /**
  * Which window a published tab / leaf / PTY belongs to when several windows publish the same
  * graph. Three tiers, highest first:
@@ -109,37 +104,6 @@ export function computeWindowOwnershipPrioritySeed(
     }
   }
   return seed
-}
-
-export type WorktreeProjectGroupSources = {
-  getRepo: (repoId: string) => Pick<Repo, 'projectGroupId'> | undefined
-  getFolderWorkspaces: () => readonly Pick<FolderWorkspace, 'id' | 'projectGroupId'>[]
-}
-
-/**
- * Places a runtime worktree id in a project group: a folder workspace carries its group
- * directly; a git worktree inherits its repo's. Anything else (unknown repo, ungrouped repo,
- * an id that parses as neither) is null and stays out of the scope tier.
- */
-export function resolveWorktreeProjectGroupId(
-  sources: WorktreeProjectGroupSources,
-  worktreeId: string
-): string | null {
-  const workspace = parseWorkspaceKey(worktreeId)
-  if (workspace?.type === 'folder') {
-    const folderWorkspace = sources
-      .getFolderWorkspaces()
-      .find((candidate) => candidate.id === workspace.folderWorkspaceId)
-    return folderWorkspace?.projectGroupId ?? null
-  }
-  if (workspace?.type === 'worktree') {
-    return resolveWorktreeProjectGroupId(sources, workspace.worktreeId)
-  }
-  const parsed = splitWorktreeId(worktreeId)
-  if (!parsed?.repoId) {
-    return null
-  }
-  return sources.getRepo(parsed.repoId)?.projectGroupId ?? null
 }
 
 export type PtyOwnerWindowChange = {

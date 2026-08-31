@@ -34,6 +34,8 @@ import { initializeMainProcessPlugins } from './main-process-plugins'
 import { collectWorktreeTrashSweepRoots, sweepStaleWorktreeTrash } from '../worktree-trash'
 import { runAfterFirstWindowShown } from './first-window-deferral'
 import { logStartupMilestone } from './startup-diagnostics'
+import { publishWorkspaceSessionRelease } from '../window/project-window-session-release'
+import { setWindowScopeRebindListener } from '../window/window-scope-binding'
 
 // Headless serve never opens a window, so the sweep still has to run off a timer there.
 const WORKTREE_TRASH_SWEEP_FALLBACK_MS = 15_000
@@ -46,6 +48,11 @@ export async function initializeReadyRuntimeServices(): Promise<void> {
   initializeMainProcessObservers()
   initializeMainProcessAccountServices()
   const runtime = initializeMainProcessRuntime()
+  setWindowScopeRebindListener(() => {
+    if (state.store) {
+      publishWorkspaceSessionRelease(state.store)
+    }
+  })
   initializeMainProcessAutomations()
   configureRuntimeServices(runtime)
   await initializeMainProcessPlugins(runtime)

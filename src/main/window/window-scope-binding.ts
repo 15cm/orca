@@ -75,6 +75,9 @@ export function openProjectGroupWindow(args: {
     return { status: 'unavailable' }
   }
   setMainWindowProjectLabel(window, args.projectLabel)
+  // Why here too: opening a project window re-partitions the session and the terminal owner
+  // index exactly like a rebind does — the window it was opened from has to let the project go.
+  windowScopeRebindListener?.()
   return { status: 'opened' }
 }
 

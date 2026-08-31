@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   computeWindowOwnershipPrioritySeed,
   diffPtyOwnerWindows,
-  resolveWorktreeProjectGroupId,
   type PublishedLeaf,
   type PublishedWindowGraph,
   type WindowOwnershipPriorityInput
@@ -139,34 +138,6 @@ describe('computeWindowOwnershipPrioritySeed', () => {
 
     expect(seed.ptyOwners.has('pty-bank')).toBe(false)
     expect(claims.has('pty-bank')).toBe(true)
-  })
-})
-
-describe('resolveWorktreeProjectGroupId', () => {
-  const sources = {
-    getRepo: (repoId: string) =>
-      repoId === 'perc-repo'
-        ? { projectGroupId: PERC_GROUP }
-        : repoId === 'loose-repo'
-          ? { projectGroupId: null }
-          : undefined,
-    getFolderWorkspaces: () => [{ id: 'perc-tasks', projectGroupId: PERC_GROUP }]
-  }
-
-  it('reads a git worktree group through its repo', () => {
-    expect(resolveWorktreeProjectGroupId(sources, PERC_WORKTREE)).toBe(PERC_GROUP)
-    expect(resolveWorktreeProjectGroupId(sources, `worktree:${PERC_WORKTREE}`)).toBe(PERC_GROUP)
-  })
-
-  it('reads a folder workspace group directly', () => {
-    expect(resolveWorktreeProjectGroupId(sources, PERC_FOLDER_WORKSPACE)).toBe(PERC_GROUP)
-  })
-
-  it('returns null for ungrouped, unknown or malformed ids', () => {
-    expect(resolveWorktreeProjectGroupId(sources, 'loose-repo::/tmp/loose')).toBeNull()
-    expect(resolveWorktreeProjectGroupId(sources, ORPHAN_WORKTREE)).toBeNull()
-    expect(resolveWorktreeProjectGroupId(sources, 'folder:missing')).toBeNull()
-    expect(resolveWorktreeProjectGroupId(sources, 'no-separator')).toBeNull()
   })
 })
 

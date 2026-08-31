@@ -25,11 +25,26 @@ operation behind all of it: it splits a session into the keys a set of worktrees
 everything else. A scoped read is the first half, a free read is the second, and a rebased write
 is `rest` of what is stored merged with `owned` of what came in.
 
+**Which keys belong to a project is one rule, and it is not "the repo id inside the key".** A
+session key is a worktree id *or* a folder workspace's `folder:<id>`, and a folder workspace
+carries its project group itself rather than through a repo. `resolveWorkspaceProjectGroupId`
+(`shared/workspace-project-group.ts`) is that rule, shared with the PTY owner index. The first cut
+of the partition read the repo id out of the key, so every folder workspace in a project — the
+project's own terminal cards — stayed with the free window: the project window opened without them
+and the window it was opened from never let them go. Use the shared rule, never a second copy.
+
 **Main resolves the ownership, never the renderer.** A renderer-declared list would let one window
 overwrite another's tabs, and the renderer cannot know the answer at hydration time anyway:
 project groups load in parallel with the session read, so the window has repos but not yet the
 group tree its scope needs. `main/window/window-scoped-session-keys.ts` does the resolving, and
 `main/ipc/session.ts` applies it to all three channels.
+
+**A project window picks its own focus.** The stored focus names exactly one workspace, so the
+partition hands it to whichever window serves it — and a project window opened while the user was
+looking at a different project would read its own tabs with nothing selected. `session:get` fills
+that gap for a scoped read only (`main/window/project-window-session-focus.ts`): the most recently
+visited workspace it serves that has tabs. It is re-derived on every open rather than remembered,
+because a project window never writes the global fields back.
 
 A window's **session adoption** is still decided once at creation and frozen for its lifetime:
 
@@ -132,15 +147,27 @@ With separate partitions, a closed project window's work would sit in a partitio
 until the user reopens that exact window — and reopening windows at launch does not exist. One
 session with owned keys has no such hole.
 
+## The release is live
+
+Opening a project window (or rebinding one) re-partitions the session, and main pushes the result
+to every live window on `session:workspacesReleased`
+(`main/window/project-window-session-release.ts`): each window is told which of the workspaces it
+is showing now belong to someone else. The renderer drops exactly those keys
+(`renderer/src/lib/release-workspaces-to-another-window.ts`) through the scoped hydration a remote
+snapshot already uses — `rest` of the partition, with the released keys absent. Removal only: PTYs
+live in main and survive a renderer letting go of them, and the window that took the project over
+reconnects them.
+
+Two deliberate limits:
+
+- **Main names only keys it already has on disk.** A tab opened seconds ago and not yet persisted
+  is never yanked out of a window by a race; it settles on the next release or reload. Being late
+  is recoverable, removing something nobody asked to remove is not.
+- **The other direction is still a reload.** Closing a project window, or putting one back in free
+  mode, returns its keys to the free window — but that window learns it on its next hydration.
+  Adopting live is the mirror problem and has not been designed.
+
 ## What is still missing
 
-**The release is not live yet.** Opening a project window gives that window its project, but the
-window it was opened from keeps showing it until that window reloads or Orca restarts, because it
-is already hydrated. Main has the answer (`resolveScopesServedByOtherWindows`); what is missing is
-telling the already-open window to drop those keys from its store without spawning or killing
-anything. `hydrateWorkspaceSession` is the closest existing path, but it is written for startup
-and for remote snapshots — it handles PTY ownership transfers and runtime placeholders — so
-subtracting a project through it needs its own design pass rather than a quick call.
-
-Reopening project windows at launch is also still absent, and deliberately so: with a project
-returning to the free window on close, nothing is lost without it.
+Reopening project windows at launch is still absent, and deliberately so: with a project returning
+to the free window on close, nothing is lost without it.
