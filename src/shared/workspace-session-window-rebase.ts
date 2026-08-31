@@ -22,10 +22,19 @@ import {
   resolveWorkspaceSessionKeyWorktree,
   type WorkspaceSessionRecord
 } from './workspace-session-key-resolution'
+import { parseWorkspaceKey } from './workspace-scope'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
 
 /** The worktrees a window writes for. A window that declares none is the shared writer. */
 export type OwnedWorktreeIds = ReadonlySet<string>
+
+const ACTIVE_FOCUS_FIELDS = new Set<keyof WorkspaceSessionState>([
+  'activeWorktreeId',
+  'activeWorkspaceKey',
+  'activeRepoId',
+  'activeWorkspaceExecutionHostId',
+  'activeTabId'
+])
 
 function ownsKey(
   ownership: WorkspaceSessionFieldOwnership,
@@ -87,6 +96,47 @@ function rebaseWorktreeArrayField(
 }
 
 /**
+ * The active-focus fields name a workspace rather than describing the profile, so they follow the
+ * window that serves it. Without this a project window hydrates its tabs with nothing selected.
+ */
+function assignActiveFocus(
+  session: WorkspaceSessionState,
+  owned: OwnedWorktreeIds,
+  worktreeIdByTabId: Map<string, string>,
+  ownedOut: WorkspaceSessionRecord,
+  restOut: WorkspaceSessionRecord
+): void {
+  const activeWorktreeId = session.activeWorktreeId
+  // A workspace key wraps a worktree id; unwrap it so a session that carries only the key still matches.
+  const activeKey =
+    typeof session.activeWorkspaceKey === 'string' ? session.activeWorkspaceKey : null
+  const parsedKey = activeKey === null ? null : parseWorkspaceKey(activeKey)
+  const activeKeyWorktreeId = parsedKey?.type === 'worktree' ? parsedKey.worktreeId : activeKey
+  const focusIsOwned =
+    (typeof activeWorktreeId === 'string' && owned.has(activeWorktreeId)) ||
+    (activeKeyWorktreeId !== null && owned.has(activeKeyWorktreeId))
+  const target = focusIsOwned ? ownedOut : restOut
+  const other = focusIsOwned ? restOut : ownedOut
+  for (const field of [
+    'activeWorktreeId',
+    'activeWorkspaceKey',
+    'activeRepoId',
+    'activeWorkspaceExecutionHostId'
+  ] as const) {
+    target[field] = session[field]
+    other[field] = null
+  }
+  // The active tab follows its own worktree, which can differ from the active workspace.
+  const activeTabId = session.activeTabId
+  const activeTabWorktreeId =
+    typeof activeTabId === 'string' ? worktreeIdByTabId.get(activeTabId) : undefined
+  const tabTarget =
+    activeTabWorktreeId !== undefined && owned.has(activeTabWorktreeId) ? ownedOut : restOut
+  tabTarget.activeTabId = activeTabId ?? null
+  ;(tabTarget === ownedOut ? restOut : ownedOut).activeTabId = null
+}
+
+/**
  * Splits a session in two along the window axis: the keys these worktrees own, and everything
  * else. Reading a project window is the `owned` half, reading the shared window is `rest`, and a
  * rebased write is `rest` of what is stored merged with `owned` of what came in — one traversal
@@ -113,7 +163,10 @@ export function partitionWorkspaceSessionByWorktrees(
       continue
     }
     if (ownership === 'global' || ownership === 'hostPrivate') {
-      restOut[field] = value
+      // Active focus is assigned below: it names a workspace, so it follows its owner.
+      if (!ACTIVE_FOCUS_FIELDS.has(field)) {
+        restOut[field] = value
+      }
       continue
     }
     if (ownership === 'worktreeArray') {
@@ -134,6 +187,7 @@ export function partitionWorkspaceSessionByWorktrees(
     ownedOut[field] = mine
     restOut[field] = theirs
   }
+  assignActiveFocus(session, owned, resolveContext.worktreeIdByTabId, ownedOut, restOut)
   return {
     owned: ownedOut as WorkspaceSessionState,
     rest: restOut as WorkspaceSessionState

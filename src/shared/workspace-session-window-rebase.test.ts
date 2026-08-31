@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { rebaseWorkspaceSessionWrite } from './workspace-session-window-rebase'
+import {
+  partitionWorkspaceSessionByWorktrees,
+  rebaseWorkspaceSessionWrite
+} from './workspace-session-window-rebase'
 import { getDefaultWorkspaceSession } from './constants'
 import type { Tab } from './tab-types'
 import type { TerminalTab } from './terminal-tab-types'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
+import { worktreeWorkspaceKey } from './workspace-scope'
 
 const PROJECT_WT = 'project-wt'
 const OTHER_WT = 'other-wt'
@@ -198,5 +202,38 @@ describe('rebaseWorkspaceSessionWrite', () => {
 
     expect(stored.tabsByWorktree[PROJECT_WT].map((tab) => tab.id)).toEqual(['p1', 'p2'])
     expect(stored.tabsByWorktree[OTHER_WT].map((tab) => tab.id)).toEqual(['o1', 'o2'])
+  })
+
+  it('sends the active focus to whichever window serves the workspace it names', () => {
+    const current = session({
+      activeWorktreeId: PROJECT_WT,
+      activeWorkspaceKey: worktreeWorkspaceKey(PROJECT_WT),
+      activeRepoId: 'repo-project',
+      activeTabId: 't-project',
+      tabsByWorktree: { [PROJECT_WT]: [makeTab('t-project', PROJECT_WT)] }
+    })
+
+    const split = partitionWorkspaceSessionByWorktrees(current, PROJECT_WINDOW)
+
+    // Why it must follow: the project window would otherwise hydrate its tabs with nothing selected.
+    expect(split.owned.activeWorktreeId).toBe(PROJECT_WT)
+    expect(split.owned.activeTabId).toBe('t-project')
+    expect(split.rest.activeWorktreeId).toBeNull()
+    expect(split.rest.activeTabId).toBeNull()
+  })
+
+  it('leaves the focus with the free window when it names a workspace that window serves', () => {
+    const current = session({
+      activeWorktreeId: OTHER_WT,
+      activeWorkspaceKey: worktreeWorkspaceKey(OTHER_WT),
+      activeTabId: 't-other',
+      tabsByWorktree: { [OTHER_WT]: [makeTab('t-other', OTHER_WT)] }
+    })
+
+    const split = partitionWorkspaceSessionByWorktrees(current, PROJECT_WINDOW)
+
+    expect(split.owned.activeWorktreeId).toBeNull()
+    expect(split.rest.activeWorktreeId).toBe(OTHER_WT)
+    expect(split.rest.activeTabId).toBe('t-other')
   })
 })

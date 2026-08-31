@@ -1,5 +1,6 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import type { Store } from '../persistence'
+import type { WindowScope } from '../../shared/window-scope'
 import type {
   WorkspaceSessionPatch,
   WorkspaceSessionState
@@ -8,7 +9,6 @@ import {
   collectWorkspaceSessionWorktreeKeys,
   partitionWorkspaceSessionByWorktrees
 } from '../../shared/workspace-session-window-rebase'
-import type { WindowScope } from '../../shared/window-scope'
 import { getMainWindows } from '../window/main-window-registry'
 import { resolveWindowScopeForWebContents } from '../window/window-view-state-registry'
 import {

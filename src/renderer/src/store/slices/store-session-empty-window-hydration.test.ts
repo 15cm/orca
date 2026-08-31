@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type * as AgentStatusModule from '@/lib/agent-status'
-import { adoptWorkspaceSessionRead } from '@/lib/empty-window-workspace-session'
 import type { WorkspaceSessionHostRead } from '@/lib/workspace-session-host-hydration'
+import {
+  adoptWorkspaceSessionRead,
+  emptyWindowWorkspaceSession
+} from '@/lib/empty-window-workspace-session'
+import { partitionWorkspaceSessionByWorktrees } from '../../../../shared/workspace-session-window-rebase'
 import { worktreeWorkspaceKey } from '../../../../shared/workspace-scope'
 import { createTestStore, makeWorktree, makeTab, makeLayout } from './store-test-helpers'
 import { createStoreSessionMockApi } from './store-session-test-harness'
@@ -57,11 +61,35 @@ describe('startup hydration for a scoped window', () => {
     seedCatalog(store)
     const read = adoptWorkspaceSessionRead(persistedSessionRead(), 'scoped')
     store.getState().hydrateWorkspaceSession(read.session)
+    store.getState().hydrateTabsSession(read.session)
     expect(store.getState().activeWorktreeId).toBe(WORKTREE_ID)
     expect(store.getState().tabsByWorktree[WORKTREE_ID]).toHaveLength(1)
+    expect(store.getState().activeTabId).toBe('tab-1')
   })
 
-  it('still hydrates everything in the launch’s first window', () => {
+  it('leaves the free window with nothing once a project window serves that worktree', () => {
+    const store = createTestStore()
+    seedCatalog(store)
+    const rest = partitionWorkspaceSessionByWorktrees(
+      persistedSessionRead().session,
+      new Set([WORKTREE_ID])
+    ).rest
+    store.getState().hydrateWorkspaceSession(rest)
+    store.getState().hydrateTabsSession(rest)
+    const state = store.getState()
+    expect(state.tabsByWorktree).toEqual({})
+    expect(state.unifiedTabsByWorktree).toEqual({})
+    expect(state.pendingReconnectWorktreeIds).toEqual([])
+  })
+
+  it('keeps the ledgers a window with no project of its own still needs', () => {
+    const projected = emptyWindowWorkspaceSession(persistedSessionRead().session)
+    expect(projected.defaultTerminalTabsAppliedByWorktreeId).toEqual({ [WORKTREE_ID]: true })
+    expect(projected.lastVisitedAtByWorktreeId).toEqual({ [WORKTREE_ID]: 1_700_000_000_000 })
+    expect(projected.tabsByWorktree).toEqual({})
+  })
+
+  it('hands the free window the whole read when no project window is up', () => {
     const store = createTestStore()
     seedCatalog(store)
 
