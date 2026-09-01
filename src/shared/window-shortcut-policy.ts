@@ -30,6 +30,7 @@ export type WindowShortcutInput = {
 export type WindowShortcutAction =
   | { type: 'zoom'; direction: 'in' | 'out' | 'reset' }
   | { type: 'openSettings' }
+  | { type: 'openNewWindow' }
   | { type: 'forceReload' }
   | { type: 'toggleWorktreePalette' }
   | { type: 'toggleFloatingTerminal' }
@@ -206,6 +207,10 @@ export function resolveWindowShortcutAction(
     return { type: 'openSettings' }
   }
 
+  if (actionMatches('app.newWindow', input, platform, keybindings, options)) {
+    return { type: 'openNewWindow' }
+  }
+
   if (actionMatches('app.forceReload', input, platform, keybindings, options)) {
     return { type: 'forceReload' }
   }
@@ -298,6 +303,9 @@ export function resolveWindowShortcutAction(
 }
 
 export function getWindowShortcutActionId(action: WindowShortcutAction): KeybindingActionId | null {
+  if (action.type === 'openNewWindow') {
+    return 'app.newWindow'
+  }
   switch (action.type) {
     case 'zoom':
       return action.direction === 'in'

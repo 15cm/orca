@@ -106,7 +106,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   }
 
   const newWindowItem: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.newWindow', 'New Window'),
+    label: `${translateMain('menu.newWindow', 'New Window')}\t${shortcutLabel('app.newWindow')}`,
     click: () => onNewWindow()
   }
 

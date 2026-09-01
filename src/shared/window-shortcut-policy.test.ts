@@ -10,6 +10,19 @@ import {
 import type { KeybindingOverrides } from './keybindings'
 
 describe('resolveWindowShortcutAction', () => {
+  it.each([
+    ['darwin', { meta: true, control: false }],
+    ['linux', { meta: false, control: true }],
+    ['win32', { meta: false, control: true }]
+  ] as const)('resolves New Window on %s', (platform, modifiers) => {
+    expect(
+      resolveWindowShortcutAction(
+        { code: 'KeyN', key: 'n', ...modifiers, alt: true, shift: false },
+        platform
+      )
+    ).toEqual({ type: 'openNewWindow' })
+  })
+
   it('keeps ctrl/cmd+r and unrelated readline control chords out of the allowlist', () => {
     const macCases: WindowShortcutInput[] = [
       { code: 'KeyR', key: 'r', meta: true, control: false, alt: false, shift: false },

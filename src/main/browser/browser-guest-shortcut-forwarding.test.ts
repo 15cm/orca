@@ -545,6 +545,29 @@ describe('setupGuestShortcutForwarding', () => {
     expect(rendererSendMock).toHaveBeenNthCalledWith(6, 'ui:zoomBrowserPage', 'in')
   })
 
+  it('opens a new window from a focused guest using the configured app binding', () => {
+    const onNewWindow = vi.fn()
+    setupGuestShortcutForwarding({
+      browserTabId,
+      guest: makeGuest(),
+      resolveRenderer: () => makeRenderer(),
+      onNewWindow
+    })
+
+    const preventDefault = triggerBeforeInput({
+      code: 'KeyN',
+      key: 'n',
+      control: true,
+      alt: true,
+      meta: false,
+      shift: false
+    })
+
+    expect(preventDefault).toHaveBeenCalledTimes(1)
+    expect(onNewWindow).toHaveBeenCalledTimes(1)
+    expect(rendererSendMock).not.toHaveBeenCalled()
+  })
+
   it('forwards browser history shortcuts from focused guest pages', () => {
     setupGuestShortcutForwarding({
       browserTabId,

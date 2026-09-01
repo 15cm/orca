@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import type { KeybindingOverrides } from '../../shared/keybindings'
 
 export type CreateMainWindowOptions = {
+  onNewWindow?: () => void
   /** Returns true when a manual app.quit() (Cmd+Q) is in progress, so the renderer skips the running-process confirm dialog. */
   getIsQuitting?: () => boolean
   /** Notifies the caller when the renderer vetoes unload, so the quit latch clears — a prevented beforeunload cancels the in-flight app.quit(). */

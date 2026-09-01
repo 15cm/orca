@@ -222,6 +222,7 @@ export class BrowserManager {
     | (() => {
         keybindings?: KeybindingOverrides
         mobileEmulatorEnabled?: boolean
+        onNewWindow?: () => void
       })
     | null = null
   private readonly webContentsIdByTabId = new Map<string, number>()
@@ -297,6 +298,7 @@ export class BrowserManager {
     resolver: () => {
       keybindings?: KeybindingOverrides
       mobileEmulatorEnabled?: boolean
+      onNewWindow?: () => void
     }
   ): void {
     this.settingsResolver = resolver
@@ -2045,6 +2047,7 @@ export class BrowserManager {
         shouldForwardDictationShortcut: () => this.shouldForwardDictationShortcut?.() ?? false,
         isMobileEmulatorEnabled: () => this.settingsResolver?.().mobileEmulatorEnabled !== false,
         getKeybindings: () => this.settingsResolver?.().keybindings,
+        onNewWindow: this.settingsResolver?.().onNewWindow,
         resolveWorktreeId: (tabId) => this.worktreeIdByTabId.get(tabId) ?? null,
         resolveWorkspaceId: (tabId) => this.workspaceIdByPageId.get(tabId) ?? null
       })

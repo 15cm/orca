@@ -390,7 +390,11 @@ describe('registerAppMenu', () => {
 
     const fileLabels = getSubmenu(template, 'File').map((item) => item.label)
     expect(fileLabels).toEqual(
-      expect.arrayContaining(['New Window', `Settings\t${isMac ? '⌘,' : 'Ctrl+,'}`, 'Exit'])
+      expect.arrayContaining([
+        `New Window\t${isMac ? '⌘⌥N' : 'Ctrl+Alt+N'}`,
+        `Settings\t${isMac ? '⌘,' : 'Ctrl+,'}`,
+        'Exit'
+      ])
     )
 
     const helpLabels = getSubmenu(template, 'Help').map((item) => item.label)
@@ -416,7 +420,7 @@ describe('registerAppMenu', () => {
     // Why: on macOS File should NOT duplicate Settings/Exit — those live in
     // the system app menu, so only window-local File actions belong here.
     const fileLabels = getSubmenu(template, 'File').map((item) => item.label)
-    expect(fileLabels).toContain('New Window')
+    expect(fileLabels).toContain(`New Window\t${isMac ? '⌘⌥N' : 'Ctrl+Alt+N'}`)
     expect(fileLabels).not.toContain(`Settings\t${isMac ? '⌘,' : 'Ctrl+,'}`)
     expect(fileLabels).not.toContain('Exit')
     const helpLabels = getSubmenu(template, 'Help').map((item) => item.label)
@@ -466,7 +470,7 @@ describe('registerAppMenu', () => {
     registerAppMenu(options)
 
     const newWindowItem = getSubmenu(getTemplate(), 'File').find(
-      (entry) => entry.label === 'New Window'
+      (entry) => entry.label?.startsWith('New Window')
     )
 
     expect(newWindowItem?.accelerator).toBeUndefined()

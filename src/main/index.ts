@@ -1618,6 +1618,13 @@ function syncMacMenuBarIcon(showMenuBarIcon: boolean): Tray | null {
   return options ? setMacMenuBarIconVisible(showMenuBarIcon, options) : null
 }
 
+function openNewWindow(): void {
+  if (isQuitting || !experimentalMultiWindowEnabledAtStartup) {
+    return
+  }
+  openMainWindow({ forceNewWindow: true })
+}
+
 function openMainWindow(
   options: {
     revealOnDidFinishLoad?: boolean
@@ -1702,6 +1709,7 @@ function openMainWindow(
 
   const window = createMainWindow(store, {
     getIsQuitting: () => isQuitting,
+    onNewWindow: experimentalMultiWindowEnabledAtStartup ? openNewWindow : undefined,
     onQuitAborted: abortQuitConfirmationTransaction,
     isQuitConfirmationCollecting,
     onQuitWindowCloseConfirmed,
@@ -2882,7 +2890,10 @@ void app.whenReady().then(async () => {
       }
     }
   })
-  browserManager.setSettingsResolver(() => ({ keybindings: keybindings?.getOverrides() }))
+  browserManager.setSettingsResolver(() => ({
+    keybindings: keybindings?.getOverrides(),
+    onNewWindow: experimentalMultiWindowEnabledAtStartup ? openNewWindow : undefined
+  }))
   rateLimits.setInactiveClaudeAccountsResolver(() => {
     const settings = store!.getSettings()
     const activeIds = new Set(
@@ -3332,12 +3343,7 @@ void app.whenReady().then(async () => {
   registerAppMenu({
     appMenuLabel: devInstanceIdentity.name,
     multiWindowEnabled: experimentalMultiWindowEnabledAtStartup,
-    onNewWindow: () => {
-      if (isQuitting) {
-        return
-      }
-      openMainWindow(experimentalMultiWindowEnabledAtStartup ? { forceNewWindow: true } : {})
-    },
+    onNewWindow: openNewWindow,
     onCheckForUpdates: (options) => runUserInitiatedUpdateCheck(options),
     onBeforeReload: ({ ignoreCache, webContentsId }) => {
       markExpectedRendererReload(webContentsId)

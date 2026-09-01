@@ -18,6 +18,7 @@ export type GuestShortcutForwardContext = {
   shouldForwardDictationShortcut?: ShouldForwardDictationShortcut
   isMobileEmulatorEnabled?: IsMobileEmulatorEnabled
   getKeybindings?: () => KeybindingOverrides | undefined
+  onNewWindow?: () => void
   resolveWorktreeId?: (browserTabId: string) => string | null
   resolveWorkspaceId?: (browserTabId: string) => string | null
   forwardBrowserPageZoom: (event: Electron.Event, direction: BrowserPageZoomDirection) => void
@@ -35,11 +36,22 @@ export function forwardGuestShortcutInput(
     shouldForwardDictationShortcut,
     isMobileEmulatorEnabled,
     getKeybindings,
+    onNewWindow,
     resolveWorktreeId,
     resolveWorkspaceId,
     forwardBrowserPageZoom
   } = ctx
   const keybindings = getKeybindings?.()
+  if (action?.type === 'openNewWindow') {
+    if (!onNewWindow) {
+      return false
+    }
+    event.preventDefault()
+    if (!input.isAutoRepeat) {
+      onNewWindow()
+    }
+    return true
+  }
   if (action?.type === 'zoom') {
     // Why: focused guest key events never reach the renderer-owned webview ref that applies Orca's page zoom.
     forwardBrowserPageZoom(event, action.direction)
