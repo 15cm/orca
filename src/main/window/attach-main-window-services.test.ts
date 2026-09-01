@@ -622,6 +622,7 @@ describe('attachMainWindowServices', () => {
 
     attachMainWindowServices(mainWindow as never, createStore(), createRuntime() as never)
 
+    Object.assign(mainWindow, { webContents: undefined })
     const closedHandler = getClosedHandlers(mainWindowOnMock).at(-1)
     expect(closedHandler).toBeTypeOf('function')
     closedHandler?.()

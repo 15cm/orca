@@ -334,6 +334,30 @@ describe('registerPtyHandlers', () => {
       )
     ).toHaveLength(1)
   })
+  it('cleans up the orphan listener after Electron destroys the window webContents', () => {
+    const webContents = mainWindow.webContents
+    const webContentsDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'webContents')
+    const onceMock = (mainWindow as unknown as { once: ReturnType<typeof vi.fn> }).once
+
+    registerPtyHandlers(mainWindow as never)
+    const closedHandler = onceMock.mock.calls.findLast(
+      ([eventName]) => eventName === 'closed'
+    )?.[1] as (() => void) | undefined
+    expect(closedHandler).toBeTypeOf('function')
+
+    Object.defineProperty(mainWindow, 'webContents', {
+      configurable: true,
+      get: () => {
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+    try {
+      expect(() => closedHandler?.()).not.toThrow()
+    } finally {
+      Object.defineProperty(mainWindow, 'webContents', webContentsDescriptor!)
+    }
+    expect(webContents.removeListener).toHaveBeenCalledWith('did-finish-load', expect.any(Function))
+  })
   // Why (#5787): a recovery reload re-fires did-finish-load; suppress the orphan sweep so live LOCAL PTYs survive until session restore re-adopts them.
   it('does not sweep local PTYs during a recovery reload', async () => {
     const killSpy = vi.fn()
