@@ -199,6 +199,10 @@ export function registerAgentStatusIpcBridge(unsubs: (() => void)[]): AgentStatu
     )
   }
 
+  function applyReplayedAgentStatus(data: AgentStatusIpcPayload): void {
+    applyAgentStatusBatch([{ data, replay: true }])
+  }
+
   function flushLiveAgentStatusBurst(): void {
     liveAgentStatusBurstTimer = null
     lastLiveAgentStatusApplyAt = Date.now()
@@ -251,6 +255,7 @@ export function registerAgentStatusIpcBridge(unsubs: (() => void)[]): AgentStatu
   registerAgentStatusListeners({
     unsubs,
     enqueueLiveAgentStatus,
+    applyReplayedAgentStatus,
     drainQueuedLiveAgentStatusesForPane,
     pendingAgentStatusEvents,
     transientClearWatermarkByConnectionId,

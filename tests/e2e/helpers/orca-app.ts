@@ -44,6 +44,8 @@ type OrcaTestFixtures = {
   // events for every other test. Dismiss it by default; onboarding.spec.ts
   // opts out via `test.use({ dismissOnboarding: false })`.
   dismissOnboarding: boolean
+  /** Seeds the startup-only multi-window flag before Electron launches. */
+  experimentalMultiWindow: boolean
   // Why: most E2E specs need a ready project before assertions start. Golden
   // first-run specs opt out so they can prove the zero-project onboarding path.
   seedTestRepo: boolean
@@ -174,6 +176,7 @@ export const test = base.extend<OrcaTestFixtures, OrcaWorkerFixtures>({
   electronApp: async (
     {
       dismissOnboarding,
+      experimentalMultiWindow,
       launchEnv,
       orcaAppExtraEnv,
       orcaAppExtraArgs,
@@ -196,7 +199,7 @@ export const test = base.extend<OrcaTestFixtures, OrcaWorkerFixtures>({
       // existing-user upgrade cohort and mount the telemetry notice overlay.
       writeFileSync(
         path.join(userDataDir, 'orca-data.json'),
-        `${JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2)}\n`
+        `${JSON.stringify(getE2ECompletedOnboardingProfile({ experimentalMultiWindow }), null, 2)}\n`
       )
     }
     const headful = shouldLaunchHeadful(testInfo)
@@ -274,6 +277,7 @@ export const test = base.extend<OrcaTestFixtures, OrcaWorkerFixtures>({
 
   // Default: dismiss the onboarding overlay so it doesn't intercept clicks.
   dismissOnboarding: [true, { option: true }],
+  experimentalMultiWindow: [false, { option: true }],
   seedTestRepo: [true, { option: true }],
   minimumSeededWorktreeCount: [2, { option: true }],
   launchEnv: [{}, { option: true }],

@@ -2,9 +2,19 @@
 
 All UI work — layout, color, typography, spacing, component selection, UX behavior — must follow [`docs/STYLEGUIDE.md`](./docs/STYLEGUIDE.md). Use the tokens defined in `src/renderer/src/assets/main.css` (the canonical source) and the shadcn primitives in `src/renderer/src/components/ui/`. Don't invent new color values, font sizes, or shadow tiers when a documented one already covers the role. When STYLEGUIDE.md is silent, follow the resolution order in its final section.
 
+# Feature Development Workflow
+
+Use the following gated workflow for feature development:
+
+1. **Plan with `cx-sol-high`.** Start in planning mode. Align with the human on requirements, acceptance criteria, non-goals, design, risks, and validation before implementation. Resolve material ambiguity with the human instead of delegating it to the implementer.
+2. **Define validation up front.** Every validation plan must include the repository's complete test suite. UI-visible behavior must also include isolated functional verification with the `$gui-sandbox` skill; inside that sandbox, follow the Electron UI validation rules below.
+3. **Wait for approval.** Do not implement until the human explicitly approves the design and validation plan.
+4. **Persist the approved contract.** After approval, write the requirements, design, validation plan, and ordered execution plan to a Markdown file under the root repository's `docs/` directory. Include acceptance criteria, non-goals, affected areas, risks, test commands, and UI scenarios when applicable.
+5. **Execute with `cx-luna-medium`.** The executor must implement against the approved plan file, keep changes within scope, run the planned validation and functional GUI-sandbox scenario, and report changed files, commands run, results, and any deviations. Any necessary design or scope change returns to the human and `cx-sol-high` for approval before implementation continues.
+
 ## Electron UI Validation
 
-Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not use computer-use for Orca UI validation.
+Use the `$gui-sandbox` skill for rendered Orca UI checks. Do not use Playwright, `$electron`, or computer-use for Orca UI validation.
 
 # Style
 ## Reuse Before Reimplementing
@@ -12,6 +22,7 @@ Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not
 Before writing new logic at any scale — a function, component, IPC channel, state store, or whole subsystem/flow — check whether an existing implementation already does the job (or nearly does). Extend or generalize it instead of building a parallel version; only write from scratch when nothing fits. Keep the check proportionate: a quick search for trivial code, a real one before building anything substantial.
 
 ## Concise/Brief Non-obvious Comments ONLY
+
   * DO NOT: be verbose, explain the obvious, walk through the code ("WHY not HOW")
   * BE CONCISE. 1 LINE if possible
 

@@ -120,7 +120,7 @@ import { isCommandCodeNewTurnWhileWorking } from '../../shared/command-code-turn
 export type { AgentHookSource }
 
 // Why: server-side enrichment — receivedAt = latest event arrival, stateStartedAt = when the current state first appeared; extra fields ride the shared map untouched (it only writes/clears).
-type EnrichedAgentHookEventPayload = AgentHookEventPayload & {
+export type EnrichedAgentHookEventPayload = AgentHookEventPayload & {
   receivedAt: number
   stateStartedAt: number
   /** Provenance/ordering stamped by this server as the pane authority (STA-4293). Read by nothing yet. */
@@ -448,7 +448,9 @@ function authorityCommitmentsMatch(
   )
 }
 
-function toAgentStatusIpcPayload(entry: EnrichedAgentHookEventPayload): AgentStatusIpcPayload {
+export function toAgentStatusIpcPayload(
+  entry: EnrichedAgentHookEventPayload
+): AgentStatusIpcPayload {
   return {
     paneKey: entry.paneKey,
     ...(entry.launchToken ? { launchToken: entry.launchToken } : {}),
@@ -462,6 +464,7 @@ function toAgentStatusIpcPayload(entry: EnrichedAgentHookEventPayload): AgentSta
     ...(entry.promptInteractionKey ? { promptInteractionKey: entry.promptInteractionKey } : {}),
     ...(entry.restoredUnconfirmed ? { restoredUnconfirmed: true } : {}),
     ...(entry.observation ? { observation: entry.observation } : {}),
+    ...(entry.isReplay === true ? { isReplay: true } : {}),
     ...entry.payload
   }
 }
