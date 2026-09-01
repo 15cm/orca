@@ -39,6 +39,7 @@ type HookObserverOptions = {
   clearOriginStampedTail: () => void
   recordWorkingBoundary: (timestamp: number | undefined) => void
   dropPendingTitle: () => void
+  seedCompletionIdentity: (identity: LastCompletionIdentity) => void
 }
 
 function isFiniteTurnCompletedAt(value: number | undefined): value is number {
@@ -47,6 +48,16 @@ function isFiniteTurnCompletedAt(value: number | undefined): value is number {
 
 function isAttentionHookState(state: AgentCompletionStatusSnapshot['state']): boolean {
   return state === 'waiting' || state === 'blocked'
+}
+
+function hookAttentionToken(payload: AgentCompletionStatusSnapshot): string {
+  return [
+    payload.state,
+    payload.agentType ?? '',
+    payload.toolName ?? '',
+    payload.toolInput ?? '',
+    payload.prompt
+  ].join(':')
 }
 
 export function createAgentCompletionHookObserver({
@@ -70,7 +81,8 @@ export function createAgentCompletionHookObserver({
   consumeStampedTailForCurrentCoordinator,
   clearOriginStampedTail,
   recordWorkingBoundary,
-  dropPendingTitle
+  dropPendingTitle,
+  seedCompletionIdentity
 }: HookObserverOptions) {
   function observeHookStatus(payload: AgentCompletionStatusSnapshot): void {
     recordPaneActivity()
@@ -205,11 +217,53 @@ export function createAgentCompletionHookObserver({
   return {
     observeHookStatus,
     seedHookStatus: (payload: AgentCompletionStatusSnapshot) => {
-      const { turnCompletedAt, ...unstampedPayload } = payload
-      if (isFiniteTurnCompletedAt(turnCompletedAt)) {
-        rememberHandledTurnCompletedAt(turnCompletedAt)
+      recordPaneActivity()
+      if (isRecognizedAgentType(payload.agentType)) {
+        establishAgentEvidence()
       }
-      observeHookStatus(unstampedPayload)
+      if (payload.state === 'working') {
+        recordWorkingBoundary(payload.stateStartedAt)
+        clearPendingHookDone()
+        clearPendingCodexAttention()
+        state.workingStatusObserved = true
+        state.requiresFreshWorking = false
+        state.lastCompletionIdentity = null
+        state.lastAttentionToken = null
+        state.currentTurn += 1
+        dropPendingTitle()
+        return
+      }
+      if (isAttentionHookState(payload.state)) {
+        state.lastAttentionToken = hookAttentionToken(payload)
+        clearPendingHookDone()
+        clearPendingCodexAttention()
+        return
+      }
+      if (payload.state !== 'done' || payload.sessionBoundary === true) {
+        return
+      }
+      clearPendingHookDone()
+      clearPendingCodexAttention()
+      const identity = hookCompletionIdentity(payload)
+      if (isFiniteTurnCompletedAt(payload.turnCompletedAt)) {
+        rememberHandledTurnCompletedAt(payload.turnCompletedAt)
+      }
+      if (identity) {
+        const completionIdentity: LastCompletionIdentity = {
+          source: 'hook',
+          identity,
+          agentIdentity: hookCompletionAgentIdentity(payload),
+          ...(isFiniteTurnCompletedAt(payload.turnCompletedAt)
+            ? { lastTurnCompletedAtNotified: payload.turnCompletedAt }
+            : {})
+        }
+        seedCompletionIdentity(completionIdentity)
+        state.lastCompletionIdentity = completionIdentity
+      }
+      state.lastCompletionSource = 'hook'
+      state.lastCompletedTurn = state.currentTurn
+      state.workingStatusObserved = false
+      state.requiresFreshWorking = true
     }
   }
 }

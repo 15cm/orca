@@ -16,6 +16,18 @@ Use the following gated workflow for feature development:
 
 Use the `$gui-sandbox` skill for rendered Orca UI checks. Do not use Playwright, `$electron`, or computer-use for Orca UI validation.
 
+### GUI Sandbox Runtime Dependencies
+
+The Ubuntu guest has no Node, package manager, compiler, or host Nix libraries. Build Electron artifacts on the host, then bootstrap temporary guest-local dependencies before launch:
+
+- Download portable Node matching the project runtime into `/tmp/orca-runtime/node`.
+- Download `libnspr4` and `libnss3` package contents into `/tmp/orca-runtime/lib`.
+- Download/extract `build-essential`, GCC/G++, binutils, libc development headers, and their runtime libraries into `/tmp/orca-runtime/toolchain`; set `PATH`, `LD_LIBRARY_PATH`, compiler include paths, and `--sysroot` to that tree.
+- Rebuild `node-pty` against the bundled Electron version with `node-gyp --runtime=electron --target=<version> --dist-url=https://electronjs.org/headers`.
+- Launch with a writable temporary `HOME`/user-data directory and `--disable-crashpad --disable-breakpad` when the guest Crashpad handler cannot initialize its database.
+
+Keep these dependencies task-local and disposable. Do not install packages into the guest system or copy the bootstrap runtime into tracked files.
+
 # Style
 ## Reuse Before Reimplementing
 
