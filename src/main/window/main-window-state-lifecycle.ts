@@ -62,10 +62,15 @@ export function installMainWindowStateLifecycle(args: {
     if (e2eConfig.headless) {
       return
     }
-    if (savedMaximized) {
-      mainWindow.maximize()
+    try {
+      if (savedMaximized) {
+        mainWindow.maximize()
+      }
+      mainWindow.show()
+    } catch (error) {
+      // Why: Electron can destroy the native window between the liveness check and these calls during quit.
+      console.warn('[window] Initial reveal skipped after native window teardown:', error)
     }
-    mainWindow.show()
   }
   mainWindow.on('ready-to-show', revealInitialWindow)
   if (revealOnDidFinishLoad === true) {
