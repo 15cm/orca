@@ -153,6 +153,7 @@ export function registerPtyHandlers(
 
   // Why: reload/crash orphans delivery-interest holds and hidden marks; reset so surviving PTYs aren't stuck force-fed or gated — each pane's first sync re-marks.
   clearRendererGateResetHandlers()
+  const rendererWebContents = mainWindow.webContents
   const resetRendererPtyDeliveryGateState = (): void => {
     const gateDebug = getHiddenRendererPtyDeliveryDebug()
     // Why scoped: this fires on one window's reload/crash; a global reset would drop the hidden
@@ -165,21 +166,21 @@ export function registerPtyHandlers(
     session.resyncBackgroundedDeliveriesAfterGateReset()
   }
   setRendererGateResetState({
-    contents: mainWindow.webContents,
+    contents: rendererWebContents,
     load: resetRendererPtyDeliveryGateState,
     gone: resetRendererPtyDeliveryGateState
   })
-  mainWindow.webContents.on('did-finish-load', resetRendererPtyDeliveryGateState)
-  mainWindow.webContents.on('render-process-gone', resetRendererPtyDeliveryGateState)
+  rendererWebContents.on('did-finish-load', resetRendererPtyDeliveryGateState)
+  rendererWebContents.on('render-process-gone', resetRendererPtyDeliveryGateState)
 
   // Why: only LocalPtyProvider PTYs (main-process) can be orphaned on reload; daemon sessions survive by design and cleanup would kill them.
-  clearDidFinishLoadHandlerForWebContents(mainWindow.webContents)
+  clearDidFinishLoadHandlerForWebContents(rendererWebContents)
   if (localProvider instanceof LocalPtyProvider) {
     const lp = localProvider
     const finishLoadHandler = () => {
       // Why: always advance to keep the generation monotonic, but skip the sweep on crash/freeze-recovery reload — it would kill live local PTYs before session restore (#5787).
       const generation = lp.advanceGeneration()
-      if (options?.isRecoveryReloadInFlight?.(mainWindow.webContents.id)) {
+      if (options?.isRecoveryReloadInFlight?.(rendererWebContents.id)) {
         return
       }
       // Why: with several windows open the other renderers stay live, so only the
@@ -191,12 +192,10 @@ export function registerPtyHandlers(
       // Why: the retained provider onExit callback is the only physical-exit proof; it clears ownership after the OS reaps it.
       lp.killOrphanedPtys(generation - 1, candidateIds)
     }
-    setDidFinishLoadHandler(finishLoadHandler, mainWindow.webContents)
-    mainWindow.webContents.on('did-finish-load', finishLoadHandler)
+    setDidFinishLoadHandler(finishLoadHandler, rendererWebContents)
+    rendererWebContents.on('did-finish-load', finishLoadHandler)
     // Why: the sweep handler is keyed by webContents, so drop it when this window goes.
-    mainWindow.once?.('closed', () =>
-      clearDidFinishLoadHandlerForWebContents(mainWindow.webContents)
-    )
+    mainWindow.once?.('closed', () => clearDidFinishLoadHandlerForWebContents(rendererWebContents))
   }
 
   const assertFolderWorkspacePtyPathUsable = (

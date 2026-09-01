@@ -600,13 +600,12 @@ describe('attachMainWindowServices', () => {
 
     attachMainWindowServices(mainWindow as never, createStore(), createRuntime() as never)
 
+    Object.assign(mainWindow, { webContents: undefined })
     const closedHandler = getClosedHandlers(mainWindowOnMock).at(-1)
     expect(closedHandler).toBeTypeOf('function')
-    closedHandler?.()
+    expect(() => closedHandler?.()).not.toThrow()
     expect(browserManagerUnregisterGuestsForRendererMock).toHaveBeenCalledTimes(1)
-    expect(browserManagerUnregisterGuestsForRendererMock).toHaveBeenCalledWith(
-      mainWindow.webContents.id
-    )
+    expect(browserManagerUnregisterGuestsForRendererMock).toHaveBeenCalledWith(1)
   })
 
   // Why: the file-drop relay is shared across windows and routed by sender, so a
