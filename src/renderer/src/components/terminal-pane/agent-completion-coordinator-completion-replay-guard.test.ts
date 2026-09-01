@@ -68,6 +68,64 @@ describe('agent completion coordinator', () => {
     expect(dispatchCompletion).toHaveBeenCalledTimes(1)
   })
 
+  it('seeds replayed terminal state without delayed title or process notification', () => {
+    const dispatchCompletion = vi.fn()
+    const coordinator = createAgentCompletionCoordinator({
+      paneKey: 'tab-1:leaf-1',
+      getPtyId: () => 'pty-1',
+      getSettings: () => null,
+      inspectProcess: vi.fn(),
+      dispatchCompletion,
+      isLive: () => true
+    })
+
+    coordinator.seedHookStatus({
+      state: 'done',
+      prompt: 'cached task',
+      agentType: 'codex',
+      stateStartedAt: 1_700_000_000_000,
+      turnCompletedAt: 1_700_000_000_500
+    })
+    coordinator.observeClassifiedTitleCompletion('Codex done')
+    vi.advanceTimersByTime(HOOK_DONE_QUIET_MS + 5_000)
+
+    expect(dispatchCompletion).not.toHaveBeenCalled()
+  })
+
+  it('re-arms a terminal replay fence only after fresh working evidence', () => {
+    const dispatchCompletion = vi.fn()
+    const coordinator = createAgentCompletionCoordinator({
+      paneKey: 'tab-1:leaf-1',
+      getPtyId: () => 'pty-1',
+      getSettings: () => null,
+      inspectProcess: vi.fn(),
+      dispatchCompletion,
+      isLive: () => true
+    })
+
+    coordinator.seedHookStatus({
+      state: 'done',
+      prompt: 'cached task',
+      agentType: 'codex',
+      stateStartedAt: 1_700_000_000_000
+    })
+    coordinator.observeHookStatus({
+      state: 'working',
+      prompt: 'fresh task',
+      agentType: 'codex',
+      stateStartedAt: 1_700_000_010_000
+    })
+    coordinator.observeHookStatus({
+      state: 'done',
+      prompt: 'fresh task',
+      agentType: 'codex',
+      stateStartedAt: 1_700_000_011_000
+    })
+    vi.advanceTimersByTime(HOOK_DONE_QUIET_MS)
+
+    expect(dispatchCompletion).toHaveBeenCalledTimes(1)
+  })
+
   it('suppresses the same hook completion replay after fresh work starts', () => {
     const dispatchCompletion = vi.fn()
     const coordinator = createAgentCompletionCoordinator({

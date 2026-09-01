@@ -292,7 +292,13 @@ export function createAgentCompletionCoordinator(
     consumeStampedTailForCurrentCoordinator,
     clearOriginStampedTail: () => identityScope.clearOriginStampedTail(),
     recordWorkingBoundary,
-    dropPendingTitle
+    dropPendingTitle,
+    seedCompletionIdentity: (identity) => (
+      identityScope.setLast(identity),
+      identity.lastTurnCompletedAtNotified !== undefined
+        ? identityScope.rememberTurnCompletedAt(identity.lastTurnCompletedAtNotified)
+        : identityScope.clearStampedTail()
+    )
   })
 
   lifecycle = createAgentCompletionLifecycle({
