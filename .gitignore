@@ -31,9 +31,11 @@ native/**/.build/
 package-lock.json
 
 # Environment
+!.envrc
 .env
 .env.local
 .env.*.local
+/.direnv/
 
 # IDE
 .vscode/
@@ -56,6 +58,7 @@ desktop.ini
 
 # Lint/cache
 .oxlintcache
+.orca-*
 
 # Logs
 *.log
