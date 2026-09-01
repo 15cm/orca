@@ -48,6 +48,7 @@ describe('createMainWindow', () => {
       }),
       setZoomLevel: vi.fn(),
       setBackgroundThrottling: vi.fn(),
+      isDestroyed: vi.fn(() => false),
       invalidate: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       send: vi.fn()
@@ -131,6 +132,17 @@ describe('createMainWindow', () => {
 
     expect(browserWindowInstance.maximize).toHaveBeenCalledTimes(1)
     expect(browserWindowInstance.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores window state events after native teardown', () => {
+    const { browserWindowInstance, windowHandlers } = createStartupRevealWindowFixture()
+
+    createMainWindow(null)
+    browserWindowInstance.isDestroyed.mockReturnValue(true)
+
+    expect(() => windowHandlers['enter-full-screen']()).not.toThrow()
+    expect(() => windowHandlers['leave-full-screen']()).not.toThrow()
+    expect(browserWindowInstance.webContents.send).not.toHaveBeenCalled()
   })
 
   it('can reveal the startup window after renderer load before ready-to-show', () => {
