@@ -18,12 +18,33 @@ export function installMainWindowStateLifecycle(args: {
   store: Store | null
 }): MainWindowStateLifecycle {
   const { mainWindow, revealOnDidFinishLoad, savedMaximized, store } = args
+  const sendWindowState = (
+    channel: 'window:maximize-changed' | 'window:fullscreen-changed',
+    value: boolean
+  ): void => {
+    // Native teardown can emit window state events after WebContents has gone away.
+    if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed?.() === true) {
+      return
+    }
+    try {
+      mainWindow.webContents.send(channel, value)
+    } catch {
+      // The liveness check and send are not atomic during native teardown.
+    }
+  }
   mainWindow.webContents.on('dom-ready', () => {
+    if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed?.() === true) {
+      return
+    }
     const level = store?.getUI().uiZoomLevel ?? 0
-    mainWindow.webContents.setZoomLevel(level)
-    // Why: native traffic lights don't scale with CSS zoom; reposition on startup to stay aligned with the zoomed titlebar.
-    if (process.platform === 'darwin') {
-      syncTrafficLightPosition(mainWindow, 1.2 ** level)
+    try {
+      mainWindow.webContents.setZoomLevel(level)
+      // Why: native traffic lights don't scale with CSS zoom; reposition on startup to stay aligned with the zoomed titlebar.
+      if (process.platform === 'darwin') {
+        syncTrafficLightPosition(mainWindow, 1.2 ** level)
+      }
+    } catch {
+      // The liveness check and native calls are not atomic during teardown.
     }
   })
 
@@ -120,17 +141,17 @@ export function installMainWindowStateLifecycle(args: {
   app.on('before-quit', freezeBoundsOnQuit)
 
   mainWindow.on('maximize', () => {
-    if (windowClosing) {
+    if (windowClosing || mainWindow.isDestroyed()) {
       return
     }
     store?.updateUI({ windowMaximized: true })
-    mainWindow.webContents.send('window:maximize-changed', true)
+    sendWindowState('window:maximize-changed', true)
   })
   mainWindow.on('unmaximize', () => {
-    if (windowClosing) {
+    if (windowClosing || mainWindow.isDestroyed()) {
       return
     }
-    mainWindow.webContents.send('window:maximize-changed', false)
+    sendWindowState('window:maximize-changed', false)
     const bounds = mainWindow.getBounds()
     // Why: mirror the saveBounds guard — unmaximize during teardown can land at min size; don't persist that as remembered size.
     if (bounds.width <= MIN_WIDTH || bounds.height <= MIN_HEIGHT) {
@@ -142,11 +163,11 @@ export function installMainWindowStateLifecycle(args: {
   })
 
   mainWindow.on('enter-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', true)
+    sendWindowState('window:fullscreen-changed', true)
   })
 
   mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send('window:fullscreen-changed', false)
+    sendWindowState('window:fullscreen-changed', false)
   })
 
   const resumeBoundsPersistence = (): void => {
