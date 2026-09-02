@@ -19,6 +19,10 @@ export type WorkspaceSessionApi = {
     set: (args: WorkspaceSessionState, hostId?: ExecutionHostId) => Promise<void>
     patch: (args: WorkspaceSessionPatch, hostId?: ExecutionHostId) => Promise<void>
     flush: () => Promise<void>
+    closeTerminalTab: (
+      args: { worktreeId: string; tabId: string; confirmed?: boolean },
+      hostId?: ExecutionHostId
+    ) => Promise<{ closed: boolean; pinned: boolean }>
     readTerminalScrollback: (args: { ref: string }) => string | null
     setSync: (args: WorkspaceSessionState, hostId?: ExecutionHostId) => void
     /** Main says another window now serves these workspaces; this one must let go of them. */

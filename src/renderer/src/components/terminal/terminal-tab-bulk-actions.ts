@@ -12,6 +12,7 @@ import {
   disposeStructuredTerminalSession,
   structuredTerminalSessionId
 } from './structured-terminal-session-disposal'
+import { closeTerminalTab } from './terminal-tab-actions'
 
 const EDITOR_TAB_CONTENT_TYPES = new Set<TabContentType>([
   'editor',
@@ -87,7 +88,11 @@ export async function closeOtherTerminalTabs(
         })
       }
     } else {
-      state.closeTab(tab.id)
+      closeTerminalTab(tab.id, {
+        skipRunningProcessConfirm: true,
+        rejectPinned: true,
+        ...(structuredSessionId ? { structuredSessionCloseConfirmed: true } : {})
+      })
       if (!structuredSessionId) {
         disposeStructuredTerminalSession({
           unifiedTabs: state.unifiedTabsByWorktree?.[activeWorktreeId],
@@ -167,7 +172,11 @@ export async function closeTerminalTabsToRight(
           })
         }
       } else {
-        state.closeTab(id)
+        closeTerminalTab(id, {
+          skipRunningProcessConfirm: true,
+          rejectPinned: true,
+          ...(structuredSessionId ? { structuredSessionCloseConfirmed: true } : {})
+        })
         if (!structuredSessionId) {
           disposeStructuredTerminalSession({
             unifiedTabs: state.unifiedTabsByWorktree?.[activeWorktreeId],

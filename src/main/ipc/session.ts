@@ -9,6 +9,8 @@ import { partitionWorkspaceSessionByWorktrees } from '../../shared/workspace-ses
 import { resolveWindowScopeForWebContents } from '../window/window-view-state-registry'
 import { ownedSessionKeysForWindow } from '../window/window-session-ownership'
 import { withProjectWindowFocus } from '../window/project-window-session-focus'
+import { closeTerminalTabInWorkspaceSession } from '../../shared/workspace-session-terminal-tab-close'
+import { advanceTerminalTopologyRevision } from '../runtime/workspace-session-terminal-membership-authority'
 
 function resolveSenderWindowScope(
   event: IpcMainEvent | IpcMainInvokeEvent | null | undefined
@@ -66,6 +68,86 @@ export function registerSessionHandlers(store: Store): void {
     // returning success through Store.flush(), which intentionally only logs.
     store.flushOrThrow()
   })
+
+  ipcMain.handle(
+    'session:closeTerminalTab',
+    (
+      event,
+      args: { worktreeId?: unknown; tabId?: unknown; confirmed?: unknown },
+      hostId?: string | null
+    ): { closed: boolean; pinned: boolean } => {
+      if (typeof args?.worktreeId !== 'string' || typeof args?.tabId !== 'string') {
+        throw new Error('invalid_terminal_tab_close')
+      }
+      const session = store.getWorkspaceSession(hostId)
+      const owned = ownedSessionKeysForSender(store, event, session)
+      if (owned.size > 0 && !owned.has(args.worktreeId)) {
+        throw new Error('worktree_not_owned')
+      }
+      const result = closeTerminalTabInWorkspaceSession(session, args.worktreeId, args.tabId)
+      if (result.pinned) {
+        if (args.confirmed !== true) {
+          return { closed: false, pinned: true }
+        }
+        // Renderer pin confirmation is the user authorization; preserve the host-side guard for all other callers.
+        const unpinnedSession = {
+          ...session,
+          tabsByWorktree: {
+            ...session.tabsByWorktree,
+            [args.worktreeId]: (session.tabsByWorktree[args.worktreeId] ?? []).map((tab) =>
+              tab.id === args.tabId ? { ...tab, isPinned: false } : tab
+            )
+          },
+          unifiedTabs: {
+            ...session.unifiedTabs,
+            [args.worktreeId]: (session.unifiedTabs?.[args.worktreeId] ?? []).map((tab) =>
+              tab.id === args.tabId || tab.entityId === args.tabId
+                ? { ...tab, isPinned: false }
+                : tab
+            )
+          }
+        }
+        const confirmedResult = closeTerminalTabInWorkspaceSession(
+          unpinnedSession,
+          args.worktreeId,
+          args.tabId
+        )
+        if (!confirmedResult.closed) {
+          return { closed: false, pinned: true }
+        }
+        store.setWorkspaceSession(
+          advanceTerminalTopologyRevision(confirmedResult.session, args.worktreeId),
+          hostId,
+          owned
+        )
+        try {
+          store.flushOrThrow()
+        } catch (error) {
+          store.setWorkspaceSession(session, hostId, owned)
+          throw error
+        }
+        return { closed: true, pinned: false }
+      }
+      if (!result.closed) {
+        return { closed: false, pinned: false }
+      }
+      if (!store.setWorkspaceSession || !store.flushOrThrow) {
+        throw new Error('workspace_session_unavailable')
+      }
+      store.setWorkspaceSession(
+        advanceTerminalTopologyRevision(result.session, args.worktreeId),
+        hostId,
+        owned
+      )
+      try {
+        store.flushOrThrow()
+      } catch (error) {
+        store.setWorkspaceSession(session, hostId, owned)
+        throw error
+      }
+      return { closed: true, pinned: false }
+    }
+  )
 
   // Synchronous variant for the renderer's beforeunload handler.
   // sendSync blocks the renderer until this returns, guaranteeing the

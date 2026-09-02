@@ -62,6 +62,8 @@ export function createWebWorkspaceSessionApi(): Partial<PreloadApi> {
       },
       // localStorage writes synchronously, so there is no deferred web flush.
       flush: async () => {},
+      // Web runtime tabs use their host RPC close path; keep the desktop API shape for shared callers.
+      closeTerminalTab: async () => ({ closed: false, pinned: false }),
       readTerminalScrollback: () => null,
       setSync: (session, hostId) => {
         writeJson(sessionStorageKeyForHost(hostId), sanitizeWebRuntimeWorkspaceSession(session))

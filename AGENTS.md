@@ -14,15 +14,44 @@ Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not
 
 ### GUI Sandbox Runtime Dependencies
 
-The Ubuntu guest has no Node, package manager, compiler, or host Nix libraries. Build Electron artifacts on the host, then bootstrap temporary guest-local dependencies before launch:
+The Ubuntu guest has no Node, package manager, compiler, or host Nix libraries. Before creating the sandbox, the host must build every required Electron artifact. After creation, mandatory bootstrap provisions disposable guest-local dependencies and must complete successfully before any UI scenario:
 
-- Download portable Node matching the project runtime into `/tmp/orca-runtime/node`.
-- Download `libnspr4` and `libnss3` package contents into `/tmp/orca-runtime/lib`.
-- Download/extract `build-essential`, GCC/G++, binutils, libc development headers, and their runtime libraries into `/tmp/orca-runtime/toolchain`; set `PATH`, `LD_LIBRARY_PATH`, compiler include paths, and `--sysroot` to that tree.
+- Read the Node version from `package.json` `engines` (currently 24) and download that portable Node into a task-local guest path such as `/tmp/orca-runtime/node`; use absolute paths because `gui-sandbox exec` has only the system guest `PATH`.
+- Use the bundled Electron version, and download `libnspr4` and `libnss3` package contents into a task-local guest path such as `/tmp/orca-runtime/lib`.
+- Download/extract build-essential, GCC/G++, binutils, libc development headers, and runtime libraries into a task-local guest toolchain; set absolute `PATH`, `LD_LIBRARY_PATH`, compiler include paths, and `--sysroot` for bootstrap commands.
 - Rebuild `node-pty` against the bundled Electron version with `node-gyp --runtime=electron --target=<version> --dist-url=https://electronjs.org/headers`.
-- Launch with a writable temporary `HOME`/user-data directory and `--disable-crashpad --disable-breakpad` when the guest Crashpad handler cannot initialize its database.
+- Verify, before the scenario: the expected Node and Electron executables run; NSS/NSPR resolve; rebuilt `node-pty` loads; temporary `HOME` and Electron user-data are writable; and Orca launches successfully. Use `--disable-crashpad --disable-breakpad` when required by the guest.
 
-Keep these dependencies task-local and disposable. Do not install packages into the guest system or copy the bootstrap runtime into tracked files.
+#### Proven disposable bootstrap
+
+Use a task-local prefix (example `/tmp/orca-runtime`) and absolute paths throughout; never depend on the guest `PATH` or host Nix libraries. The working setup used for Orca validation is:
+
+- Portable Node 24 extracted to `/tmp/orca-runtime/node` (version comes from `package.json` `engines`).
+- Bundled Electron 43.1.0 plus extracted `libnss3`/`libnspr4` contents under the task-local runtime/toolchain prefix.
+- Extracted GCC/G++ 13, binutils, libc development headers, and runtime libraries with a matching sysroot. Export the extracted compiler `PATH`, `CC`, `CXX`, include paths, and `--sysroot` for all guest build commands.
+- Rebuild `node-pty` for Electron 43.1.0 after dependency installation:
+  `node-gyp rebuild --runtime=electron --target=43.1.0 --dist-url=https://electronjs.org/headers`.
+- Before launch, verify `node --version`, Electron startup, NSS/NSPR resolution, and `require('node-pty')` from the rebuilt module.
+
+Launch with disposable writable state and carry the library path into the launch command itself:
+
+```sh
+HOME=/tmp/orca-runtime/home \
+XDG_CONFIG_HOME=/tmp/orca-runtime/config \
+XDG_CACHE_HOME=/tmp/orca-runtime/cache \
+XDG_DATA_HOME=/tmp/orca-runtime/data \
+LD_LIBRARY_PATH=/tmp/orca-runtime/toolchain/usr/lib/x86_64-linux-gnu:/tmp/orca-runtime/toolchain/usr/lib:/tmp/orca-runtime/toolchain/lib/x86_64-linux-gnu:/tmp/orca-runtime/toolchain/lib \
+<electron> <orca-entry> \
+  --user-data-dir=/tmp/orca-runtime/user-data \
+  --crash-dumps-dir=/tmp/orca-runtime/crash \
+  --force-renderer-accessibility \
+  --disable-crashpad --disable-breakpad \
+  --ozone-platform=x11
+```
+
+Create all listed directories before launch. `--ozone-platform=x11` is the fallback when Wayland AT-SPI or screenshot capture is unreliable. Write every CUA screenshot directly under a task-local `/tmp` evidence directory; never write screenshots into the repository or tracked paths. Capture screenshots, accessibility/window state, logs, and artifacts before destroying the exact sandbox. After the full validation run and artifact review, delete all task-generated screenshot `.png` files (including nested evidence files) and remove the temporary evidence directory; retain non-image logs only when needed for the report.
+
+Missing Node, Electron, compiler, or libraries is never an acceptable infrastructure-blocker report: provision task-local dependencies or report the task incomplete. Report only genuine external provisioning failures after bootstrap attempts. The scenario must exercise an actual close and restart, and retain CUA evidence, window state, application logs, and collected artifacts before safe `gui-sandbox destroy` cleanup. Follow `$gui-sandbox` safety boundaries: no guest system package installation, tracked bootstrap payloads, software rendering, direct `pct`/`zfs`, or passwords.
 
 # Style
 

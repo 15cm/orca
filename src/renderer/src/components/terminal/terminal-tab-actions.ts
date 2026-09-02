@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import { toast } from 'sonner'
 import {
   closeWebRuntimeSessionTab,
   isWebRuntimeSessionActive,
@@ -10,6 +11,8 @@ import {
 } from '@/runtime/web-session-tabs-sync'
 import { resolveTerminalWorktreeRoute } from '@/lib/terminal-worktree-route'
 import { translate } from '@/i18n/i18n'
+import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { parseExecutionHostId } from '../../../../shared/execution-host'
 import {
   guardPinnedTabClose,
   isUnifiedTabPinned,
@@ -21,7 +24,6 @@ import {
   disposeStructuredTerminalSession,
   structuredTerminalSessionId
 } from './structured-terminal-session-disposal'
-import { toast } from 'sonner'
 import type {
   TerminalTabCloseReason,
   TerminalTabRetirementPlan
@@ -32,6 +34,7 @@ import {
 } from './running-terminal-close-guard'
 import { closeLocalTerminalTabState } from './close-local-terminal-tab-state'
 import { getTerminalIncarnationHandle } from './terminal-close-incarnation'
+import { persistTerminalTabClose } from './terminal-tab-durable-persistence'
 import {
   getWorktreeTerminalTabIds,
   resolveTerminalCloseTarget,
@@ -62,6 +65,7 @@ export function closeTerminalTab(
     structuredSessionCloseConfirmed?: boolean
     precomputedRetirementPlan?: TerminalTabRetirementPlan
     precomputedCloseState?: PrecomputedTerminalCloseState
+    durablePersisted?: boolean
     onClosed?: () => void
     onCancel?: () => void
   }
@@ -253,6 +257,35 @@ export function closeTerminalTab(
     })
     retireStructuredSession()
     options?.onClosed?.()
+    return
+  }
+
+  const explicitUserClose =
+    options?.reason === undefined &&
+    options?.hostCloseReason === undefined &&
+    options?.lifecyclePtyId === undefined &&
+    !options?.localPtyTeardownOwnedExternally
+  const executionHostId = getExecutionHostIdForWorktree(state, owningWorktreeId)
+  const parsedExecutionHost = parseExecutionHostId(executionHostId)
+  const isLocalOrSshHost =
+    parsedExecutionHost?.kind === 'local' || parsedExecutionHost?.kind === 'ssh'
+  if (!options?.durablePersisted && explicitUserClose && isLocalOrSshHost) {
+    const persisted = persistTerminalTabClose({
+      worktreeId: owningWorktreeId,
+      tabId: terminalTabId,
+      executionHostId,
+      confirmed: options?.force === true,
+      onClosed: () => closeTerminalTab(tabId, { ...options, durablePersisted: true }),
+      onPinned: () => options?.onCancel?.(),
+      onError: (error) => {
+        options?.onCancel?.()
+        console.warn('[terminal-close] durable close failed', error)
+      }
+    })
+    if (!persisted) {
+      closeTerminalTab(tabId, { ...options, durablePersisted: true })
+      return
+    }
     return
   }
 
