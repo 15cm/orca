@@ -1,4 +1,5 @@
 import { useAppStore } from '@/store'
+import { toast } from 'sonner'
 import {
   closeWebRuntimeSessionTab,
   isWebRuntimeSessionActive,
@@ -9,6 +10,8 @@ import {
   resolveHostSessionTabIdForWebSessionTab
 } from '@/runtime/web-session-tabs-sync'
 import { resolveTerminalWorktreeRoute } from '@/lib/terminal-worktree-route'
+import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
+import { parseExecutionHostId } from '../../../../shared/execution-host'
 import {
   guardPinnedTabClose,
   isUnifiedTabPinned,
@@ -34,6 +37,8 @@ import {
 export type { PrecomputedTerminalCloseState } from './terminal-close-target'
 export { closeOtherTerminalTabs, closeTerminalTabsToRight } from './terminal-tab-bulk-actions'
 
+const pendingDurableTerminalCloses = new Map<string, Promise<void>>()
+
 export function closeTerminalTab(
   tabId: string,
   options?: {
@@ -53,6 +58,7 @@ export function closeTerminalTab(
     localPtyTeardownOwnedExternally?: boolean
     precomputedRetirementPlan?: TerminalTabRetirementPlan
     precomputedCloseState?: PrecomputedTerminalCloseState
+    durablePersisted?: boolean
     onClosed?: () => void
     onCancel?: () => void
   }
@@ -190,6 +196,47 @@ export function closeTerminalTab(
         : {})
     })
     options?.onClosed?.()
+    return
+  }
+
+  const explicitUserClose =
+    options?.reason === undefined &&
+    options?.hostCloseReason === undefined &&
+    options?.lifecyclePtyId === undefined &&
+    !options?.localPtyTeardownOwnedExternally
+  const executionHostId = getExecutionHostIdForWorktree(state, owningWorktreeId)
+  const parsedExecutionHost = parseExecutionHostId(executionHostId)
+  const isLocalOrSshHost =
+    parsedExecutionHost?.kind === 'local' || parsedExecutionHost?.kind === 'ssh'
+  if (!options?.durablePersisted && explicitUserClose && isLocalOrSshHost) {
+    const sessionApi = (globalThis as { window?: { api?: typeof window.api } }).window?.api?.session
+    if (typeof sessionApi?.closeTerminalTab !== 'function') {
+      closeTerminalTab(tabId, { ...options, durablePersisted: true })
+      return
+    }
+    const pendingKey = `${owningWorktreeId}\0${terminalTabId}`
+    if (pendingDurableTerminalCloses.has(pendingKey)) {
+      return
+    }
+    const pending = sessionApi
+      .closeTerminalTab(
+        { worktreeId: owningWorktreeId, tabId: terminalTabId, confirmed: options?.force === true },
+        executionHostId
+      )
+      .then((result) => {
+        if (result.pinned) {
+          options?.onCancel?.()
+          return
+        }
+        closeTerminalTab(tabId, { ...options, durablePersisted: true })
+      })
+      .catch((error: unknown) => {
+        toast.error('Failed to persist terminal close')
+        options?.onCancel?.()
+        console.warn('[terminal-close] durable close failed', error)
+      })
+      .finally(() => pendingDurableTerminalCloses.delete(pendingKey))
+    pendingDurableTerminalCloses.set(pendingKey, pending)
     return
   }
 

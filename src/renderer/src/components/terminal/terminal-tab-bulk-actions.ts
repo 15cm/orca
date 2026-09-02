@@ -7,6 +7,7 @@ import { closeWebRuntimeSessionTab, isWebRuntimeSessionActive } from '@/runtime/
 import { useAppStore } from '@/store'
 import { reconcileTabOrder } from '../tab-bar/reconcile-order'
 import { closeLocalTerminalTabState } from './close-local-terminal-tab-state'
+import { closeTerminalTab } from './terminal-tab-actions'
 
 const EDITOR_TAB_CONTENT_TYPES = new Set<TabContentType>([
   'editor',
@@ -59,7 +60,7 @@ export function closeOtherTerminalTabs(tabId: string, activeWorktreeId: string |
         reason: 'user'
       })
     } else {
-      state.closeTab(tab.id)
+      closeTerminalTab(tab.id, { skipRunningProcessConfirm: true, rejectPinned: true })
     }
   }
 }
@@ -107,7 +108,7 @@ export function closeTerminalTabsToRight(tabId: string, activeWorktreeId: string
           reason: 'user'
         })
       } else {
-        state.closeTab(id)
+        closeTerminalTab(id, { skipRunningProcessConfirm: true, rejectPinned: true })
       }
       continue
     }
