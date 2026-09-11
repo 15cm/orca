@@ -30,6 +30,7 @@ export type WindowShortcutInput = {
 export type WindowShortcutAction =
   | { type: 'zoom'; direction: 'in' | 'out' | 'reset' }
   | { type: 'openSettings' }
+  | { type: 'openNewWindow' }
   | { type: 'forceReload' }
   | { type: 'toggleWorktreePalette' }
   | { type: 'toggleFloatingTerminal' }
@@ -119,20 +120,16 @@ export function isRecentTabSwitcherCommitRelease(input: WindowShortcutInput): bo
     return true
   }
   const control = input.control ?? input.ctrlKey
-  // Why: some Electron surfaces report the final Ctrl+Tab release as Tab
-  // keyup after Control is already up, so commit instead of stranding the UI.
   return isTabKey(input) && control === false
 }
 
-function actionMatches(
+const actionMatches = (
   actionId: KeybindingActionId,
   input: WindowShortcutInput,
   platform: NodeJS.Platform,
   keybindings: KeybindingOverrides | undefined,
   options: WindowShortcutResolveOptions
-): boolean {
-  return keybindingMatchesAction(actionId, input, platform, keybindings, options)
-}
+): boolean => keybindingMatchesAction(actionId, input, platform, keybindings, options)
 
 export function nativeZoomCommandMatchesKeybindings(
   direction: 'in' | 'out',
@@ -206,6 +203,10 @@ export function resolveWindowShortcutAction(
     return { type: 'openSettings' }
   }
 
+  if (actionMatches('app.newWindow', input, platform, keybindings, options)) {
+    return { type: 'openNewWindow' }
+  }
+
   if (actionMatches('app.forceReload', input, platform, keybindings, options)) {
     return { type: 'forceReload' }
   }
@@ -226,12 +227,6 @@ export function resolveWindowShortcutAction(
     return { type: 'openQuickOpen' }
   }
 
-  // Why: Cmd/Ctrl+N opens the new-workspace composer. Routed through the
-  // main process so it reaches the renderer even when focus lives inside
-  // a contentEditable surface (markdown rich editor) or a browser guest
-  // webContents, both of which bypass the renderer's window-level keydown.
-  // Shift is accepted for compatibility with the former Create-from shortcut;
-  // the unified composer now exposes source switching inside the name field.
   if (actionMatches('workspace.create', input, platform, keybindings, options)) {
     return { type: 'openNewWorkspace' }
   }
@@ -260,10 +255,6 @@ export function resolveWindowShortcutAction(
     return { type: 'switchRecentTab' }
   }
 
-  // Why: the two ranges live in different scopes (no shared conflictGroup), so a
-  // user is free to map both onto the same modifier without it being blocked as a
-  // conflict. Checking workspace first gives that overlap deterministic
-  // precedence — workspace wins — matching the historical Cmd-before-Ctrl order.
   const worktreeIndex = matchKeybindingDigitIndex(
     'workspace.selectByIndex',
     input,
@@ -299,6 +290,8 @@ export function resolveWindowShortcutAction(
 
 export function getWindowShortcutActionId(action: WindowShortcutAction): KeybindingActionId | null {
   switch (action.type) {
+    case 'openNewWindow':
+      return 'app.newWindow'
     case 'zoom':
       return action.direction === 'in'
         ? 'zoom.in'

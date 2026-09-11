@@ -40,6 +40,16 @@ export function installMainWindowShortcutRouting(args: {
     }
   ): boolean => {
     const { focusedShortcutContext, isAutoRepeat } = options
+    if (action.type === 'openNewWindow' && !opts?.onNewWindow) {
+      return false
+    }
+    if (action.type === 'openNewWindow') {
+      event.preventDefault()
+      if (!isAutoRepeat) {
+        opts?.onNewWindow?.()
+      }
+      return true
+    }
     if (
       focus.isFloatingTerminalInputFocused() &&
       (action.type === 'toggleLeftSidebar' || action.type === 'toggleRightSidebar')

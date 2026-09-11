@@ -137,7 +137,13 @@ export function initializeMainProcessAccountServices(): void {
       markSeeded: () => store.updateSettings({ tabSwitchKeybindingSeed: 'done' })
     }
   })
-  browserManager.setSettingsResolver(() => ({ keybindings: state.keybindings?.getOverrides() }))
+  browserManager.setSettingsResolver(() => ({
+    keybindings: state.keybindings?.getOverrides(),
+    onNewWindow:
+      state.store?.getSettings().experimentalMultiWindow === true
+        ? () => state.openNewWindow?.()
+        : undefined
+  }))
   state.rateLimits.setInactiveClaudeAccountsResolver(() => {
     const settings = store.getSettings()
     const activeIds = new Set(

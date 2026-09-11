@@ -112,6 +112,7 @@ export abstract class BrowserManagerState extends BrowserManagerViewportScrollSt
     | (() => {
         keybindings?: KeybindingOverrides
         mobileEmulatorEnabled?: boolean
+        onNewWindow?: () => void
       })
     | null = null
   protected readonly webContentsIdByTabId = new Map<string, number>()
@@ -187,6 +188,7 @@ export abstract class BrowserManagerState extends BrowserManagerViewportScrollSt
     resolver: () => {
       keybindings?: KeybindingOverrides
       mobileEmulatorEnabled?: boolean
+      onNewWindow?: () => void
     }
   ): void {
     this.settingsResolver = resolver

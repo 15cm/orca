@@ -29,6 +29,8 @@ export async function initializeMainProcessI18nAndMenu(): Promise<void> {
   logStartupMilestone('i18n-ready')
   registerAppMenu({
     appMenuLabel: state.devInstanceIdentity?.name ?? app.name,
+    multiWindowEnabled: store.getSettings().experimentalMultiWindow === true,
+    onNewWindow: () => state.openNewWindow?.(),
     onCheckForUpdates: (options) => {
       ensureAutoUpdaterConfigured()
       runUserInitiatedUpdateCheck(options)

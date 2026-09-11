@@ -13,6 +13,8 @@ export type MainWindowLoadObserver = {
 }
 
 export type CreateMainWindowOptions = {
+  onNewWindow?: () => void
+  forceNewWindow?: boolean
   /** Returns true when a manual app.quit() (Cmd+Q) is in progress, so the renderer skips the running-process confirm dialog. */
   getIsQuitting?: () => boolean
   /** Notifies the caller when the renderer vetoes unload, so the quit latch clears — a prevented beforeunload cancels the in-flight app.quit(). */

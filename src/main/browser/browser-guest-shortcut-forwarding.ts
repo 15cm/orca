@@ -28,6 +28,7 @@ export function setupGuestShortcutForwarding(args: {
   shouldForwardDictationShortcut?: ShouldForwardDictationShortcut
   isMobileEmulatorEnabled?: IsMobileEmulatorEnabled
   getKeybindings?: () => KeybindingOverrides | undefined
+  onNewWindow?: () => void
   // Why: a floating-panel guest owns a distinct workspace; its close/index chords must route to the panel, not the main tab strip.
   resolveWorktreeId?: (browserTabId: string) => string | null
   resolveWorkspaceId?: (browserTabId: string) => string | null
@@ -39,6 +40,7 @@ export function setupGuestShortcutForwarding(args: {
     shouldForwardDictationShortcut,
     isMobileEmulatorEnabled,
     getKeybindings,
+    onNewWindow,
     resolveWorktreeId,
     resolveWorkspaceId
   } = args
@@ -61,6 +63,7 @@ export function setupGuestShortcutForwarding(args: {
     shouldForwardDictationShortcut,
     isMobileEmulatorEnabled,
     getKeybindings,
+    onNewWindow,
     resolveWorktreeId,
     resolveWorkspaceId,
     forwardBrowserPageZoom

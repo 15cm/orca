@@ -14,8 +14,17 @@ import { installMainProcessQuitHandlers } from './startup/main-process-quit'
 import { shouldActivateDesktopForSecondInstance } from './startup/single-instance-lock'
 import { resolveOpenedMarkdownDocuments } from './startup/os-opened-markdown-files'
 
-function openMainWindow(options: { revealOnDidFinishLoad?: boolean } = {}): BrowserWindow {
+function openMainWindow(
+  options: { revealOnDidFinishLoad?: boolean; forceNewWindow?: boolean } = {}
+): BrowserWindow {
   return openMainWindowController(options)
+}
+
+state.openNewWindow = () => {
+  if (state.isQuitting || state.store?.getSettings().experimentalMultiWindow !== true) {
+    return
+  }
+  openMainWindowController({ forceNewWindow: true })
 }
 
 setMainWindowOpener(openMainWindow)

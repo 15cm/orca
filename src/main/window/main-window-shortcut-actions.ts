@@ -16,7 +16,9 @@ export function sendResolvedWindowShortcutAction(
       return
     case 'openSettings':
       mainWindow.webContents.send('ui:openSettings')
-      return
+      break
+    case 'openNewWindow':
+      break
     case 'forceReload':
       onBeforeReload?.({ ignoreCache: true, webContentsId: mainWindow.webContents.id })
       mainWindow.webContents.reloadIgnoringCache()

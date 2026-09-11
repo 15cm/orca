@@ -43,7 +43,10 @@ import { logStartupMilestone } from './startup-diagnostics'
 type RuntimeService = NonNullable<typeof state.runtime>
 
 export type MainProcessRuntimeLaunchOptions = {
-  openMainWindow: (options?: { revealOnDidFinishLoad?: boolean }) => BrowserWindow
+  openMainWindow: (options?: {
+    revealOnDidFinishLoad?: boolean
+    forceNewWindow?: boolean
+  }) => BrowserWindow
   handleMacAppActivation: () => void
 }
 

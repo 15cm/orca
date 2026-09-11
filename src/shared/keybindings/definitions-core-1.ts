@@ -22,6 +22,15 @@ export const KEYBINDING_DEFINITION_CORE_1: readonly KeybindingDefinition[] = [
     conflictGroup: 'menu'
   },
   {
+    id: 'app.newWindow',
+    title: 'New Window',
+    group: 'Global',
+    scope: 'global',
+    searchKeywords: ['shortcut', 'global', 'window', 'new', 'multi-window', 'monitor'],
+    defaultBindings: platformBindings(['Mod+Alt+N']),
+    conflictGroup: 'menu'
+  },
+  {
     id: 'app.forceReload',
     title: 'Force Reload',
     group: 'Global',

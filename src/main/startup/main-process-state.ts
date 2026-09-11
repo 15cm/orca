@@ -49,6 +49,7 @@ import { createWebContentsTimedFlag } from './web-contents-timed-flag'
 /** Mutable composition-root state shared by startup, window, serve, and quit phases. */
 export const mainProcessState = {
   mainWindow: null as BrowserWindow | null,
+  openNewWindow: null as (() => void) | null,
   /** Whether a manual app.quit() (Cmd+Q) is in progress; lets the close handler skip the running-process confirmation and go straight to close. */
   isQuitting: false,
   store: null as Store | null,

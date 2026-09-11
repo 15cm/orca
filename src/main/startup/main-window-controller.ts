@@ -48,7 +48,9 @@ import { requireMainWindowServices } from './main-window-service-readiness'
 const TRAY_CREATE_FALLBACK_MS = 12_000
 const AGENT_STATE_CRASH_BREADCRUMB_MIN_INTERVAL_MS = 30_000
 
-export function openMainWindow(options: { revealOnDidFinishLoad?: boolean } = {}): BrowserWindow {
+export function openMainWindow(
+  options: { revealOnDidFinishLoad?: boolean; forceNewWindow?: boolean } = {}
+): BrowserWindow {
   logStartupMilestone('open-main-window-start')
   const { store, keybindings } = requireMainWindowServices({
     store: state.store,
@@ -94,6 +96,11 @@ export function openMainWindow(options: { revealOnDidFinishLoad?: boolean } = {}
     }
   }
   const window = createMainWindow(store, {
+    forceNewWindow: options.forceNewWindow,
+    onNewWindow:
+      store.getSettings().experimentalMultiWindow === true
+        ? () => state.openNewWindow?.()
+        : undefined,
     getIsQuitting: () => state.isQuitting,
     onQuitAborted: () => {
       state.isQuitting = false
