@@ -60,6 +60,19 @@ describe('parseAgentStatusPayload', () => {
     }
   })
 
+  it('accepts monitoring only as an optional working discriminator', () => {
+    expect(parseAgentStatusPayload('{"state":"working","workingMode":"monitoring"}')).toMatchObject(
+      { state: 'working', workingMode: 'monitoring' }
+    )
+    expect(
+      parseAgentStatusPayload('{"state":"done","workingMode":"monitoring"}')?.workingMode
+    ).toBeUndefined()
+    expect(
+      parseAgentStatusPayload('{"state":"working","workingMode":"unknown"}')?.workingMode
+    ).toBeUndefined()
+    expect(parseAgentStatusPayload('{"state":"working"}')?.workingMode).toBeUndefined()
+  })
+
   it('returns null for invalid state', () => {
     expect(parseAgentStatusPayload('{"state":"running"}')).toBeNull()
     expect(parseAgentStatusPayload('{"state":"idle"}')).toBeNull()
@@ -533,6 +546,7 @@ Fix dispatch fallback preview for normalized status prompts`
         subagents: [
           { id: 'a1', state: 'working', startedAt: 100, agentType: 'general-purpose' },
           { id: 'r1', state: 'idle', startedAt: 'nope', description: 'line\none' },
+          { id: 'u1', state: 'unverifiable', startedAt: 200 },
           { id: '', state: 'working', startedAt: 1 },
           { id: 'bad-state', state: 'running', startedAt: 1 },
           'garbage',
@@ -559,6 +573,7 @@ Fix dispatch fallback preview for normalized status prompts`
       startedAt: 0,
       description: 'line one'
     })
+    expect(result?.subagents?.[2]).toMatchObject({ id: 'u1', state: 'unverifiable' })
   })
 
   it('omits subagents when absent or empty', () => {
@@ -586,7 +601,14 @@ describe('agentSubagentsEqual', () => {
 // they used to take, including where stringify would have altered the payload.
 describe('normalizeAgentStatusPayload matches the JSON round trip', () => {
   const CASES: Record<string, unknown>[] = [
-    { state: 'working', prompt: 'p', agentType: 'grok', toolName: 'sh', toolInput: 'ls' },
+    {
+      state: 'working',
+      workingMode: 'monitoring',
+      prompt: 'p',
+      agentType: 'grok',
+      toolName: 'sh',
+      toolInput: 'ls'
+    },
     { state: 'done', prompt: '', agentType: 'devin', interrupted: true },
     // stringify DROPS undefined-valued keys; the direct path passes them through
     {
