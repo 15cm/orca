@@ -11,7 +11,9 @@ export type {
   AgentHookAuthorityAttestation,
   AgentHookAuthorityEvidence,
   AgentHookProviderSessionIdentity,
+  AgentHookStatusRowMutation,
   AgentHookStatusChangeEntry,
+  AgentHookStatusFreshnessObservation,
   EnrichedAgentHookEventPayload
 } from './server/server-types'
 export type { AgentHookSource }
@@ -41,6 +43,7 @@ export const _internals = {
   parseFormEncodedBody,
   resetCachesForTests: (): void => {
     clearAllListenerCaches(agentHookServer._getStateForTests())
+    agentHookServer._resetRowOwnershipForTests()
     agentHookServer._resetPromptSentDedupeForTests()
     agentHookServer._resetConnectionTimestampWatermarksForTests()
   }

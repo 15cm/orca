@@ -70,6 +70,7 @@ export function toAgentStatusIpcPayload(
     ...(entry.isReplay === true ? { isReplay: true } : {}),
     ...(entry.observation ? { observation: entry.observation } : {}),
     ...(entry.structuredHost ? { structuredHost: entry.structuredHost } : {}),
+    ...(entry.terminalHandle ? { terminalHandle: entry.terminalHandle } : {}),
     ...entry.payload
   }
 }

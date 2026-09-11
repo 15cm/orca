@@ -125,6 +125,10 @@ With multi-window, the project filter (`filterRepoIds` + `filterGroupIds`) belon
 
 There is one stored workspace session, and main partitions it along the window axis: a project window reads and writes the keys of its project group, the free window everything no project window is serving. Before touching `session:get` / `session:set` / `session:patch`, the startup hydration chain, or any code that writes the whole session rather than a patch, follow [`docs/reference/window-session-adoption.md`](./docs/reference/window-session-adoption.md): main resolves ownership from the window's scope and never trusts a renderer-declared list, every write is rebased onto the keys the window does not own, global fields stay with the free window, and every new field of `WorkspaceSessionState` has to be classified carry/drop.
 
+## Agent Terminal Screens
+
+A rule that reads what an agent CLI paints on a terminal — readiness, blocked prompts, idle — must be written against a captured transcript, not a remembered screen. Record one with [`docs/reference/agent-pty-transcript-capture.md`](./docs/reference/agent-pty-transcript-capture.md), which keeps escapes and wrapping intact and scrubs account identifiers before they reach git. Antigravity readiness has no transcript yet and five failed attempts without one; before touching it, read [`docs/reference/antigravity-readiness-evidence.md`](./docs/reference/antigravity-readiness-evidence.md).
+
 ## Remote Wire Compatibility
 
 Clients and remote Orca servers update independently, so mixed versions are the normal state. Before changing anything a paired client and host exchange — RPC params, stream frames, or the content either side publishes over them — follow [`docs/reference/remote-wire-compatibility.md`](./docs/reference/remote-wire-compatibility.md). A new optional field is safe; a new stream opcode must be capability-negotiated because decoders drop unknown opcodes silently; and changing what the host publishes reaches old clients even with no wire change.
