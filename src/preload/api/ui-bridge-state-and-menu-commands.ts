@@ -19,6 +19,12 @@ export const uiStateAndMenuCommandsApi = {
     ipcRenderer.on('ui:openSettings', listener)
     return () => ipcRenderer.removeListener('ui:openSettings', listener)
   },
+  /** Window > Recover Terminal: user-invoked rescue for a pane that stopped taking input. */
+  onRecoverTerminal: (callback: () => void): (() => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('ui:recoverTerminal', listener)
+    return () => ipcRenderer.removeListener('ui:recoverTerminal', listener)
+  },
   consumePendingOpenSettings: (): Promise<boolean> =>
     ipcRenderer.invoke('ui:consumePendingOpenSettings'),
   onOpenSkillShare: (callback: (shareId: string) => void): (() => void) => {

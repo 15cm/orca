@@ -12,6 +12,7 @@ import { ensureAutoUpdaterConfigured } from '../window/attach-main-window-servic
 import { focusExistingMainWindow, safelyRevealWindow } from '../window/focus-existing-window'
 import { mainProcessState as state } from './main-process-state'
 import { loadMainWindow } from '../window/createMainWindow'
+import { getMenuTargetWebContents } from '../menu/menu-target-web-contents'
 import {
   describeInstallDirAclPoison,
   isBlockingInstallDirAclRepairInFlight
@@ -60,6 +61,11 @@ export function openSettingsFromSystemMenu(): void {
   recordCrashBreadcrumb('settings_opened')
   targetWindow.webContents.send('ui:openSettings')
   state.pendingOpenSettings.mark(targetWindow.webContents.id, Number.POSITIVE_INFINITY)
+}
+
+/** Sends manual terminal recovery to the renderer owning the focused menu. */
+export function recoverTerminalFromSystemMenu(targetWindow?: Electron.BaseWindow | null): void {
+  getMenuTargetWebContents(targetWindow)?.send('ui:recoverTerminal')
 }
 
 export function quitFromSystemTray(): void {

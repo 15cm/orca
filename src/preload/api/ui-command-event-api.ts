@@ -231,4 +231,6 @@ export type UiCommandEventApi = {
   onResumeSleepingAgents: (callback: (data: { worktreeId: string }) => void) => () => void
   onTerminalZoom: (callback: (direction: 'in' | 'out' | 'reset') => void) => () => void
   onSystemResumed: (callback: () => void) => () => void
+  /** Window > Recover Terminal: user-invoked rescue for a pane that stopped taking input. */
+  onRecoverTerminal: (callback: () => void) => () => void
 }

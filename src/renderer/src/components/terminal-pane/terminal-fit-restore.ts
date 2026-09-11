@@ -7,7 +7,9 @@ import {
   getRemoteRuntimeTerminalHandle
 } from '@/runtime/runtime-terminal-stream'
 
-type TerminalFitRestoreSettings = Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | undefined
+export type TerminalFitRestoreSettings =
+  | Pick<GlobalSettings, 'activeRuntimeEnvironmentId'>
+  | undefined
 
 // Why: "take back all terminals" can target a phone that controls hundreds of
 // PTYs. Fanning out one IPC/RPC reclaim per PTY unbounded would burst the

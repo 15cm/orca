@@ -44,6 +44,7 @@ function buildMenuOptions() {
     onOpenSetupGuide: vi.fn(),
     onOpenFeatureTour: vi.fn(),
     onOpenCrashReport: vi.fn(),
+    onRecoverTerminal: vi.fn(),
     onBeforeReload: vi.fn(),
     onZoomIn: vi.fn(),
     onZoomOut: vi.fn(),
@@ -441,6 +442,23 @@ describe('registerAppMenu', () => {
 
     expect(options.onOpenSetupGuide).toHaveBeenCalledTimes(1)
     expect(options.onOpenSetupGuide).toHaveBeenCalledWith(targetWindow)
+  })
+
+  it('routes Recover Terminal through its callback with no accelerator', () => {
+    const options = buildMenuOptions()
+    registerAppMenu(options)
+
+    const recoverItem = getSubmenu(getTemplate(), 'Window').find(
+      (entry) => entry.label === 'Recover Terminal'
+    )
+    // Why: a menu accelerator fires in main before the renderer keydown handler, and this
+    // action has to reach the focused terminal pane.
+    expect(recoverItem?.accelerator).toBeUndefined()
+
+    const targetWindow = {} as Electron.BaseWindow
+    recoverItem?.click?.({} as never, targetWindow, {} as Electron.KeyboardEvent)
+
+    expect(options.onRecoverTerminal).toHaveBeenCalledWith(targetWindow)
   })
 
   it('routes New Window through its callback without an accelerator', () => {

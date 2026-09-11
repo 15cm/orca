@@ -5,15 +5,22 @@ export function fitPanes(manager: PaneManager): void {
   manager.fitAllPanes()
 }
 
-export function focusActivePane(manager: PaneManager): void {
-  // Why: tab rename focuses the input on the next frame. A queued terminal
-  // layout focus can land in between mount and focus, blurring rename closed.
-  if (typeof document !== 'undefined' && document.querySelector('[data-tab-rename-input="true"]')) {
-    return
-  }
-  const activeElement = typeof document === 'undefined' ? null : document.activeElement
-  if (shouldPreserveEditableFocus(activeElement)) {
-    return
+/** `force` is for user-invoked rescue only: it overrides the guards that keep routine
+ *  layout work from blurring an input the user is typing in. */
+export function focusActivePane(manager: PaneManager, options?: { force?: boolean }): void {
+  if (options?.force !== true) {
+    // Why: tab rename focuses the input on the next frame. A queued terminal
+    // layout focus can land in between mount and focus, blurring rename closed.
+    if (
+      typeof document !== 'undefined' &&
+      document.querySelector('[data-tab-rename-input="true"]')
+    ) {
+      return
+    }
+    const activeElement = typeof document === 'undefined' ? null : document.activeElement
+    if (shouldPreserveEditableFocus(activeElement)) {
+      return
+    }
   }
   const panes = manager.getPanes()
   const activePane = manager.getActivePane() ?? panes[0]

@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { PaneManager } from '@/lib/pane-manager/pane-manager'
-import { fitAndFocusPanes, isWindowsUserAgent, shellEscapePath } from './pane-helpers'
+import {
+  fitAndFocusPanes,
+  focusActivePane,
+  isWindowsUserAgent,
+  shellEscapePath
+} from './pane-helpers'
 
 describe('isWindowsUserAgent', () => {
   it('detects Windows user agents', () => {
@@ -131,6 +136,25 @@ describe('fitAndFocusPanes', () => {
     fitAndFocusPanes(manager)
 
     expect(manager.fitAllPanes).toHaveBeenCalled()
+    expect(terminal.focus).toHaveBeenCalled()
+  })
+
+  it('force takes focus from an editable field for a user-invoked rescue', () => {
+    const input = new FakeHTMLElement({ tagName: 'INPUT' }) as unknown as Element
+    stubDocument(input)
+    const { manager, terminal } = makeManager()
+
+    focusActivePane(manager, { force: true })
+
+    expect(terminal.focus).toHaveBeenCalled()
+  })
+
+  it('force also overrides the inline-rename guard', () => {
+    stubDocument(null, true)
+    const { manager, terminal } = makeManager()
+
+    focusActivePane(manager, { force: true })
+
     expect(terminal.focus).toHaveBeenCalled()
   })
 })

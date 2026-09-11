@@ -189,6 +189,29 @@ function scheduleWatchdogTimer(): void {
   }, watchdogConfig.intervalMs)
 }
 
+/**
+ * User-invoked heal (Window > Recover Terminal). Skips the stall streak and the cooldown —
+ * both exist to keep the automatic tick from repaint-storming, and neither applies to an
+ * explicit request. Still safe: main only writes off in-flight bytes when it independently
+ * sees ACK silence, so a healthy channel is left untouched.
+ */
+export async function forceTerminalDeliveryHeal(): Promise<{ healed: boolean }> {
+  const deps = watchdogDeps
+  const report = window.api?.pty?.reportRendererDeliveryState
+  if (!deps || typeof report !== 'function') {
+    return { healed: false }
+  }
+  const health = await report({
+    receivedCharsByPty: Object.fromEntries(receivedPtyCharTotals),
+    processedCharsByPty: getProcessedPtyCharTotals()
+  })
+  if (!health) {
+    return { healed: false }
+  }
+  await healDeadPushDelivery(deps, report, health)
+  return { healed: true }
+}
+
 export function startTerminalDeliveryWatchdog(deps: TerminalDeliveryWatchdogDeps): void {
   if (watchdogDeps) {
     return

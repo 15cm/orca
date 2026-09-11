@@ -27,6 +27,7 @@ type RegisterAppMenuOptions = {
   onOpenSetupGuide: (window?: Electron.BaseWindow | null) => void
   onOpenFeatureTour: (window?: Electron.BaseWindow | null) => void
   onOpenCrashReport: (window?: Electron.BaseWindow | null) => void
+  onRecoverTerminal: (window?: Electron.BaseWindow | null) => void
   onCheckForUpdates: (options: UpdateCheckOptions) => void
   onBeforeReload?: (options: { ignoreCache: boolean; webContentsId: number }) => void
   onZoomIn: (window?: Electron.BaseWindow | null) => void
@@ -48,6 +49,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     onNewWindow = () => {},
     onOpenSettings,
     onOpenSetupGuide,
+    onRecoverTerminal,
     onOpenFeatureTour,
     onOpenCrashReport,
     onCheckForUpdates,
@@ -270,7 +272,17 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const windowMenu: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.window', 'Window'),
-    submenu: [{ role: 'minimize' }, { role: 'zoom' }]
+    submenu: [
+      { role: 'minimize' },
+      { role: 'zoom' },
+      { type: 'separator' },
+      {
+        // Why no accelerator: menu accelerators fire in main before the renderer's
+        // keydown handler, and this action must reach the focused terminal pane.
+        label: translateMain('menu.recoverTerminal', 'Recover Terminal'),
+        click: (_menuItem, window) => onRecoverTerminal(window)
+      }
+    ]
   }
 
   const helpMenu: Electron.MenuItemConstructorOptions = {

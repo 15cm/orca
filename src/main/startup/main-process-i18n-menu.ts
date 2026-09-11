@@ -10,6 +10,7 @@ import { recordCrashBreadcrumb } from '../crash-reporting/crash-breadcrumb-store
 import { mainProcessState as state } from './main-process-state'
 import {
   openSettingsFromSystemMenu,
+  recoverTerminalFromSystemMenu,
   runUserInitiatedUpdateCheck,
   sendOpenCrashReport,
   sendOpenFeatureTour,
@@ -39,6 +40,7 @@ export async function initializeMainProcessI18nAndMenu(): Promise<void> {
       recordCrashBreadcrumb('manual_reload_requested', { ignoreCache })
     },
     onOpenSettings: openSettingsFromSystemMenu,
+    onRecoverTerminal: recoverTerminalFromSystemMenu,
     onOpenSetupGuide: (targetWindow) => {
       recordCrashBreadcrumb('setup_guide_opened')
       sendOpenSetupGuide(targetWindow instanceof BrowserWindow ? targetWindow : null)

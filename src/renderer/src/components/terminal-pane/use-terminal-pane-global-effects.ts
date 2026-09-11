@@ -22,6 +22,7 @@ import {
   type TerminalHiddenReason
 } from './terminal-visibility-resume'
 import { useTerminalWindowWakeRecovery } from './use-terminal-window-wake-recovery'
+import { useTerminalManualRecovery } from './use-terminal-manual-recovery'
 import {
   releaseRendererPtyVisibilityClaim,
   setRendererPtyVisibilityClaim
@@ -94,13 +95,13 @@ export function useTerminalPaneGlobalEffects({
   const renderingSuspendedByVisibilityRef = useRef(false)
   const hiddenReasonRef = useRef<TerminalHiddenReason | null>(null)
   const rendererVisible = isVisible && isWorktreeActive
-  // Why: the active pane can rebind to a new PTY (deferred reattach / eager
-  // adopt) or switch active leaf without isActive/isVisible/isWorktreeActive
-  // flipping. Derive the active leaf's live PTY reactively from the same
-  // leaf→PTY binding the reattach path writes, so the active-renderer-pty report
-  // below re-fires on rebind — otherwise main keeps the stale id and the live
-  // PTY loses its interactive reserve.
   const activeLeafPtyId = useAppStore((state) => {
+    // Why: the active pane can rebind to a new PTY (deferred reattach / eager
+    // adopt) or switch active leaf without isActive/isVisible/isWorktreeActive
+    // flipping. Derive the active leaf's live PTY reactively from the same
+    // leaf→PTY binding the reattach path writes, so the active-renderer-pty report
+    // below re-fires on rebind — otherwise main keeps the stale id and the live
+    // PTY loses its interactive reserve.
     const layout = state.terminalLayoutsByTabId[tabId]
     const activeLeafId = layout?.activeLeafId
     return activeLeafId ? (layout.ptyIdsByLeafId?.[activeLeafId] ?? null) : null
@@ -130,6 +131,7 @@ export function useTerminalPaneGlobalEffects({
     isVisibleRef,
     panePtyBindingsRef
   })
+  useTerminalManualRecovery({ managerRef, paneTransportsRef, isActiveRef, isVisibleRef })
 
   useEffect(() => {
     const paneTransports = paneTransportsRef.current
