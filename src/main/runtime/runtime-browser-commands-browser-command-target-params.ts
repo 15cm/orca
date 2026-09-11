@@ -177,6 +177,8 @@ export type RuntimeBrowserCommandHost = {
   getRuntimeBrowserPageRegistry(): RuntimeBrowserPageRegistry
   getAuthoritativeWindow(): BrowserWindow
   getAvailableAuthoritativeWindow(): BrowserWindow | null
+  getPreferredRendererWindow?(): BrowserWindow | null
+  getBrowserPageOwnerWindow?(browserPageId: string): BrowserWindow | null
   // Why: headless serve backs pages with a main-process offscreen backend; null when the environment can't support offscreen browsing.
   getOffscreenBrowserBackend(): BrowserBackend | null
   // Why: the session-tab snapshot owns focus, so a headless create must mark itself active or paired clients snap back to a terminal.

@@ -13,6 +13,9 @@ vi.mock('../app-icon', async () => (await import('./createMainWindow-test-harnes
 vi.mock('../browser/browser-manager', async () =>
   (await import('./createMainWindow-test-harness')).browserManagerMock()
 )
+vi.mock('./main-window-registry', async () =>
+  (await import('./createMainWindow-test-harness')).mainWindowRegistryMock()
+)
 
 import { createMainWindow } from './createMainWindow'
 import { ipcMain } from 'electron'
@@ -27,6 +30,7 @@ import {
 } from '../crash-reporting/crash-breadcrumb-store'
 import {
   browserWindowMock,
+  getMainWindowForWebContentsMock,
   notificationMock,
   notificationShowMock,
   resetMainWindowMocks
@@ -289,7 +293,8 @@ describe('createMainWindow', () => {
       const store = makeStore(true, true)
 
       createMainWindow(store as never, { getIsQuitting: () => false })
-      ipcHandlers['window:request-close']?.()
+      getMainWindowForWebContentsMock.mockReturnValue(instance)
+      ipcHandlers['window:request-close']?.({ sender: webContents })
 
       expect(instance.hide).toHaveBeenCalledTimes(1)
       expect(webContents.send).not.toHaveBeenCalledWith('window:close-requested', expect.anything())
@@ -302,7 +307,8 @@ describe('createMainWindow', () => {
       const store = makeStore(false, true)
 
       createMainWindow(store as never, { getIsQuitting: () => false })
-      ipcHandlers['window:request-close']?.()
+      getMainWindowForWebContentsMock.mockReturnValue(instance)
+      ipcHandlers['window:request-close']?.({ sender: webContents })
 
       expect(instance.hide).not.toHaveBeenCalled()
       expect(webContents.send).toHaveBeenCalledWith('window:close-requested', {

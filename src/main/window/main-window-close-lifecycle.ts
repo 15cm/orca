@@ -9,6 +9,17 @@ import type { MainWindowStateLifecycle } from './main-window-state-lifecycle'
 import { syncTrafficLightPosition } from './main-window-visual-lifecycle'
 
 export const WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS = QUIT_RENDERER_ACK_TIMEOUT_MS
+const confirmedCloseByWindow = new WeakMap<BrowserWindow, () => void>()
+const quitRequestByWindow = new WeakMap<BrowserWindow, () => boolean>()
+const forceCloseByWindow = new WeakMap<BrowserWindow, () => void>()
+
+export function closeWindowAfterConfirmation(window: BrowserWindow): void {
+  forceCloseByWindow.get(window)?.()
+}
+
+export function requestWindowCloseForQuit(window: BrowserWindow): boolean {
+  return quitRequestByWindow.get(window)?.() ?? false
+}
 
 export function installMainWindowCloseLifecycle(args: {
   focus: MainWindowFocusLifecycle
@@ -21,6 +32,7 @@ export function installMainWindowCloseLifecycle(args: {
   const { focus, mainWindow, opts, rendererWebContentsId, state, store } = args
   // Intercept close so the renderer can confirm killing running-process terminals (replies window:confirm-close to proceed).
   let windowCloseConfirmed = false
+  let quitConfirmationActive = false
   const confirmCloseChannel = 'window:confirm-close'
   const closeRequestReceivedChannel = 'window:close-request-received'
   let closeRequestSequence = 0
@@ -116,6 +128,7 @@ export function installMainWindowCloseLifecycle(args: {
     const isQuitting = opts?.getIsQuitting?.() ?? false
     const requestId = ++closeRequestSequence
     if (isQuitting) {
+      quitConfirmationActive = true
       armQuitRendererAckTimer(requestId)
     }
     // Why: renderer owns the close decision; the always-mounted App root subscription lets even pre-workspace states reply (#5144).
@@ -132,13 +145,44 @@ export function installMainWindowCloseLifecycle(args: {
     mainWindow.webContents.send('window:unload-prevented')
   })
 
-  const onConfirmClose = (): void => {
+  const onConfirmClose = (event?: Electron.IpcMainEvent): void => {
+    if (event && event.sender.id !== rendererWebContentsId) {
+      return
+    }
+    if (opts?.isQuitConfirmationCollecting?.()) {
+      opts.onQuitWindowCloseConfirmed?.(mainWindow)
+      return
+    }
+    if (opts?.getIsQuitting?.() !== true || !quitConfirmationActive) {
+      return
+    }
     clearQuitRendererAckTimer()
     windowCloseConfirmed = true
     if (!mainWindow.isDestroyed()) {
       mainWindow.close()
     }
   }
+  confirmedCloseByWindow.set(mainWindow, onConfirmClose)
+  forceCloseByWindow.set(mainWindow, () => {
+    windowCloseConfirmed = true
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.close()
+    }
+  })
+  quitRequestByWindow.set(mainWindow, () => {
+    if (
+      mainWindow.isDestroyed() ||
+      mainWindow.webContents.isDestroyed?.() === true ||
+      mainWindow.webContents.isCrashed?.() === true
+    ) {
+      return false
+    }
+    const requestId = ++closeRequestSequence
+    quitConfirmationActive = true
+    armQuitRendererAckTimer(requestId)
+    mainWindow.webContents.send('window:close-requested', { isQuitting: true, requestId })
+    return true
+  })
   const trafficLightChannel = 'ui:sync-traffic-lights'
   const onSyncTrafficLights = (_event: Electron.IpcMainEvent, zoomFactor: number): void => {
     syncTrafficLightPosition(mainWindow, zoomFactor)
@@ -192,6 +236,11 @@ export function installMainWindowCloseLifecycle(args: {
   ipcMain.handle(isMaximizedChannel, onIsMaximized)
 
   ipcMain.on(confirmCloseChannel, onConfirmClose)
+  const onCancelClose = (): void => {
+    quitConfirmationActive = false
+    opts?.onQuitAborted?.()
+  }
+  ipcMain.on('window:cancel-close', onCancelClose)
   ipcMain.on(closeRequestReceivedChannel, onCloseRequestReceived)
 
   const dispose = (): void => {
@@ -203,6 +252,10 @@ export function installMainWindowCloseLifecycle(args: {
     ipcMain.removeListener(popupMenuChannel, onPopupMenu)
     ipcMain.removeHandler(isMaximizedChannel)
     ipcMain.removeListener(confirmCloseChannel, onConfirmClose)
+    confirmedCloseByWindow.delete(mainWindow)
+    quitRequestByWindow.delete(mainWindow)
+    forceCloseByWindow.delete(mainWindow)
+    ipcMain.removeListener('window:cancel-close', onCancelClose)
     ipcMain.removeListener(closeRequestReceivedChannel, onCloseRequestReceived)
   }
   return { dispose }

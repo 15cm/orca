@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 const {
   removeHandlerMock,
   handleMock,
@@ -35,7 +34,6 @@ const {
   browserWindowFromWebContentsMock: vi.fn(),
   webContentsFromIdMock: vi.fn()
 }))
-
 vi.mock('electron', () => ({
   BrowserWindow: {
     fromWebContents: browserWindowFromWebContentsMock
@@ -48,7 +46,6 @@ vi.mock('electron', () => ({
     fromId: webContentsFromIdMock
   }
 }))
-
 vi.mock('../browser/browser-manager', () => ({
   browserCertificateTrustController: {
     proceed: proceedCertificateMock
@@ -236,7 +233,6 @@ describe('registerBrowserHandlers', () => {
       worktreeId: 'worktree-1',
       webContentsId: 123
     }
-
     expect(repairHandler({ sender: trustedSender }, args)).toBe(true)
     expect(attachGuestPoliciesMock).toHaveBeenCalledWith(guest)
     expect(registerGuestMock).toHaveBeenCalledWith({

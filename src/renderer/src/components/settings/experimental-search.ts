@@ -5,6 +5,10 @@ import { translateSearchKeyword } from './settings-search-keywords'
 import { getNewWorktreeCardStyleSearchEntry } from './new-worktree-card-style-search-entry'
 import { getNativeChatExperimentalSearchEntry } from './native-chat-experimental-search-entry'
 import { getEphemeralVmsSearchEntry } from './ephemeral-vms-search'
+import {
+  getMultiWindowSearchEntry,
+  MULTI_WINDOW_SEARCH_TITLE_KEY
+} from './multi-window-search-entry'
 
 export const getExperimentalPaneSearchEntries = createLocalizedCatalog(
   (): SettingsSearchEntry[] => [
@@ -180,7 +184,8 @@ export const getExperimentalPaneSearchEntries = createLocalizedCatalog(
       ]
     },
     getNewWorktreeCardStyleSearchEntry(),
-    getEphemeralVmsSearchEntry()
+    getEphemeralVmsSearchEntry(),
+    getMultiWindowSearchEntry()
   ]
 )
 
@@ -224,6 +229,7 @@ export function getExperimentalSearchEntry() {
     ),
     ephemeralVms: findEntry(
       translate('auto.components.settings.ephemeralVms.search.cloudVmTitle', 'Cloud VM')
-    )
+    ),
+    multiWindow: findEntry(translate(MULTI_WINDOW_SEARCH_TITLE_KEY, 'Multi-window'))
   } as const
 }

@@ -2,7 +2,26 @@ import { installRuntimeLinearCommandSurface } from './runtime-linear-command-sur
 import { OrcaRuntimeWithResolveWaiter } from './orca-runtime-resolve-waiter'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
 
-class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {}
+class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
+  private readonly ptyOwnerWindowById = new Map<string, number>()
+
+  resolveOwnerWindowIdForPtyId(ptyId: string): number | null {
+    return this.ptyOwnerWindowById.get(ptyId) ?? null
+  }
+
+  resolvePtyIdsForOwnerWindow(windowId: number): string[] {
+    return [...this.ptyOwnerWindowById].filter(([, owner]) => owner === windowId).map(([id]) => id)
+  }
+
+  registerPtyOwnerWindow(ptyId: string, windowId: number): void {
+    this.ptyOwnerWindowById.set(ptyId, windowId)
+  }
+
+  senderWindowOwnsTerminalHandle(handle: string, senderWindowId: number): boolean {
+    const leaf = this.resolveLeafForHandle(handle)
+    return leaf?.ptyId != null && this.resolveOwnerWindowIdForPtyId(leaf.ptyId) === senderWindowId
+  }
+}
 type OrcaRuntimeServiceExport = RuntimeCommandSurfaceHost<OrcaRuntimeService>
 const OrcaRuntimeServiceExport = OrcaRuntimeService as unknown as {
   new (...args: ConstructorParameters<typeof OrcaRuntimeService>): OrcaRuntimeServiceExport

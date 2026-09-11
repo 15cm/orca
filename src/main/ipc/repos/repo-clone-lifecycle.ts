@@ -25,6 +25,7 @@ import { emitRepoAdded } from './repo-added-telemetry'
 import { notifyReposChanged } from './repos-changed-notification'
 import { runWithClonePathLock } from './clone-path-lock'
 import { abortActiveRemoteClone, cloneRemoteRepo } from './remote-repo-clone'
+import { resolveIpcSenderWindow } from '../ipc-sender-window'
 
 type ActiveCloneMetadata = {
   path: string
@@ -115,7 +116,9 @@ export function registerRepoCloneHandlers(mainWindow: BrowserWindow, store: Stor
 
   ipcMain.handle(
     'repos:clone',
-    async (_event, args: { url: string; destination: string }): Promise<Repo> => {
+    async (event, args: { url: string; destination: string }): Promise<Repo> => {
+      // Why: clone progress belongs to the window that started the clone.
+      const targetWindow = resolveIpcSenderWindow(event, mainWindow)
       // Why: derive the repo folder name from the URL's last segment, matching default git clone behavior.
       const clonePath = deriveValidatedClonePath(args)
       const clonePathKey = getClonePathComparisonKey(clonePath)
@@ -183,7 +186,7 @@ export function registerRepoCloneHandlers(mainWindow: BrowserWindow, store: Stor
             stderrTail = (stderrTail + text).slice(-4096)
 
             // Why: git progress lines use \r to overwrite in-place; parse fragments the same as SSH clone.
-            emitCloneProgressFromText(mainWindow, text)
+            emitCloneProgressFromText(targetWindow, text)
           })
 
           const finishClone = async (

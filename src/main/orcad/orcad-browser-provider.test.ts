@@ -124,6 +124,8 @@ describe('ExternalChromiumBrowserProcess', () => {
         throw new Error('No renderer')
       },
       getAvailableAuthoritativeWindow: () => null,
+      getPreferredRendererWindow: () => null,
+      getBrowserPageOwnerWindow: () => null,
       getOffscreenBrowserBackend: () => null
     })
 

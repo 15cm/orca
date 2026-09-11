@@ -8,12 +8,14 @@ import {
   TerminalUpdateViewport
 } from './viewport-schemas'
 import { updateViewportForClient } from './terminal-viewport-update'
+import { assertSenderOwnsTerminal } from './terminal-window-ownership'
 
 export const TERMINAL_VIEWPORT_METHODS_BEFORE_STREAMS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.setDisplayMode',
     params: TerminalSetDisplayMode,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not mutate the wrong PTY's display mode/viewport (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {
@@ -34,7 +36,8 @@ export const TERMINAL_VIEWPORT_METHODS_BEFORE_STREAMS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.restoreFit',
     params: TerminalHandle,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not reclaim the wrong PTY to desktop dims (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {
@@ -56,7 +59,8 @@ export const TERMINAL_VIEWPORT_METHODS_BEFORE_STREAMS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.updateViewport',
     params: TerminalUpdateViewport,
-    handler: async (params, { runtime }) => {
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
       // Why: a stale handle must fail with terminal_handle_stale, not write viewport state to the wrong PTY (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       if (!leaf?.ptyId) {

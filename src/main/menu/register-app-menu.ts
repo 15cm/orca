@@ -8,34 +8,33 @@ import {
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
 import { translateMain } from '../i18n/main-i18n'
 import { createAppMenuSelectionItem } from './app-menu-selection-item'
+import { reloadMenuTarget } from './menu-target-web-contents'
+import {
+  buildAppearanceSubmenu,
+  getNextDefaultOnAppearanceSettingValue,
+  type AppearanceMenuKey,
+  type AppearanceMenuState
+} from './register-app-menu-appearance'
 
-export type AppearanceMenuState = {
-  showTasksButton: boolean
-  showAutomationsButton: boolean
-  showMobileButton: boolean
-  showTitlebarAppName: boolean
-  statusBarVisible: boolean
-}
-
-export type AppearanceMenuKey = keyof AppearanceMenuState
-
-export function getNextDefaultOnAppearanceSettingValue(current: boolean | undefined): boolean {
-  return !(current !== false)
-}
+export type { AppearanceMenuKey, AppearanceMenuState }
+export { getNextDefaultOnAppearanceSettingValue }
 
 type RegisterAppMenuOptions = {
-  onOpenSettings: () => void
+  /** Read once at startup; gates the experimental File > New Window entry. */
+  multiWindowEnabled?: boolean
+  onNewWindow?: () => void
+  onOpenSettings: (window?: Electron.BaseWindow | null) => void
   onOpenSetupGuide: (window?: Electron.BaseWindow | null) => void
   onOpenFeatureTour: (window?: Electron.BaseWindow | null) => void
   onOpenCrashReport: (window?: Electron.BaseWindow | null) => void
   onCheckForUpdates: (options: UpdateCheckOptions) => void
   onBeforeReload?: (options: { ignoreCache: boolean; webContentsId: number }) => void
-  onZoomIn: () => void
-  onZoomOut: () => void
-  onZoomReset: () => void
-  onToggleLeftSidebar: () => void
-  onToggleRightSidebar: () => void
-  onToggleAppearance: (key: AppearanceMenuKey) => void
+  onZoomIn: (window?: Electron.BaseWindow | null) => void
+  onZoomOut: (window?: Electron.BaseWindow | null) => void
+  onZoomReset: (window?: Electron.BaseWindow | null) => void
+  onToggleLeftSidebar: (window?: Electron.BaseWindow | null) => void
+  onToggleRightSidebar: (window?: Electron.BaseWindow | null) => void
+  onToggleAppearance: (key: AppearanceMenuKey, window?: Electron.BaseWindow | null) => void
   getAppearanceState: () => AppearanceMenuState
   getKeybindings?: () => KeybindingOverrides | undefined
   // Why: the macOS app-menu title. Passed the per-branch dev label since
@@ -45,6 +44,8 @@ type RegisterAppMenuOptions = {
 
 function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   const {
+    multiWindowEnabled = false,
+    onNewWindow = () => {},
     onOpenSettings,
     onOpenSetupGuide,
     onOpenFeatureTour,
@@ -70,22 +71,6 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
       getKeybindings?.()
     )
     return formatKeybindingList(bindings, process.platform)
-  }
-
-  const reloadFocusedWindow = (ignoreCache: boolean): void => {
-    const webContents = BrowserWindow.getFocusedWindow()?.webContents
-    if (!webContents) {
-      return
-    }
-
-    onBeforeReload?.({ ignoreCache, webContentsId: webContents.id })
-
-    if (ignoreCache) {
-      webContents.reloadIgnoringCache()
-      return
-    }
-
-    webContents.reload()
   }
 
   // Why: modifier-click update checks are hidden power-user affordances.
@@ -115,7 +100,12 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const settingsItem: Electron.MenuItemConstructorOptions = {
     label: `${translateMain('menu.settings', 'Settings')}\t${shortcutLabel('app.settings')}`,
-    click: () => onOpenSettings()
+    click: (_menuItem, window) => onOpenSettings(window)
+  }
+
+  const newWindowItem: Electron.MenuItemConstructorOptions = {
+    label: translateMain('menu.newWindow', 'New Window'),
+    click: () => onNewWindow()
   }
 
   const featureTourItem: Electron.MenuItemConstructorOptions = {
@@ -157,15 +147,27 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const fileMenu: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.file', 'File'),
-    // Why: on Windows/Linux there is no app-named menu, so Settings and
-    // Quit live under File — matching the common platform convention and
-    // keeping all user-facing actions reachable from the in-window menu bar.
     submenu: [
-      settingsItem,
-      { type: 'separator' },
-      { role: 'quit', label: translateMain('menu.exit', 'Exit') }
+      // Why: the multi-window path is experimental and read at startup, so the
+      // entry stays hidden until the user opts in and restarts.
+      ...(multiWindowEnabled
+        ? ([newWindowItem] satisfies Electron.MenuItemConstructorOptions[])
+        : []),
+      // Why: on Windows/Linux there is no app-named menu, so Settings and
+      // Quit live under File — matching the common platform convention and
+      // keeping all user-facing actions reachable from the in-window menu bar.
+      ...(isMac
+        ? []
+        : ([
+            { type: 'separator' },
+            settingsItem,
+            { type: 'separator' },
+            { role: 'quit', label: translateMain('menu.exit', 'Exit') }
+          ] satisfies Electron.MenuItemConstructorOptions[]))
     ]
   }
+  const shouldIncludeFileMenu =
+    Array.isArray(fileMenu.submenu) && fileMenu.submenu.some((item) => item.type !== 'separator')
 
   // Why: keep native menu hints while letting non-macOS Ctrl+Z/Ctrl+Y reach the focused terminal or DOM control.
   const undoRedoOptions: Electron.MenuItemConstructorOptions = isMac
@@ -217,82 +219,38 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   // called after every settings update — each build reads current
   // appearance state through getAppearanceState() and produces a fresh
   // template with accurate `checked` values.
-  const appearanceSubmenu: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.appearance', 'Appearance'),
-    submenu: [
-      {
-        // Why: display-only shortcut hint — not a real accelerator. Cmd/Ctrl+B
-        // is intercepted in createMainWindow.ts's before-input-event handler
-        // with a TipTap-bold carve-out for markdown editors. Binding the
-        // accelerator here would steal the chord before that carve-out can
-        // fire. Sidebar open/closed lives in the renderer store (non-persisted),
-        // so we forward a toggle request rather than mirroring state in main.
-        label: `${translateMain('menu.toggleLeftSidebar', 'Toggle Left Sidebar')}\t${shortcutLabel('sidebar.left.toggle')}`,
-        click: () => onToggleLeftSidebar()
-      },
-      {
-        // Why: display-only shortcut hint for the same reason as above.
-        label: `${translateMain('menu.toggleRightSidebar', 'Toggle Right Sidebar')}\t${shortcutLabel('sidebar.right.toggle')}`,
-        click: () => onToggleRightSidebar()
-      },
-      {
-        label: translateMain('menu.showStatusBar', 'Show Status Bar'),
-        type: 'checkbox',
-        checked: appearance.statusBarVisible,
-        click: () => onToggleAppearance('statusBarVisible')
-      },
-      { type: 'separator' },
-      {
-        label: translateMain('menu.showTasksButton', 'Show Tasks Button'),
-        type: 'checkbox',
-        checked: appearance.showTasksButton,
-        click: () => onToggleAppearance('showTasksButton')
-      },
-      {
-        label: translateMain('menu.showAutomationsButton', 'Show Automations Button'),
-        type: 'checkbox',
-        checked: appearance.showAutomationsButton,
-        click: () => onToggleAppearance('showAutomationsButton')
-      },
-      {
-        label: translateMain('menu.showMobileButton', 'Show Orca Mobile Button'),
-        type: 'checkbox',
-        checked: appearance.showMobileButton,
-        click: () => onToggleAppearance('showMobileButton')
-      },
-      {
-        label: translateMain('menu.showTitlebarAppName', 'Show Titlebar App Name'),
-        type: 'checkbox',
-        checked: appearance.showTitlebarAppName,
-        click: () => onToggleAppearance('showTitlebarAppName')
-      }
-    ]
-  }
+  const appearanceSubmenu = buildAppearanceSubmenu({
+    appearance,
+    shortcutLabel,
+    onToggleLeftSidebar,
+    onToggleRightSidebar,
+    onToggleAppearance
+  })
 
   const viewMenu: Electron.MenuItemConstructorOptions = {
     label: translateMain('menu.view', 'View'),
     submenu: [
       {
         label: translateMain('menu.reload', 'Reload'),
-        click: () => reloadFocusedWindow(false)
+        click: (_menuItem, window) => reloadMenuTarget(window, false, onBeforeReload)
       },
       {
         label: `${translateMain('menu.forceReload', 'Force Reload')}\t${shortcutLabel('app.forceReload')}`,
-        click: () => reloadFocusedWindow(true)
+        click: (_menuItem, window) => reloadMenuTarget(window, true, onBeforeReload)
       },
       { role: 'toggleDevTools' },
       { type: 'separator' },
       {
         label: `${translateMain('menu.resetSize', 'Reset Size')}\t${shortcutLabel('zoom.reset')}`,
-        click: () => onZoomReset()
+        click: (_menuItem, window) => onZoomReset(window)
       },
       {
         label: `${translateMain('menu.zoomIn', 'Zoom In')}\t${shortcutLabel('zoom.in')}`,
-        click: () => onZoomIn()
+        click: (_menuItem, window) => onZoomIn(window)
       },
       {
         label: `${translateMain('menu.zoomOut', 'Zoom Out')}\t${shortcutLabel('zoom.out')}`,
-        click: () => onZoomOut()
+        click: (_menuItem, window) => onZoomOut(window)
       },
       { type: 'separator' },
       {
@@ -334,7 +292,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [macAppMenu] : []),
-    ...(isMac ? [] : [fileMenu]),
+    ...(shouldIncludeFileMenu ? [fileMenu] : []),
     editMenu,
     viewMenu,
     windowMenu,

@@ -71,6 +71,9 @@ export type RpcContext = {
   requestId?: string
   // Why: paired mobile device token; state-owning handlers use it to clean up when that device disconnects.
   clientId?: string
+  // Why: desktop IPC originates in one renderer window; terminal/browser mutators
+  // reuse it to enforce the same owner checks as direct IPC. Undefined elsewhere.
+  senderWindowId?: number
   // Why: navigation is keyed by revocable device identity, never by the bearer credential or transient socket id.
   pairedDeviceId?: string
   // Why: lets handlers gate mobile payload truncation to phones only; undefined for in-process callers → treat as full-class (no clip).

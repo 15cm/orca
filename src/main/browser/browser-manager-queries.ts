@@ -9,6 +9,10 @@ import { safeOrigin } from './browser-manager-types'
 import { BrowserManagerRegistration } from './browser-manager-registration'
 
 export abstract class BrowserManagerQueries extends BrowserManagerRegistration {
+  getRendererWebContentsId(browserTabId: string): number | null {
+    return this.rendererWebContentsIdByTabId.get(browserTabId) ?? null
+  }
+
   getGuestWebContentsId(browserTabId: string): number | null {
     return this.webContentsIdByTabId.get(browserTabId) ?? null
   }

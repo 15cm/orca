@@ -9,6 +9,7 @@ import {
   getHiddenRendererPtyDeliveryDebug,
   resetRendererScopedHiddenPtyDeliveryState
 } from '../pty-hidden-delivery-gate'
+import { getRuntimeDesktopSurface } from '../../runtime/runtime-desktop-surface'
 import { localProvider } from './provider/registry'
 import { finishPtyShutdown } from './provider/liveness'
 import type { GetSelectedCodexHomePath, PrepareClaudeAuth } from './host-env/types'
@@ -29,6 +30,7 @@ import {
   invalidatePendingPtyDrainPolicy
 } from './delivery/visibility-state'
 import {
+  clearDidFinishLoadHandlerForWebContents,
   setRebindProviderListeners,
   setDidFinishLoadHandler,
   setRendererGateResetState
@@ -40,8 +42,7 @@ import {
 } from './delivery/debug'
 import {
   registerRendererLifecycleResetHandlers,
-  clearRendererGateResetHandlers,
-  clearDidFinishLoadHandler
+  clearRendererGateResetHandlers
 } from './delivery/lifecycle-reset'
 import { createPtyIpcSession, type PtyIpcSessionOptions } from './session'
 import { wirePtyIpcSession } from './delivery/wire-session'
@@ -185,7 +186,7 @@ export function registerPtyHandlers(
   mainWindow.webContents.on('render-process-gone', resetRendererPtyDeliveryGateState)
 
   // Why: only LocalPtyProvider PTYs (main-process) can be orphaned on reload; daemon sessions survive by design and cleanup would kill them.
-  clearDidFinishLoadHandler()
+  clearDidFinishLoadHandlerForWebContents(mainWindow.webContents)
   if (localProvider instanceof LocalPtyProvider) {
     const lp = localProvider
     const finishLoadHandler = () => {
@@ -194,11 +195,21 @@ export function registerPtyHandlers(
       if (options?.isRecoveryReloadInFlight?.(mainWindow.webContents.id)) {
         return
       }
+      // Why: with several windows open the other renderers stay live, so only the
+      // reloading window's own PTYs may be swept as orphans.
+      const candidateIds =
+        (getRuntimeDesktopSurface().countLiveWindows?.() ?? 0) > 1
+          ? runtime?.resolvePtyIdsForOwnerWindow?.(mainWindow.id)
+          : undefined
       // Why: the retained provider onExit callback is the only physical-exit proof; it clears ownership after the OS reaps it.
-      lp.killOrphanedPtys(generation - 1)
+      lp.killOrphanedPtys(generation - 1, candidateIds)
     }
     setDidFinishLoadHandler(finishLoadHandler, mainWindow.webContents)
     mainWindow.webContents.on('did-finish-load', finishLoadHandler)
+    // Why: the sweep handler is keyed by webContents, so drop it when this window goes.
+    mainWindow.once?.('closed', () =>
+      clearDidFinishLoadHandlerForWebContents(mainWindow.webContents)
+    )
   }
 
   const assertFolderWorkspacePtyPathUsable = (

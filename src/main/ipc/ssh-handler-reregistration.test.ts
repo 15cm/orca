@@ -23,6 +23,10 @@ vi.mock('../ssh/ssh-port-forward', () => mocks.sshPortForward)
 vi.mock('../ssh/ssh-port-scanner', () => mocks.sshPortScanner)
 
 import { getSshConnectionManager, registerSshHandlers } from './ssh'
+import {
+  _resetMainWindowRegistryForTests,
+  registerMainWindow
+} from '../window/main-window-registry'
 import type { SshTarget } from '../../shared/ssh-types'
 import type { SshPtyDataCallback } from '../providers/ssh-pty-provider-contract'
 import { createSshIpcHarness } from './ssh-ipc-test-harness'
@@ -246,9 +250,13 @@ describe('SSH IPC handlers', () => {
     expect(replacementConnectionManager.disconnect).not.toHaveBeenCalled()
   })
 
-  it('refreshes live session callbacks to the newest window and output authorities', async () => {
+  it('refreshes live session callbacks to the live windows and output authorities', async () => {
     const firstWindow = createMockWindow()
     const secondWindow = createMockWindow()
+    // Why: renderer broadcasts now fan out through the window registry, so the
+    // first window has to actually be registered before it can be retired.
+    _resetMainWindowRegistryForTests()
+    registerMainWindow(firstWindow as never)
     const firstRuntime = {
       onPtyData: vi.fn(),
       onPtyExit: vi.fn()
@@ -292,6 +300,9 @@ describe('SSH IPC handlers', () => {
     firstWindow.webContents.send.mockClear()
     secondWindow.webContents.send.mockClear()
 
+    // Why: the first window is gone; only the surviving window may receive frames.
+    _resetMainWindowRegistryForTests()
+    registerMainWindow(secondWindow as never)
     registerSshHandlers(mockStore as never, () => secondWindow as never, secondRuntime as never)
     const callbacks = mockConnectionManager.callbacksRef.current as {
       onStateChange: (targetId: string, state: unknown) => void

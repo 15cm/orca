@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import type { Store } from '../../persistence'
 import type { SparsePreset } from '../../../shared/worktree/create-types'
 import { normalizeSparseDirectories } from '../sparse-checkout-directories'
+import { broadcastToMainWindows, getMainWindows } from '../../window/main-window-registry'
 
 export function registerSparsePresetHandlers(mainWindow: BrowserWindow, store: Store): void {
   // ── Sparse presets ─────────────────────────────────────────────
@@ -54,7 +55,9 @@ export function registerSparsePresetHandlers(mainWindow: BrowserWindow, store: S
 }
 
 function notifySparsePresetsChanged(mainWindow: BrowserWindow, repoId: string): void {
-  if (!mainWindow.isDestroyed()) {
+  // Why: sparse presets are repo-level state shared by every window.
+  broadcastToMainWindows('sparsePresets:changed', { repoId })
+  if (getMainWindows().length === 0 && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('sparsePresets:changed', { repoId })
   }
 }

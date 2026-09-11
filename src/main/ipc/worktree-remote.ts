@@ -169,6 +169,7 @@ import {
   retireGeneratedWorktreeName
 } from '../worktree-name-retirement'
 import { createRetiredNameLookup } from '../../shared/worktree/retired-name-registry'
+import { broadcastToMainWindows, getMainWindows } from '../window/main-window-registry'
 
 const SSH_WORKTREE_CREATE_FETCH_FRESHNESS_MS = 30_000
 const SSH_WORKTREE_CREATE_FETCH_CACHE_MAX = 512
@@ -1800,7 +1801,9 @@ async function getRemoteLocalBaseRefUpdateSuggestionForWorktreeCreate(
 export function notifyWorktreesChanged(mainWindow: BrowserWindow, repoId: string): void {
   // Why: invalidate detected-worktree caches before renderer observers react, so follow-up listDetected sees post-change state.
   runWorktreeChangeInvalidators(repoId)
-  if (!mainWindow.isDestroyed()) {
+  // Why: the worktree graph is shared state, so every open window must resync.
+  broadcastToMainWindows('worktrees:changed', { repoId })
+  if (getMainWindows().length === 0 && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('worktrees:changed', { repoId })
   }
 }

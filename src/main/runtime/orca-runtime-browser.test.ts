@@ -102,6 +102,16 @@ function createHost(overrides: Partial<RuntimeBrowserCommandHost> = {}): Runtime
     getRuntimeBrowserPageRegistry: () => runtimeBrowserPages,
     getAuthoritativeWindow: vi.fn(),
     getAvailableAuthoritativeWindow: vi.fn(() => null),
+    getPreferredRendererWindow: vi.fn(() => null),
+    // Why: page-scoped commands resolve the window that owns the page; the default
+    // stub keeps the pre-multi-window behavior of targeting the authoritative one.
+    getBrowserPageOwnerWindow: vi.fn(() => {
+      try {
+        return overrides.getAuthoritativeWindow?.() ?? null
+      } catch {
+        return null
+      }
+    }),
     getOffscreenBrowserBackend: vi.fn(() => null),
     ...overrides,
     getAgentBrowserBridge: () => bridge
@@ -566,6 +576,7 @@ describe('RuntimeBrowserCommands browser screencast', () => {
   it('closes the requested renderer page without waiting for guest registration', async () => {
     const { RuntimeBrowserCommands } = await import('./orca-runtime-browser')
     webContentsFromIdMock.mockReturnValue({ isDestroyed: () => true })
+    const webContents = { send: vi.fn() }
     const send = vi.fn((channel: string, data: { requestId?: string }) => {
       if (channel !== 'browser:requestTabClose') {
         return
@@ -573,17 +584,19 @@ describe('RuntimeBrowserCommands browser screencast', () => {
       const handler = ipcMainOnMock.mock.calls.find(
         ([eventName]) => eventName === 'browser:tabCloseReply'
       )?.[1] as ((event: unknown, reply: { requestId: string; error?: string }) => void) | undefined
-      handler?.({} as never, { requestId: data.requestId ?? '' })
+      handler?.({ sender: webContents } as never, { requestId: data.requestId ?? '' })
     })
+    webContents.send = send
     const bridge = {
       getRegisteredTabs: vi.fn(() => new Map([['page-target', 101]])),
       getActivePageId: vi.fn(() => 'page-other'),
       getActiveWebContentsId: vi.fn(() => 101)
     } as unknown as AgentBrowserBridge
+    const pageWindow = { webContents } as never
     const commands = new RuntimeBrowserCommands(
       createHost({
         getAgentBrowserBridge: () => bridge,
-        getAuthoritativeWindow: vi.fn(() => ({ webContents: { send } }) as never)
+        getAuthoritativeWindow: vi.fn(() => pageWindow)
       })
     )
 
@@ -602,6 +615,7 @@ describe('RuntimeBrowserCommands browser screencast', () => {
 
   it('lets the renderer close an acknowledged page whose guest never registered', async () => {
     const { RuntimeBrowserCommands } = await import('./orca-runtime-browser')
+    const webContents = { send: vi.fn() }
     const send = vi.fn((channel: string, data: { requestId?: string }) => {
       if (channel !== 'browser:requestTabClose') {
         return
@@ -609,14 +623,15 @@ describe('RuntimeBrowserCommands browser screencast', () => {
       const handler = ipcMainOnMock.mock.calls.find(
         ([eventName]) => eventName === 'browser:tabCloseReply'
       )?.[1] as ((event: unknown, reply: { requestId: string }) => void) | undefined
-      handler?.({} as never, { requestId: data.requestId ?? '' })
+      handler?.({ sender: webContents } as never, { requestId: data.requestId ?? '' })
     })
+    webContents.send = send
     const bridge = {
       getRegisteredTabs: vi.fn(() => new Map()),
       getActivePageId: vi.fn(() => null),
       getActiveWebContentsId: vi.fn(() => null)
     } as unknown as AgentBrowserBridge
-    const authoritativeWindow = { webContents: { send } } as never
+    const authoritativeWindow = { webContents } as never
     const commands = new RuntimeBrowserCommands(
       createHost({
         getAgentBrowserBridge: () => bridge,

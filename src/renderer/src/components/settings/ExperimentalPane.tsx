@@ -6,6 +6,7 @@ import { SearchableSetting } from './SearchableSetting'
 import { matchesSettingsSearch } from './settings-search'
 import { getExperimentalPaneSearchEntries, getExperimentalSearchEntry } from './experimental-search'
 import { HiddenExperimentalGroup } from './HiddenExperimentalGroup'
+import { ExperimentalMultiWindowSetting } from './ExperimentalMultiWindowSetting'
 import { NumberField, SettingsSwitch } from './SettingsFormControls'
 import { translate } from '@/i18n/i18n'
 import { NativeChatExperimentalSetting } from './NativeChatExperimentalSetting'
@@ -50,6 +51,9 @@ export function ExperimentalPane({
   ])
   const showNewWorktreeCardStyle = matchesSettingsSearch(searchQuery, [
     getExperimentalSearchEntry().newWorktreeCardStyle
+  ])
+  const showMultiWindow = matchesSettingsSearch(searchQuery, [
+    getExperimentalSearchEntry().multiWindow
   ])
   const agentHibernationEnabled = settings.experimentalAgentHibernation === true
   const newWorktreeCardStyleEnabled = settings.experimentalNewWorktreeCardStyle === true
@@ -267,6 +271,13 @@ export function ExperimentalPane({
       ) : null}
 
       <EphemeralVmsExperimentalSetting settings={settings} updateSettings={updateSettings} />
+
+      {showMultiWindow ? (
+        <ExperimentalMultiWindowSetting
+          enabled={settings.experimentalMultiWindow}
+          updateSettings={updateSettings}
+        />
+      ) : null}
 
       {hiddenExperimentalUnlocked ? <HiddenExperimentalGroup /> : null}
     </div>

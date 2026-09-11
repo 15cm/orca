@@ -1,3 +1,4 @@
+import type { BrowserWindow } from 'electron'
 import type { KeybindingOverrides } from '../../shared/keybindings'
 import type {
   RecoveryExhaustionCause,
@@ -16,6 +17,10 @@ export type CreateMainWindowOptions = {
   getIsQuitting?: () => boolean
   /** Notifies the caller when the renderer vetoes unload, so the quit latch clears — a prevented beforeunload cancels the in-flight app.quit(). */
   onQuitAborted?: () => void
+  /** Returns true while app-level quit is collecting every window's close decision. Why: no window may be destroyed until all live windows accepted, or a later veto leaves the app partially closed. */
+  isQuitConfirmationCollecting?: () => boolean
+  /** Reports that this window's renderer accepted the quit, without closing it yet. */
+  onQuitWindowCloseConfirmed?: (window: BrowserWindow) => void
   onRendererProcessGone?: (
     details: Electron.RenderProcessGoneDetails,
     webContentsId: number

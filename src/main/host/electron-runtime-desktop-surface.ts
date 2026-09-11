@@ -1,6 +1,12 @@
-import { BrowserWindow, ipcMain, Notification, powerMonitor } from 'electron'
+import { BrowserWindow, ipcMain, Notification, powerMonitor, webContents } from 'electron'
+import { browserManager } from '../browser/browser-manager'
 import { readDesktopAwayState } from '../notifications/desktop-away-state'
 import type { RuntimeDesktopSurface } from '../runtime/runtime-desktop-surface'
+import {
+  getFocusedOrLastActiveMainWindow,
+  getMainWindowForWebContents,
+  getMainWindows
+} from '../window/main-window-registry'
 
 /** The desktop implementation of the runtime's optional desktop facilities. */
 export const electronRuntimeDesktopSurface: RuntimeDesktopSurface = {
@@ -13,6 +19,13 @@ export const electronRuntimeDesktopSurface: RuntimeDesktopSurface = {
     return true
   },
   findWindowById: (id) => BrowserWindow.fromId(id),
+  findFocusedOrLastActiveWindow: () => getFocusedOrLastActiveMainWindow(),
+  countLiveWindows: () => getMainWindows().length,
+  findWindowForBrowserPage: (browserPageId) => {
+    const id = browserManager.getRendererWebContentsId(browserPageId)
+    const renderer = id === null ? null : webContents.fromId(id)
+    return renderer ? getMainWindowForWebContents(renderer) : null
+  },
   onIpc: (channel, listener) => {
     ipcMain.on(channel, listener as Parameters<typeof ipcMain.on>[1])
   },

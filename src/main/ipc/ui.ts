@@ -3,16 +3,21 @@ import type { Store } from '../persistence'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
 import { isFeatureInteractionId } from '../../shared/feature-interactions'
 
-let trustedUIRendererWebContentsId: number | null = null
+const trustedUIRendererWebContentsIds = new Set<number>()
+let explicitUIRendererTrustInitialized = false
 
 export function setTrustedUIRendererWebContentsId(webContentsId: number | null): void {
-  trustedUIRendererWebContentsId = webContentsId
+  if (webContentsId === null) {
+    trustedUIRendererWebContentsIds.clear()
+    explicitUIRendererTrustInitialized = false
+    return
+  }
+  explicitUIRendererTrustInitialized = true
+  trustedUIRendererWebContentsIds.add(webContentsId)
 }
 
 export function clearTrustedUIRendererWebContentsId(webContentsId: number): void {
-  if (trustedUIRendererWebContentsId === webContentsId) {
-    trustedUIRendererWebContentsId = null
-  }
+  trustedUIRendererWebContentsIds.delete(webContentsId)
 }
 
 export function sendToTrustedUIRenderer(
@@ -27,16 +32,27 @@ export function sendToTrustedUIRenderer(
 export function getTrustedUIRendererWebContents(
   excludedWebContentsId?: number
 ): WebContents | null {
-  // Why: exact targeting avoids waking retained browser/utility windows that cannot consume app UI events.
-  const rendererId = trustedUIRendererWebContentsId
-  if (rendererId == null || rendererId === excludedWebContentsId) {
+  // Why: exact targeting avoids waking retained browser/utility windows that cannot
+  // consume app UI events. With several windows trusted, prefer the focused one so
+  // the event lands where the user is looking.
+  if (!explicitUIRendererTrustInitialized) {
     return null
   }
-  const renderer = webContents.fromId(rendererId)
-  if (!renderer || renderer.isDestroyed()) {
-    return null
+  const focusedId = BrowserWindow.getFocusedWindow?.()?.webContents.id
+  const candidateIds =
+    focusedId !== undefined && trustedUIRendererWebContentsIds.has(focusedId)
+      ? [focusedId, ...trustedUIRendererWebContentsIds]
+      : [...trustedUIRendererWebContentsIds]
+  for (const rendererId of candidateIds) {
+    if (rendererId === excludedWebContentsId) {
+      continue
+    }
+    const renderer = webContents.fromId(rendererId)
+    if (renderer && !renderer.isDestroyed()) {
+      return renderer
+    }
   }
-  return renderer
+  return null
 }
 
 export function getTrustedUIRendererWindow(): BrowserWindow | null {
@@ -110,8 +126,8 @@ export function isTrustedUIRenderer(sender: WebContents): boolean {
   if (sender.isDestroyed() || sender.getType() !== 'window') {
     return false
   }
-  if (trustedUIRendererWebContentsId != null) {
-    return sender.id === trustedUIRendererWebContentsId
+  if (explicitUIRendererTrustInitialized) {
+    return trustedUIRendererWebContentsIds.has(sender.id)
   }
 
   const senderUrl = sender.getURL()

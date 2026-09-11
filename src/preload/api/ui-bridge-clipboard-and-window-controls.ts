@@ -196,6 +196,9 @@ export const uiClipboardAndWindowControlsApi = {
   confirmWindowClose: (): void => {
     ipcRenderer.send('window:confirm-close')
   },
+  cancelWindowClose: (): void => {
+    ipcRenderer.send('window:cancel-close')
+  },
   notifyWindowRevealed: (): void => {
     ipcRenderer.send('ui:window-revealed')
   }

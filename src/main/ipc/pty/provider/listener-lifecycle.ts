@@ -8,8 +8,9 @@ export let localDataUnsub: (() => void) | null = null
 export let localExitUnsub: (() => void) | null = null
 export let localBackgroundStreamUnsub: (() => void) | null = null
 export let localWriteUnavailableUnsub: (() => void) | null = null
-export let didFinishLoadHandler: (() => void) | null = null
-export let didFinishLoadWebContents: WebContents | null = null
+// Why: each main window installs its own orphan-sweep handler, so they are keyed by
+// webContents instead of a single latch that a second window would silently replace.
+export const didFinishLoadHandlersByWebContents = new Map<WebContents, () => void>()
 export let rendererLifecycleResetWebContents: WebContents | null = null
 export let rendererLifecycleResetHandler: (() => void) | null = null
 // Why: the hidden-delivery gate registries mirror renderer state; a reload/crash destroys owners without unregistering, so they reset when the renderer is replaced (drop memory preserved).
@@ -74,8 +75,26 @@ export function setDidFinishLoadHandler(
   handler: (() => void) | null,
   contents: WebContents | null
 ): void {
-  didFinishLoadHandler = handler
-  didFinishLoadWebContents = contents
+  if (!contents) {
+    return
+  }
+  const previous = didFinishLoadHandlersByWebContents.get(contents)
+  if (previous) {
+    contents.removeListener('did-finish-load', previous)
+  }
+  if (handler) {
+    didFinishLoadHandlersByWebContents.set(contents, handler)
+  } else {
+    didFinishLoadHandlersByWebContents.delete(contents)
+  }
+}
+
+export function clearDidFinishLoadHandlerForWebContents(contents: WebContents): void {
+  const handler = didFinishLoadHandlersByWebContents.get(contents)
+  if (handler) {
+    contents.removeListener('did-finish-load', handler)
+    didFinishLoadHandlersByWebContents.delete(contents)
+  }
 }
 
 export function setRendererLifecycleResetState(args: {

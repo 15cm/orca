@@ -1,14 +1,12 @@
 import type { WebContents } from 'electron'
 import {
-  didFinishLoadHandler,
-  didFinishLoadWebContents,
+  didFinishLoadHandlersByWebContents,
   rendererDidStartNavigationHandler,
   rendererGateResetGoneHandler,
   rendererGateResetLoadHandler,
   rendererGateResetWebContents,
   rendererLifecycleResetHandler,
   rendererLifecycleResetWebContents,
-  setDidFinishLoadHandler,
   setRendererGateResetState,
   setRendererLifecycleResetState
 } from '../provider/listener-lifecycle'
@@ -20,10 +18,10 @@ import {
 } from './visibility-state'
 
 export function clearDidFinishLoadHandler(): void {
-  if (didFinishLoadHandler && didFinishLoadWebContents) {
-    didFinishLoadWebContents.removeListener('did-finish-load', didFinishLoadHandler)
+  for (const [contents, handler] of didFinishLoadHandlersByWebContents) {
+    contents.removeListener('did-finish-load', handler)
   }
-  setDidFinishLoadHandler(null, null)
+  didFinishLoadHandlersByWebContents.clear()
 }
 
 export function markRendererPtysHiddenForRendererLifecycleReset(): void {

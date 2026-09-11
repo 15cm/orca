@@ -68,8 +68,14 @@ import { LEGACY_TERMINAL_SHIM_REMOTE_ENV_KEYS } from '../pty/legacy-terminal-shi
 
 describe('PTY provider dispatch', () => {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
+  // Why: registerPtyHandlers now resolves the owning window through the registry and
+  // installs a per-window close listener, so the stub needs a window identity.
   const mainWindow = {
+    id: 1,
     isDestroyed: () => false,
+    on: vi.fn(),
+    once: vi.fn(),
+    removeListener: vi.fn(),
     webContents: { on: vi.fn(), send: vi.fn(), removeListener: vi.fn() }
   }
   const mainWindowIpcEvent = { sender: mainWindow.webContents }

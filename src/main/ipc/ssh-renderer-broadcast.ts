@@ -13,6 +13,7 @@ import {
   getWorktreeIdsForConnection
 } from '../ports/ssh-advertised-url-enrichment'
 import { getSshProviderAuthority } from '../ssh/ssh-provider-authority'
+import { broadcastToMainWindows } from '../window/main-window-registry'
 import { activeSessions } from './ssh-active-relay-sessions'
 import {
   connectionManager,
@@ -25,7 +26,7 @@ import {
 export const relayStateOverrides = new Map<string, SshConnectionState>()
 
 export function broadcastSshState(
-  getMainWindow: () => BrowserWindow | null,
+  _getMainWindow: () => BrowserWindow | null,
   targetId: string,
   state: SshConnectionState
 ): void {
@@ -35,10 +36,8 @@ export function broadcastSshState(
     return
   }
   const enrichedState = withSshRemotePlatform(targetId, state)
-  const win = getMainWindow()
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('ssh:state-changed', { targetId, state: enrichedState })
-  }
+  // Why: SSH target state is app-wide, so every open window must see the change.
+  broadcastToMainWindows('ssh:state-changed', { targetId, state: enrichedState })
   // Why: paired remote clients have no ssh:state-changed IPC; without this their terminals keep a stale reconnect overlay.
   currentRuntime?.notifySshStateChanged?.(targetId, enrichedState)
 }
@@ -82,30 +81,22 @@ export function getPublicSshState(targetId: string): SshConnectionState | undefi
 }
 
 export function broadcastPortForwards(
-  getMainWindow: () => BrowserWindow | null,
+  _getMainWindow: () => BrowserWindow | null,
   targetId: string
 ): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed()) {
-    return
-  }
-  win.webContents.send('ssh:port-forwards-changed', {
+  broadcastToMainWindows('ssh:port-forwards-changed', {
     targetId,
     forwards: listForwardsEnriched(targetId)
   })
 }
 
 export function broadcastDetectedPorts(
-  getMainWindow: () => BrowserWindow | null,
+  _getMainWindow: () => BrowserWindow | null,
   targetId: string,
   ports: DetectedPort[],
   options?: Parameters<typeof enrichSshDetectedPorts>[3]
 ): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed()) {
-    return
-  }
-  win.webContents.send('ssh:detected-ports-changed', {
+  broadcastToMainWindows('ssh:detected-ports-changed', {
     targetId,
     ports: enrichDetected(targetId, ports, options)
   })

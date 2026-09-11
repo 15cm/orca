@@ -29,6 +29,16 @@ export const powerMonitorRemoveListenerMock: MainWindowSpy = vi.fn()
 export const routePartitionAllowedMock: Mock<(partition: string) => boolean> = vi.fn(() => false)
 export const isMock = { dev: false }
 export const macosTahoeMock = { value: false }
+export const getMainWindowForWebContentsMock: MainWindowSpy = vi.fn()
+export function mainWindowRegistryMock(): Record<string, MainWindowSpy> {
+  return {
+    registerMainWindow: vi.fn(),
+    getMainWindowForWebContents: getMainWindowForWebContentsMock,
+    getLastActiveMainWindow: vi.fn(() => null),
+    getFocusedOrLastActiveMainWindow: vi.fn(() => null),
+    getMainWindows: vi.fn(() => [])
+  }
+}
 
 type IpcMainMock = {
   on: MainWindowSpy

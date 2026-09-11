@@ -9,6 +9,7 @@ import {
   TerminalResolveActive,
   TerminalResolvePane
 } from './unary-schemas'
+import { assertSenderOwnsTerminal } from './terminal-window-ownership'
 
 export const TERMINAL_QUERY_METHODS: RpcAnyMethod[] = [
   defineMethod({
@@ -111,15 +112,17 @@ export const TERMINAL_QUERY_METHODS: RpcAnyMethod[] = [
   defineMethod({
     name: 'terminal.rename',
     params: TerminalRename,
-    handler: async (params, { runtime }) => ({
-      rename: await runtime.renameTerminal(params.terminal, params.title || null)
-    })
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return { rename: await runtime.renameTerminal(params.terminal, params.title || null) }
+    }
   }),
   defineMethod({
     name: 'terminal.clearBuffer',
     params: TerminalHandle,
-    handler: async (params, { runtime }) => ({
-      clear: await runtime.clearTerminalBuffer(params.terminal)
-    })
+    handler: async (params, { runtime, senderWindowId }) => {
+      assertSenderOwnsTerminal(runtime, params.terminal, senderWindowId)
+      return { clear: await runtime.clearTerminalBuffer(params.terminal) }
+    }
   })
 ]

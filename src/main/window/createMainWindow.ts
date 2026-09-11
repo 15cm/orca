@@ -11,11 +11,15 @@ import { clearTrustedUIRendererWebContentsId, setTrustedUIRendererWebContentsId 
 import type { Store } from '../persistence'
 import { closeDashboardPopout } from './dashboard-popout-window'
 import {
+  closeWindowAfterConfirmation,
   installMainWindowCloseLifecycle,
+  requestWindowCloseForQuit,
   WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS
 } from './main-window-close-lifecycle'
+export { closeWindowAfterConfirmation, requestWindowCloseForQuit }
 import type { CreateMainWindowOptions, MainWindowLoadObserver } from './main-window-contracts'
 import { mainWindowLoadErrorCode } from './main-window-load-error-code'
+import { registerMainWindow } from './main-window-registry'
 import { installMainWindowFocusLifecycle } from './main-window-focus-lifecycle'
 import { installMainWindowShortcutRouting } from './main-window-shortcut-routing'
 import { installMainWindowStateLifecycle } from './main-window-state-lifecycle'
@@ -139,6 +143,7 @@ export function createMainWindow(
       additionalArguments: [formatBrowserClientHostIdArgument(getBrowserClientHostId())]
     }
   })
+  registerMainWindow(mainWindow)
   const rendererWebContentsId = mainWindow.webContents.id
   installWindowsPathRegistryChangeListener(mainWindow)
   // Why: native paste fallback is privileged IPC; only the top-level renderer may request it.

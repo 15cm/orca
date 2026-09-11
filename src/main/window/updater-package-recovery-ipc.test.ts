@@ -125,6 +125,7 @@ describe('updater linux package recovery IPC handlers', () => {
     isTrustedUIRendererMock
       .mockReset()
       .mockImplementation((sender) => actualUi.isTrustedUIRenderer(sender as WebContents))
+    actualUi.setTrustedUIRendererWebContentsId(null)
     actualUi.setTrustedUIRendererWebContentsId(TRUSTED_ID)
     getLinuxPackageInstallInstructionsMock
       .mockReset()
@@ -184,8 +185,10 @@ describe('updater linux package recovery IPC handlers', () => {
     const event = senderEvent(webContents({}))
     void getHandler(RECOVERY_CHANNELS[0])(event)
 
-    // The main window was replaced between calls; the previously served sender is now stale.
+    // The window that served the first call closed between calls; several windows can be
+    // trusted at once, so trust is dropped per window rather than replaced wholesale.
     actualUi.setTrustedUIRendererWebContentsId(TRUSTED_ID + 1)
+    actualUi.clearTrustedUIRendererWebContentsId(TRUSTED_ID)
 
     expect(() => getHandler(RECOVERY_CHANNELS[0])(event)).toThrow(UNAUTHORIZED)
     expect(getLinuxPackageInstallInstructionsMock).toHaveBeenCalledTimes(1)

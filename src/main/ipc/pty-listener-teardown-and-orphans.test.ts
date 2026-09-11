@@ -271,7 +271,7 @@ describe('registerPtyHandlers', () => {
     exitCb?.({ exitCode: -1 })
     expect(onExitDisposable.dispose).toHaveBeenCalledTimes(1)
   })
-  it('removes the previous orphan-cleanup listener from its original webContents', () => {
+  it("keeps each window's orphan-cleanup listener while moving the shared gate reset", () => {
     const firstWindow = {
       isDestroyed: () => false,
       isFocused: () => true,
@@ -315,13 +315,18 @@ describe('registerPtyHandlers', () => {
     } as never)
     registerPtyHandlers(secondWindow as never)
 
-    // Every first-window load listener was detached from its webContents.
-    for (const [, handler] of firstWindowLoadHandlers) {
-      expect(firstWindow.webContents.removeListener).toHaveBeenCalledWith(
-        'did-finish-load',
-        handler
-      )
-    }
+    // Why: the renderer-gate reset is one shared slot that follows the newest window,
+    // but orphan cleanup is per-window now — detaching it would disarm the sweep for a
+    // window that is still open.
+    const [[, gateResetHandler], [, orphanCleanupHandler]] = firstWindowLoadHandlers
+    expect(firstWindow.webContents.removeListener).toHaveBeenCalledWith(
+      'did-finish-load',
+      gateResetHandler
+    )
+    expect(firstWindow.webContents.removeListener).not.toHaveBeenCalledWith(
+      'did-finish-load',
+      orphanCleanupHandler
+    )
     // The non-Local provider keeps orphan cleanup off the second window — only the renderer-gate reset listener remains.
     expect(
       secondWindow.webContents.on.mock.calls.filter(

@@ -21,6 +21,12 @@ export type RuntimeDesktopSurface = {
   showNotification(input: { title: string; body: string }): boolean
   /** The renderer window with this id, or null when there is no desktop. */
   findWindowById(id: number): BrowserWindow | null
+  /** The window the user is working in, or null when there is no desktop. */
+  findFocusedOrLastActiveWindow?(): BrowserWindow | null
+  /** How many renderer windows are open; 0 with no desktop. */
+  countLiveWindows?(): number
+  /** The window whose renderer registered this browser page, or null when none did. */
+  findWindowForBrowserPage?(browserPageId: string): BrowserWindow | null
   onIpc(channel: string, listener: (event: IpcMainEvent, ...args: never[]) => void): void
   removeIpcListener(channel: string, listener: (...args: never[]) => void): void
 }
@@ -28,6 +34,9 @@ export type RuntimeDesktopSurface = {
 const inertDesktopSurface: RuntimeDesktopSurface = {
   showNotification: () => false,
   findWindowById: () => null,
+  findFocusedOrLastActiveWindow: () => null,
+  countLiveWindows: () => 0,
+  findWindowForBrowserPage: () => null,
   onIpc: () => {},
   removeIpcListener: () => {}
 }

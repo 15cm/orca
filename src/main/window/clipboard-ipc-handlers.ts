@@ -42,7 +42,8 @@ import { buildClipboardImageThumbnail } from './clipboard-image-thumbnail'
 import { writeClipboardTextAndVerify } from './clipboard-text-write-verify'
 import { isDashboardPopoutRenderer } from './dashboard-popout-window'
 
-let trustedClipboardRendererWebContentsId: number | null = null
+const trustedClipboardRendererWebContentsIds = new Set<number>()
+let explicitClipboardRendererTrustInitialized = false
 
 type ClipboardWriteFileRequest = {
   filePath: string
@@ -70,7 +71,17 @@ async function saveClipboardImageBufferForTarget(
 }
 
 export function setTrustedClipboardRendererWebContentsId(webContentsId: number | null): void {
-  trustedClipboardRendererWebContentsId = webContentsId
+  if (webContentsId === null) {
+    trustedClipboardRendererWebContentsIds.clear()
+    explicitClipboardRendererTrustInitialized = false
+    return
+  }
+  explicitClipboardRendererTrustInitialized = true
+  trustedClipboardRendererWebContentsIds.add(webContentsId)
+}
+
+export function clearTrustedClipboardRendererWebContentsId(webContentsId: number): void {
+  trustedClipboardRendererWebContentsIds.delete(webContentsId)
 }
 
 // Run a short-lived OS clipboard helper (PowerShell / wl-copy / xclip), feeding
@@ -278,8 +289,8 @@ function isTrustedClipboardRenderer(sender: WebContents): boolean {
   if (sender.isDestroyed() || sender.getType() !== 'window') {
     return false
   }
-  if (trustedClipboardRendererWebContentsId != null) {
-    return sender.id === trustedClipboardRendererWebContentsId
+  if (explicitClipboardRendererTrustInitialized) {
+    return trustedClipboardRendererWebContentsIds.has(sender.id)
   }
 
   const senderUrl = sender.getURL()

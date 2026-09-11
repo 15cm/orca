@@ -169,6 +169,7 @@ export class OrcaRuntimeWithStopTerminalsForWorktree extends OrcaRuntimeWithReso
     worktreeSelector: string,
     options: {
       deadline?: number
+      senderWindowId?: number
       stopPty?: (
         ptyId: string,
         stop: () => Promise<boolean>
@@ -195,7 +196,11 @@ export class OrcaRuntimeWithStopTerminalsForWorktree extends OrcaRuntimeWithReso
       options.resolvedRuntimeEnvironmentId !== undefined
         ? options
         : this.getWorktreeHostFence(worktree)
-    const ptyIds = this.collectWorktreePtyIds(worktree.id, hostFence)
+    const ptyIds = this.collectWorktreePtyIds(worktree.id, hostFence).filter(
+      (ptyId) =>
+        options.senderWindowId === undefined ||
+        this.resolveOwnerWindowIdForPtyId?.(ptyId) === options.senderWindowId
+    )
 
     let stopped = 0
     for (const ptyId of ptyIds) {

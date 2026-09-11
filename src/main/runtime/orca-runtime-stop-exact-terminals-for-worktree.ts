@@ -7,7 +7,7 @@ export class OrcaRuntimeWithStopExactTerminalsForWorktree extends OrcaRuntimeWit
   async stopExactTerminalsForWorktree(
     worktreeSelector: string,
     expectedPtyIds: readonly string[],
-    opts: { keepHistory?: boolean; targetOnly?: boolean } = {}
+    opts: { keepHistory?: boolean; targetOnly?: boolean; senderWindowId?: number } = {}
   ): Promise<{
     stopped: number
     stoppedPtyIds: string[]
@@ -21,6 +21,14 @@ export class OrcaRuntimeWithStopExactTerminalsForWorktree extends OrcaRuntimeWit
     const worktree = await this.resolveWorktreeSelector(worktreeSelector)
     this.assertStableReadyGraph(graphEpoch)
     const expected = new Set(expectedPtyIds.filter((ptyId) => ptyId.length > 0))
+    if (
+      opts.senderWindowId !== undefined &&
+      [...expected].some(
+        (ptyId) => this.resolveOwnerWindowIdForPtyId?.(ptyId) !== opts.senderWindowId
+      )
+    ) {
+      throw new Error('runtime_unavailable')
+    }
     if (expected.size !== 1) {
       throw new Error('terminal_exact_stop_requires_single_pty')
     }

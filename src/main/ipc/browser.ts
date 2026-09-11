@@ -3,6 +3,7 @@ import { browserCertificateTrustController, browserManager } from '../browser/br
 import type { AgentBrowserBridge } from '../browser/agent-browser-bridge'
 import { browserSessionRegistry } from '../browser/browser-session-registry'
 import { isWorkspaceDocPageId } from '../browser/doc-preview-guest-policy'
+import { ownsBrowserPage } from './browser-page-ownership'
 import { isTrustedBrowserRenderer } from './browser-renderer-trust'
 import {
   isLiveBrowserWebContentsId,
@@ -53,6 +54,20 @@ export function registerBrowserHandlers(): void {
   ): boolean => {
     if (!isTrustedBrowserRenderer(event.sender)) {
       return false
+    }
+    if (
+      typeof args?.browserPageId !== 'string' ||
+      !ownsBrowserPage(event.sender, args.browserPageId)
+    ) {
+      // Registration may create the first mapping; only reject takeover of an existing page.
+      const existingGuestId = browserManager.getGuestWebContentsId(args?.browserPageId ?? '')
+      if (
+        browserManager.getRendererWebContentsId(args?.browserPageId ?? '') !== null &&
+        existingGuestId !== null &&
+        isLiveBrowserWebContentsId(existingGuestId)
+      ) {
+        return false
+      }
     }
     if (
       !args ||
@@ -166,6 +181,9 @@ export function registerBrowserHandlers(): void {
     // that grab would then answer ok without ever arming. A document page withdraws by revoking
     // its grant, so its id arriving here is misaddressed however it got here.
     if (typeof args?.browserPageId !== 'string' || isWorkspaceDocPageId(args.browserPageId)) {
+      return false
+    }
+    if (!ownsBrowserPage(event.sender, args.browserPageId)) {
       return false
     }
     // Why: notify bridge before unregistering so it can destroy the session

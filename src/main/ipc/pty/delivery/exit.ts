@@ -8,6 +8,7 @@ import { makePtyDataPayload, sendPtyDataToRenderer } from './payload'
 import { getRendererInFlightCharsForPty } from './accounting'
 import { clearFlushTimerIfIdle } from './flush'
 import type { PtyIpcSession } from '../session'
+import { getPtyRendererWindow } from './owner-window'
 
 export function rememberSyntheticKillExit(session: PtyIpcSession, id: string): void {
   const existing = session.syntheticKillExitPtyIds.get(id)
@@ -145,7 +146,7 @@ export function finalizePtyExitForRenderer(
       session.schedulePendingDataAfterCreditReport(true)
     }
   }
-  session.mainWindow.webContents.send('pty:exit', {
+  getPtyRendererWindow(session, payload.id)?.webContents.send('pty:exit', {
     ...payload,
     ...(session.reversibleStopOwnersByPtyId.has(payload.id)
       ? { preserveRendererBinding: true }
@@ -171,7 +172,5 @@ export function sendPtyExitToRenderer(
 }
 
 export function sendPtySpawnedToRenderer(session: PtyIpcSession, id: string): void {
-  if (!session.mainWindow.isDestroyed()) {
-    session.mainWindow.webContents.send('pty:spawned', { id })
-  }
+  getPtyRendererWindow(session, id)?.webContents.send('pty:spawned', { id })
 }

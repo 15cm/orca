@@ -235,9 +235,16 @@ export async function shutdownLocalPty(
   }
 }
 
-export function killOrphanedLocalPtys(currentGeneration: number): { id: string }[] {
+export function killOrphanedLocalPtys(
+  currentGeneration: number,
+  candidateIds?: readonly string[]
+): { id: string }[] {
   const killed: { id: string }[] = []
+  const candidates = candidateIds ? new Set(candidateIds) : null
   for (const [id, proc] of ptyProcesses) {
+    if (candidates && !candidates.has(id)) {
+      continue
+    }
     if ((ptyLoadGeneration.get(id) ?? -1) < currentGeneration) {
       requestPtyTermination(id, proc)
       killed.push({ id })
