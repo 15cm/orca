@@ -14,6 +14,7 @@ import type { PendingAgentStatusEvent } from './agent-status-bridge-types'
 export function registerAgentStatusListeners(args: {
   unsubs: (() => void)[]
   enqueueLiveAgentStatus: (data: AgentStatusIpcPayload) => void
+  applyReplayedAgentStatus: (data: AgentStatusIpcPayload) => void
   drainQueuedLiveAgentStatusesForPane: (paneKey: string) => void
   pendingAgentStatusEvents: PendingAgentStatusEvent[]
   transientClearWatermarkByConnectionId: Map<string, number>
@@ -22,6 +23,7 @@ export function registerAgentStatusListeners(args: {
   const {
     unsubs,
     enqueueLiveAgentStatus,
+    applyReplayedAgentStatus,
     drainQueuedLiveAgentStatusesForPane,
     pendingAgentStatusEvents,
     transientClearWatermarkByConnectionId,
@@ -29,6 +31,10 @@ export function registerAgentStatusListeners(args: {
   } = args
   unsubs.push(
     window.api.agentStatus.onSet((data) => {
+      if (data.isReplay === true) {
+        applyReplayedAgentStatus(data)
+        return
+      }
       enqueueLiveAgentStatus(data)
     })
   )

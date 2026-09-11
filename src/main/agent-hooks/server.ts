@@ -5,7 +5,7 @@ import { parseFormEncodedBody } from '../../shared/agent-hook-listener/request-b
 import type { AgentHookEventPayload } from '../../shared/agent-hook-listener/listener-event'
 import type { AgentHookSource } from '../../shared/agent-hook-relay'
 import { AgentHookServerLifecycle } from './server/server-lifecycle'
-import { isValidPaneKey } from './server/server-status-identity'
+import { isValidPaneKey, toAgentStatusIpcPayload } from './server/server-status-identity'
 
 export type {
   AgentHookAuthorityAttestation,
@@ -22,6 +22,7 @@ export {
   RETIRED_PANE_FENCES_MAX
 } from './server/server-constants'
 export { isValidPaneKey }
+export { toAgentStatusIpcPayload }
 
 /** Public composition seam for the loopback hook listener and relay status adapter. */
 export class AgentHookServer extends AgentHookServerLifecycle {}

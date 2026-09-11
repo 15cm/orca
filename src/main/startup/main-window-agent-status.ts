@@ -68,6 +68,7 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
           stateStartedAt,
           ...(providerSession ? { providerSession } : {}),
           ...(observation ? { observation } : {}),
+          ...(isReplay ? { isReplay: true as const } : {}),
           providerSessionOnly: true
         })
         return
@@ -102,6 +103,7 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
         ...(promptInteractionKey ? { promptInteractionKey } : {}),
         ...(restoredUnconfirmed ? { restoredUnconfirmed: true } : {}),
         ...(observation ? { observation } : {}),
+        ...(isReplay ? { isReplay: true as const } : {}),
         ...(orchestration ? { orchestration } : {})
       }
       state.mainWindow?.webContents.send('agentStatus:set', statusEvent)

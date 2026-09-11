@@ -444,3 +444,103 @@ test.describe('Droid notifications', () => {
     expect(dispatches).toEqual([])
   })
 })
+
+test.describe('multi-window agent completion notifications', () => {
+  test.use({ experimentalMultiWindow: true })
+
+  test('hydrates cached completion without replaying its alert', async ({
+    orcaPage,
+    electronApp
+  }) => {
+    await waitForSessionReady(orcaPage)
+    await waitForActiveWorktree(orcaPage)
+    await ensureTerminalVisible(orcaPage)
+    await waitForActiveTerminalManager(orcaPage, 30_000)
+    await installMainProcessNotificationDispatchSpy(electronApp)
+    const endpoint = await readHookEndpoint(electronApp)
+    const ptyId = await waitForActivePanePtyId(orcaPage)
+    const readyMarker = `__MULTI_WINDOW_NOTIFY_READY_${Date.now()}__`
+    await sendToTerminal(orcaPage, ptyId, `printf '${readyMarker}\\n'\r`)
+    await waitForTerminalOutput(orcaPage, readyMarker)
+
+    const { paneKey, worktreeId } = await waitForActivePaneHookDescriptor(orcaPage)
+    const firstPrompt = `multi-window-cached-${Date.now()}`
+    await emitCodexHookStatus(endpoint, {
+      paneKey,
+      worktreeId,
+      state: 'working',
+      prompt: firstPrompt
+    })
+    await expect
+      .poll(
+        async () =>
+          (await getRendererOrCachedAgentStatuses(orcaPage)).some(
+            (status) => status.state === 'working' && status.prompt === firstPrompt
+          ),
+        { timeout: 30_000, message: 'Initial working status did not reach agent cache' }
+      )
+      .toBe(true)
+    await switchToOtherExistingWorktree(orcaPage)
+    await emitCodexHookStatus(endpoint, {
+      paneKey,
+      worktreeId,
+      state: 'done',
+      prompt: firstPrompt,
+      lastAssistantMessage: 'First completion'
+    })
+    await expect
+      .poll(
+        async () =>
+          (await getNotificationDispatches(electronApp)).filter(
+            (dispatch) => dispatch.source === 'agent-task-complete'
+          ).length,
+        { timeout: 30_000, message: 'Initial completion alert was not delivered' }
+      )
+      .toBe(1)
+
+    const secondWindowPromise = electronApp.waitForEvent('window')
+    await electronApp.evaluate(({ Menu }) => {
+      const fileMenu = Menu.getApplicationMenu()?.items.find((item) => item.label === 'File')
+      const newWindow = fileMenu?.submenu?.items.find((item) => item.label.startsWith('New Window'))
+      if (!newWindow?.click) {
+        throw new Error('New Window menu item unavailable')
+      }
+      newWindow.click()
+    })
+    const secondWindow = await secondWindowPromise
+    await secondWindow.waitForLoadState('domcontentloaded')
+    await expect(
+      secondWindow.getByRole('treeitem', { name: new RegExp(`Done ${firstPrompt}`) })
+    ).toBeVisible({ timeout: 30_000 })
+    expect(
+      (await getNotificationDispatches(electronApp)).filter(
+        (dispatch) => dispatch.source === 'agent-task-complete'
+      )
+    ).toHaveLength(1)
+
+    const freshPrompt = `multi-window-fresh-${Date.now()}`
+    await emitCodexHookStatus(endpoint, {
+      paneKey,
+      worktreeId,
+      state: 'working',
+      prompt: freshPrompt
+    })
+    await emitCodexHookStatus(endpoint, {
+      paneKey,
+      worktreeId,
+      state: 'done',
+      prompt: freshPrompt,
+      lastAssistantMessage: 'Fresh completion'
+    })
+    await expect
+      .poll(
+        async () =>
+          (await getNotificationDispatches(electronApp)).some(
+            (dispatch) =>
+              dispatch.source === 'agent-task-complete' && dispatch.agentPrompt === freshPrompt
+          ),
+        { timeout: 30_000, message: 'Fresh completion alert was not delivered' }
+      )
+      .toBe(true)
+  })
+})

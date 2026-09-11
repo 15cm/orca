@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { AgentHookServer, _internals } from './server'
+import { AgentHookServer, _internals, toAgentStatusIpcPayload } from './server'
 import { makePaneKey } from '../../shared/stable-pane-id'
 import {
   buildBody,
@@ -124,7 +124,7 @@ describe('AgentHookServer listener replay', () => {
     expect(rendererListener).not.toHaveBeenCalled()
   })
 
-  it('marks listener replay callbacks as replayed', () => {
+  it('preserves listener replay provenance in renderer IPC payloads', () => {
     const server = new AgentHookServer()
     server.ingestRemote(
       {
@@ -145,6 +145,9 @@ describe('AgentHookServer listener replay', () => {
         isReplay: true,
         payload: expect.objectContaining({ state: 'working', prompt: 'cached task' })
       })
+    )
+    expect(toAgentStatusIpcPayload(listener.mock.calls[0][0])).toEqual(
+      expect.objectContaining({ paneKey: PANE, isReplay: true, state: 'working' })
     )
   })
 
