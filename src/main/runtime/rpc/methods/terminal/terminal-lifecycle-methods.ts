@@ -1,4 +1,4 @@
-import { defineMethod, type RpcAnyMethod } from '../../core'
+import { defineMethod } from '../../core'
 import {
   navigationTargetsHost,
   resolveRuntimeNavigationTarget
@@ -20,7 +20,7 @@ import {
 import { TerminalResizeForClient } from './stream-schemas'
 import { assertSenderOwnsTerminal } from './terminal-window-ownership'
 
-export const TERMINAL_LIFECYCLE_METHODS: RpcAnyMethod[] = [
+export const TERMINAL_LIFECYCLE_METHODS = [
   defineMethod({
     name: 'terminal.wait',
     params: TerminalWait,

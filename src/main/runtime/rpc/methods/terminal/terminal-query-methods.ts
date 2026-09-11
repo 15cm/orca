@@ -1,4 +1,4 @@
-import { defineMethod, type RpcAnyMethod } from '../../core'
+import { defineMethod } from '../../core'
 import {
   TerminalHandle,
   TerminalInspectProcess,
@@ -11,7 +11,7 @@ import {
 } from './unary-schemas'
 import { assertSenderOwnsTerminal } from './terminal-window-ownership'
 
-export const TERMINAL_QUERY_METHODS: RpcAnyMethod[] = [
+export const TERMINAL_QUERY_METHODS = [
   defineMethod({
     name: 'terminal.list',
     params: TerminalListParams,
