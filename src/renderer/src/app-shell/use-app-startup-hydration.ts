@@ -12,6 +12,7 @@ import {
   collectWorktreeHydrationRepoIdsFromSession
 } from '../lib/workspace-session-hydration-keys'
 import { hydratePersistedUIAfterStartupRead } from '../lib/startup-ui-hydration'
+import { getRendererWindowId } from '../lib/window-identity'
 import {
   logRendererStartupDiagnostic,
   timeRendererStartupStep,
@@ -77,7 +78,7 @@ export function useAppStartupHydration(onOnboardingLoaded: (state: OnboardingSta
     let reconnectStarted = false
     void (async () => {
       const startupStartedAt = performance.now()
-      logRendererStartupDiagnostic('startup-chain-start')
+      logRendererStartupDiagnostic('startup-chain-start', { windowId: getRendererWindowId() })
       try {
         // Why: nothing in the hydration chain reads profile state synchronously, so don't let it add a serial IPC round-trip before fetchSettings.
         void actions.fetchOrcaProfiles()

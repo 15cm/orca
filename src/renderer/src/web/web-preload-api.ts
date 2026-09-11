@@ -71,6 +71,8 @@ function createWebPreloadApi(): Partial<PreloadApi> {
     ...createWebSettingsApi(),
     keybindings: createWebKeybindingsApi(),
     ui: createWebUiApi(),
+    // Why null: a browser tab has no main window; the renderer degrades to one implicit window.
+    windowIdentity: { windowId: null },
     ...createWebDiagnosticsApi(),
     ...createWebWorkspaceSessionApi(),
     ...createWebOnboardingApi(),

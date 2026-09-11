@@ -35,6 +35,12 @@ import {
 import { installMainWindowWebviewSecurity } from './main-window-webview-security'
 import { rectHasVisibleAreaOnAnyDisplay } from './window-bounds-validation'
 import { installWindowsPathRegistryChangeListener } from '../pty/windows-path-registry-change'
+import { formatWindowIdArgument } from '../../shared/window-identity'
+import {
+  bindWindowIdToWebContents,
+  createWindowId,
+  unbindWindowIdFromWebContents
+} from './window-view-state-registry'
 
 export { WINDOW_QUIT_RENDERER_ACK_TIMEOUT_MS }
 
@@ -99,6 +105,7 @@ export function createMainWindow(
   // forced per-frame WindowServer alpha compositing (#8482). Applies at creation only, so it needs a restart.
   const platformBlurOptions =
     blur && process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}
+  const windowId = createWindowId()
 
   const mainWindow = new BrowserWindow({
     width: savedBounds?.width ?? defaultBounds.width,
@@ -140,11 +147,15 @@ export function createMainWindow(
       // Why an argument and not an IPC read: this is the window whose webviews host browser guests,
       // and it has to know that before it interprets its first session snapshot — earlier than any
       // handler registration it could wait on.
-      additionalArguments: [formatBrowserClientHostIdArgument(getBrowserClientHostId())]
+      additionalArguments: [
+        formatBrowserClientHostIdArgument(getBrowserClientHostId()),
+        formatWindowIdArgument(windowId)
+      ]
     }
   })
   registerMainWindow(mainWindow)
   const rendererWebContentsId = mainWindow.webContents.id
+  bindWindowIdToWebContents(rendererWebContentsId, windowId)
   installWindowsPathRegistryChangeListener(mainWindow)
   // Why: native paste fallback is privileged IPC; only the top-level renderer may request it.
   setTrustedUIRendererWebContentsId(rendererWebContentsId)
@@ -215,6 +226,7 @@ export function createMainWindow(
     browserManager.setDictationShortcutForwardingPredicate(null)
     powerMonitor.removeListener('resume', onSystemResume)
     clearTrustedUIRendererWebContentsId(rendererWebContentsId)
+    unbindWindowIdFromWebContents(rendererWebContentsId)
     state.dispose()
   })
 

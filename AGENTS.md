@@ -76,6 +76,10 @@ The execution host owns agent status in one store, the hook server's, and every 
 
 Before changing tab↔workspace ownership, follow [`docs/reference/tab-workspace-move.md`](./docs/reference/tab-workspace-move.md): state keyed by tab id must stay untouched, a running process keeps its working directory, and main's PTY worktree binding must be re-keyed explicitly.
 
+## Per-Window View State
+
+With multi-window, the project filter (`filterRepoIds` + `filterGroupIds`) belongs to a window, not the profile. Before adding UI state that must differ between windows, or touching `ui:get` / `ui:set` / `ui:stateChanged`, follow [`docs/reference/per-window-view-state.md`](./docs/reference/per-window-view-state.md): add the key to `WindowViewState` rather than special-casing a channel, keep the persisted value as the seed only the focused window rewrites, and let windowless renderers (paired web, pop-out) degrade to the implicit window.
+
 ## Remote Wire Compatibility
 
 Clients and remote Orca servers update independently, so mixed versions are the normal state. Before changing anything a paired client and host exchange — RPC params, stream frames, or the content either side publishes over them — follow [`docs/reference/remote-wire-compatibility.md`](./docs/reference/remote-wire-compatibility.md). A new optional field is safe; a new stream opcode must be capability-negotiated because decoders drop unknown opcodes silently; and changing what the host publishes reaches old clients even with no wire change.

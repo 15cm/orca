@@ -171,10 +171,13 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           showDotfilesByWorktree: sanitizeShowDotfilesByWorktree(ui.showDotfilesByWorktree),
           // Why: startup hydrates UI before repo catalogs, so defer repo-filter validation to the all-host refresh.
           filterRepoIds:
-            validRepoIds.size === 0
-              ? persistedFilterRepoIds
-              : persistedFilterRepoIds.filter((repoId) => validRepoIds.has(repoId)),
-          filterGroupIds: sanitizePersistedRepoIds(ui.filterGroupIds),
+            source !== 'startup'
+              ? s.filterRepoIds
+              : persistedFilterRepoIds.filter(
+                  (repoId) => validRepoIds.size === 0 || validRepoIds.has(repoId)
+                ),
+          filterGroupIds:
+            source !== 'startup' ? s.filterGroupIds : sanitizePersistedRepoIds(ui.filterGroupIds),
           agentsVisibleHostIds: preserveStringArrayIdentity(
             s.agentsVisibleHostIds,
             normalizeVisibleExecutionHostIds(ui.agentsVisibleHostIds)

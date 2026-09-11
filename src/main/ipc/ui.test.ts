@@ -41,6 +41,10 @@ import {
   sendToTrustedUIRenderer,
   setTrustedUIRendererWebContentsId
 } from './ui'
+import {
+  _resetWindowViewStateRegistryForTests,
+  bindWindowIdToWebContents
+} from '../window/window-view-state-registry'
 
 function makeStore() {
   return {
@@ -90,6 +94,7 @@ describe('UI IPC', () => {
     onMock.mockReset()
     removeAllListenersMock.mockReset()
     setTrustedUIRendererWebContentsId(null)
+    _resetWindowViewStateRegistryForTests()
   })
 
   afterEach(() => {
@@ -327,5 +332,95 @@ describe('UI IPC', () => {
     expect(fromWebContentsMock).not.toHaveBeenCalled()
     expect(paste).not.toHaveBeenCalled()
     expect(pasteAndMatchStyle).not.toHaveBeenCalled()
+  })
+})
+
+describe('UI IPC per-window routing', () => {
+  beforeEach(() => {
+    handleMock.mockReset()
+    getAllWindowsMock.mockReset()
+    getAllWindowsMock.mockReturnValue([])
+    _resetWindowViewStateRegistryForTests()
+  })
+
+  function makeWindowedStore() {
+    let ui: Record<string, unknown> = {
+      filterRepoIds: ['persisted'],
+      filterGroupIds: [],
+      uiZoomLevel: 0
+    }
+    const listeners: ((ui: unknown) => void)[] = []
+    return {
+      listeners,
+      onUIChanged: vi.fn((listener: (ui: unknown) => void) => {
+        listeners.push(listener)
+        return () => {}
+      }),
+      getUI: vi.fn(() => ui),
+      updateUI: vi.fn((updates: Record<string, unknown>) => {
+        ui = { ...ui, ...updates }
+      }),
+      recordFeatureInteraction: vi.fn()
+    }
+  }
+
+  function getHandler(channel: string): ((event: unknown, args?: unknown) => unknown) | undefined {
+    return handleMock.mock.calls.find(([name]) => name === channel)?.[1]
+  }
+
+  it('answers ui:get with the sender window own view state', () => {
+    const store = makeWindowedStore()
+    bindWindowIdToWebContents(17, 'win-a')
+    registerUIHandlers(store as never)
+
+    const first = getHandler('ui:get')?.({ sender: { id: 17 } }) as { filterRepoIds: string[] }
+    getHandler('ui:set')?.({ sender: { id: 17 } }, { filterRepoIds: ['perc'] })
+    const second = getHandler('ui:get')?.({ sender: { id: 17 } }) as { filterRepoIds: string[] }
+
+    expect(first.filterRepoIds).toEqual(['persisted'])
+    expect(second.filterRepoIds).toEqual(['perc'])
+    // Why: with no focused/last-active window registered, the sender is a background window.
+    expect(store.updateUI).not.toHaveBeenCalled()
+  })
+
+  it('routes ui:set global keys to the store for any sender', () => {
+    const store = makeWindowedStore()
+    bindWindowIdToWebContents(17, 'win-a')
+    registerUIHandlers(store as never)
+
+    getHandler('ui:set')?.({ sender: { id: 17 } }, { uiZoomLevel: 2, filterGroupIds: ['g'] })
+    getHandler('ui:set')?.({ sender: { id: 99 } }, { filterRepoIds: ['popout'] })
+
+    expect(store.updateUI).toHaveBeenNthCalledWith(1, { uiZoomLevel: 2 })
+    expect(store.updateUI).toHaveBeenNthCalledWith(2, { filterRepoIds: ['popout'] })
+  })
+
+  it('broadcasts ui:stateChanged with each window own filter overlaid', () => {
+    const store = makeWindowedStore()
+    const sendA = vi.fn()
+    const sendB = vi.fn()
+    getAllWindowsMock.mockReturnValue([
+      { isDestroyed: () => false, webContents: { id: 17, send: sendA } },
+      { isDestroyed: () => false, webContents: { id: 18, send: sendB } }
+    ] as never)
+    bindWindowIdToWebContents(17, 'win-a')
+    bindWindowIdToWebContents(18, 'win-b')
+    registerUIHandlers(store as never)
+    getHandler('ui:get')?.({ sender: { id: 17 } })
+    getHandler('ui:get')?.({ sender: { id: 18 } })
+    getHandler('ui:set')?.({ sender: { id: 17 } }, { filterRepoIds: ['perc'] })
+
+    store.listeners[0]?.({ filterRepoIds: ['from-profile'], uiZoomLevel: 3 })
+
+    expect(sendA).toHaveBeenCalledWith('ui:stateChanged', {
+      filterRepoIds: ['perc'],
+      filterGroupIds: [],
+      uiZoomLevel: 3
+    })
+    expect(sendB).toHaveBeenCalledWith('ui:stateChanged', {
+      filterRepoIds: ['persisted'],
+      filterGroupIds: [],
+      uiZoomLevel: 3
+    })
   })
 })

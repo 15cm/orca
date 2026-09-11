@@ -13,6 +13,7 @@ vi.mock('../app-icon', async () => (await import('./createMainWindow-test-harnes
 vi.mock('../browser/browser-manager', async () =>
   (await import('./createMainWindow-test-harness')).browserManagerMock()
 )
+vi.mock('./main-window-registry', () => ({ registerMainWindow: vi.fn() }))
 vi.mock('../browser/browser-route-session-runtime', async () => ({
   browserRouteSessionRegistry: {
     isAllowedPartition: (await import('./createMainWindow-test-harness')).routePartitionAllowedMock
@@ -151,7 +152,13 @@ describe('createMainWindow', () => {
 
     expect(browserWindowMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        webPreferences: expect.objectContaining({ sandbox: true })
+        webPreferences: expect.objectContaining({
+          sandbox: true,
+          // Why: the sandboxed preload learns its window id from argv, not IPC.
+          additionalArguments: expect.arrayContaining([
+            expect.stringMatching(/^--orca-window-id=.+$/)
+          ])
+        })
       })
     )
     const browserWindowOptions = browserWindowMock.mock.calls[0]?.[0]
@@ -328,7 +335,9 @@ describe('createMainWindow', () => {
     createMainWindow(null)
 
     const stamped = browserWindowMock.mock.calls[0]?.[0].webPreferences?.additionalArguments
-    expect(stamped).toEqual([formatBrowserClientHostIdArgument(getBrowserClientHostId())])
+    expect(stamped).toEqual(
+      expect.arrayContaining([formatBrowserClientHostIdArgument(getBrowserClientHostId())])
+    )
     expect(readBrowserClientHostIdArgument(stamped ?? [])).toBe(getBrowserClientHostId())
 
     // Electron 43 does not hand a guest the embedder's additionalArguments, so this stamp is one
