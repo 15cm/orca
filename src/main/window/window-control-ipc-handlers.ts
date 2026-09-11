@@ -2,7 +2,10 @@ import { ipcMain, Menu, type BrowserWindow } from 'electron'
 import { getMainWindowForWebContents } from './main-window-registry'
 import { claimWindowControlRegistration } from './window-control-registration-latch'
 
+const isMaximizedChannel = 'window:isMaximized'
+
 const hideToTrayRequestByWindow = new WeakMap<BrowserWindow, () => boolean>()
+const closeRequestByWindow = new WeakMap<BrowserWindow, () => void>()
 
 export function setHideToTrayRequest(window: BrowserWindow, request: () => boolean): void {
   hideToTrayRequestByWindow.set(window, request)
@@ -10,6 +13,11 @@ export function setHideToTrayRequest(window: BrowserWindow, request: () => boole
 
 export function clearHideToTrayRequest(window: BrowserWindow): void {
   hideToTrayRequestByWindow.delete(window)
+  closeRequestByWindow.delete(window)
+}
+
+export function setCloseRequest(window: BrowserWindow, request: () => void): void {
+  closeRequestByWindow.set(window, request)
 }
 
 // Why: renderer-drawn window controls on Windows/Linux replicate the native
@@ -47,6 +55,7 @@ export function registerWindowControlIpcHandlers(): void {
     if (hideToTrayRequestByWindow.get(window)?.() === true) {
       return
     }
+    closeRequestByWindow.get(window)?.()
     if (!window.isDestroyed()) {
       window.webContents.send('window:close-requested', { isQuitting: false })
     }
@@ -61,7 +70,7 @@ export function registerWindowControlIpcHandlers(): void {
   })
   // Why: WindowControls mounts after window:maximize-changed already fired, so
   // expose a synchronous getter to init its icon.
-  ipcMain.handle('window:isMaximized', (event): boolean => {
+  ipcMain.handle(isMaximizedChannel, (event): boolean => {
     return getMainWindowForWebContents(event.sender)?.isMaximized() ?? false
   })
 }

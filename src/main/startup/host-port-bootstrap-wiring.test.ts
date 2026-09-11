@@ -26,6 +26,7 @@ describe('host port bootstrap wiring', () => {
   const INSTALLS = [
     'setAppEnvironment(new ElectronAppEnvironment())',
     'setSecretStore(new ElectronSecretStore())',
+    'setMainWindowElectronBindings({',
     'setPtyHostBindings({',
     'setRuntimeDesktopSurface(electronRuntimeDesktopSurface)',
     'setRuntimeBrowserCommandsFactory(electronRuntimeBrowserCommandsFactory)',
@@ -59,6 +60,16 @@ describe('host port bootstrap wiring', () => {
         preflightReturn
       )
     }
+  })
+
+  it('installs real Electron window lookups for sender-routed controls', () => {
+    expect(source).toContain('getFocusedWindow: () => BrowserWindow.getFocusedWindow()')
+    expect(source).toContain(
+      'fromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents)'
+    )
+    expect(source).toContain(
+      'isBrowserWindow: (window): window is BrowserWindow => window instanceof BrowserWindow'
+    )
   })
 
   it('installs the app environment as part of the userData decision, not after it', () => {

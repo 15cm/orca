@@ -24,7 +24,12 @@ import {
 } from './createMainWindow'
 import { ipcMain } from 'electron'
 import { resetExpectedTeardownStateForTest } from '../crash-reporting/expected-teardown-state'
-import { browserWindowMock, resetMainWindowMocks } from './createMainWindow-test-harness'
+import {
+  browserWindowMock,
+  getMainWindowForWebContentsMock,
+  resetMainWindowMocks
+} from './createMainWindow-test-harness'
+import { _resetWindowControlIpcHandlersForTests } from './window-control-registration-latch'
 
 type Handlers = Record<string, (...args: any[]) => void>
 
@@ -68,6 +73,9 @@ function setupWindow(
   browserWindowMock.mockImplementation(function () {
     return instance
   })
+  getMainWindowForWebContentsMock.mockImplementation((sender: unknown) =>
+    sender === webContents ? instance : null
+  )
   return { handlers, webContents, instance }
 }
 
@@ -80,6 +88,7 @@ function lastListener(channel: string): (...args: any[]) => void {
 describe('createMainWindow multi-window quit confirmation', () => {
   beforeEach(() => {
     resetMainWindowMocks()
+    _resetWindowControlIpcHandlersForTests()
     resetExpectedTeardownStateForTest()
     vi.useRealTimers()
   })
@@ -187,6 +196,24 @@ describe('createMainWindow multi-window quit confirmation', () => {
     })
 
     expect(requestWindowCloseForQuit(win)).toBe(true)
+
+    lastListener('window:confirm-close')({ sender: webContents })
+
+    expect(instance.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes after a normal renderer close confirmation', () => {
+    const { webContents, instance } = setupWindow()
+
+    createMainWindow(null, {
+      deferLoad: true,
+      getIsQuitting: () => false
+    })
+
+    lastListener('window:request-close')({ sender: webContents })
+    expect(webContents.send).toHaveBeenCalledWith('window:close-requested', {
+      isQuitting: false
+    })
 
     lastListener('window:confirm-close')({ sender: webContents })
 

@@ -1,4 +1,4 @@
-import { app, ipcMain, powerMonitor, session } from 'electron'
+import { app, BrowserWindow, ipcMain, powerMonitor, session } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import os from 'node:os'
 import { join } from 'node:path'
@@ -52,6 +52,7 @@ import { installMainProcessTreeKillGate } from '../own-chromium-tree-kill-guard'
 import { setSecretStore } from '../../shared/secret-store'
 import { ElectronSecretStore } from '../host/electron-secret-store'
 import { setPtyHostBindings } from '../ipc/pty-host-bindings'
+import { setMainWindowElectronBindings } from '../window/main-window-electron-bindings'
 import { electronRuntimeDesktopSurface } from '../host/electron-runtime-desktop-surface'
 import { setRuntimeDesktopSurface } from '../runtime/runtime-desktop-surface'
 import { electronRuntimeBrowserCommandsFactory } from '../host/electron-browser-commands'
@@ -223,6 +224,13 @@ export function runMainProcessPreflight(options: MainProcessPreflightOptions): b
   // resolution. The app-environment port and the userData capture install earlier still, next to
   // the path decision they depend on.
   setSecretStore(new ElectronSecretStore())
+  // Why at process level: the window registry stays Node-bootable, while every desktop window
+  // needs sender/focus lookup for controls and multi-window routing.
+  setMainWindowElectronBindings({
+    getFocusedWindow: () => BrowserWindow.getFocusedWindow(),
+    fromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
+    isBrowserWindow: (window): window is BrowserWindow => window instanceof BrowserWindow
+  })
   // Why at process level, not per-window: pty.ts registers against injected surfaces so
   // it can load without electron, and an Electron main process always has ipcMain —
   // whether a window exists is irrelevant. Installing this in attachMainWindowServices
