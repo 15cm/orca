@@ -88,6 +88,7 @@ describe('registerPtyHandlers', () => {
       preAllocateHandleForPty: vi.fn(),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       noteTerminalSpawnCommand: vi.fn(),
       getDriver: vi.fn(() => ({ kind: 'host' })),
       onPtySpawned: vi.fn(),
@@ -127,6 +128,7 @@ describe('registerPtyHandlers', () => {
       preAllocateHandleForPty: vi.fn(() => 'term_trusted'),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       noteTerminalSpawnCommand: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
@@ -143,7 +145,7 @@ describe('registerPtyHandlers', () => {
     )
     const spawnController = controller as unknown as RuntimeSpawnController
     const leafId = '11111111-1111-4111-8111-111111111111'
-    await spawnController.spawn({
+    const spawned = await spawnController.spawn({
       cols: 80,
       rows: 24,
       worktreeId: 'wt-1',
@@ -152,6 +154,8 @@ describe('registerPtyHandlers', () => {
       env: { ORCA_PANE_KEY: makePaneKey('tab-headless', leafId) },
       persistHostSessionBinding: true
     })
+
+    expect(runtime.registerPtyOwnerWindow).toHaveBeenCalledWith(spawned.id, mainWindow.id)
 
     expect(store.persistPtyBinding).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
@@ -205,6 +209,7 @@ describe('registerPtyHandlers', () => {
       preAllocateHandleForPty: vi.fn(() => 'term_expected'),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       noteTerminalSpawnCommand: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
@@ -464,6 +469,7 @@ describe('registerPtyHandlers', () => {
       preAllocateHandleForPty: vi.fn(() => 'term_trusted'),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
       onPtyData: vi.fn()

@@ -6,6 +6,7 @@ const {
   handleMock,
   removeHandlerMock,
   getAuthorizedGuestMock,
+  getRendererWebContentsIdMock,
   setGrabModeMock,
   awaitGrabSelectionMock,
   cancelGrabOpMock,
@@ -20,6 +21,7 @@ const {
   handleMock: vi.fn(),
   removeHandlerMock: vi.fn(),
   getAuthorizedGuestMock: vi.fn(),
+  getRendererWebContentsIdMock: vi.fn(),
   setGrabModeMock: vi.fn().mockResolvedValue(true),
   awaitGrabSelectionMock: vi.fn().mockResolvedValue({ opId: 'op', kind: 'cancelled' }),
   cancelGrabOpMock: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock('../browser/browser-manager', () => ({
     attachGuestPolicies: vi.fn(),
     unregisterGuest: vi.fn(),
     getGuestWebContentsId: vi.fn(),
+    getRendererWebContentsId: getRendererWebContentsIdMock,
     getWebContentsIdByTabId: vi.fn(() => new Map()),
     getWorktreeIdForTab: vi.fn(),
     getAuthorizedGuest: getAuthorizedGuestMock,
@@ -274,6 +277,7 @@ beforeEach(() => {
   getAuthorizedGuestMock.mockImplementation((browserPageId: string, senderWebContentsId: number) =>
     getWorkspaceDocPageGuest(browserPageId, senderWebContentsId)
   )
+  getRendererWebContentsIdMock.mockReturnValue(HOST_RENDERER_ID)
   setGrabModeMock.mockResolvedValue(true)
   awaitGrabSelectionMock.mockResolvedValue({ opId: 'op-1', kind: 'cancelled' })
   captureSelectionScreenshotMock.mockResolvedValue(null)

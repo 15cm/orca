@@ -96,6 +96,7 @@ describe('registerPtyHandlers', () => {
       createPreAllocatedTerminalHandle: vi.fn(() => 'term_claimed'),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
       onPtyData: vi.fn()
@@ -179,6 +180,7 @@ describe('registerPtyHandlers', () => {
       createPreAllocatedTerminalHandle: vi.fn(() => 'term-concurrent'),
       registerPreAllocatedHandleForPty: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
       onPtyData: vi.fn()
@@ -522,6 +524,7 @@ describe('registerPtyHandlers', () => {
         cancelPendingPtyRegistration: vi.fn(),
         assertPtyRegistrationAllowed: vi.fn(),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         noteTerminalSpawnCommand: vi.fn(),
         seedHeadlessTerminal: vi.fn(),
         onPtySpawned: vi.fn(),

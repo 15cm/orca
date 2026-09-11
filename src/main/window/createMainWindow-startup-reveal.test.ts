@@ -39,6 +39,36 @@ describe('createMainWindow', () => {
 
   function createStartupRevealWindowFixture() {
     const windowHandlers: Record<string, (...args: any[]) => void> = {}
+    const windowHandlerEntries = new Map<
+      string,
+      { handler: (...args: any[]) => void; once: boolean }[]
+    >()
+    const registerWindowHandler = (
+      event: string,
+      handler: (...args: any[]) => void,
+      once: boolean
+    ) => {
+      const handlers = windowHandlerEntries.get(event) ?? []
+      handlers.push({ handler, once })
+      windowHandlerEntries.set(event, handlers)
+      windowHandlers[event] = (...args: any[]) => {
+        const currentHandlers = windowHandlerEntries.get(event) ?? []
+        windowHandlerEntries.set(
+          event,
+          currentHandlers.filter((entry) => !entry.once)
+        )
+        for (const entry of currentHandlers) {
+          entry.handler(...args)
+        }
+      }
+    }
+    const removeWindowHandler = (event: string, handler: (...args: any[]) => void) => {
+      const handlers = windowHandlerEntries.get(event) ?? []
+      windowHandlerEntries.set(
+        event,
+        handlers.filter((entry) => entry.handler !== handler)
+      )
+    }
     const webContents = {
       on: vi.fn((event, handler) => {
         windowHandlers[event] = handler
@@ -56,8 +86,12 @@ describe('createMainWindow', () => {
     const browserWindowInstance = {
       webContents,
       on: vi.fn((event, handler) => {
-        windowHandlers[event] = handler
+        registerWindowHandler(event, handler, false)
       }),
+      once: vi.fn((event, handler) => {
+        registerWindowHandler(event, handler, true)
+      }),
+      removeListener: vi.fn(removeWindowHandler),
       isDestroyed: vi.fn(() => false),
       isMaximized: vi.fn(() => false),
       isFullScreen: vi.fn(() => false),

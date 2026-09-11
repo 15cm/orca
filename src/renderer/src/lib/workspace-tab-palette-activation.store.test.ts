@@ -5,7 +5,11 @@ import { useAppStore } from '@/store'
 import type { Tab } from '../../../shared/tab-types'
 import type { Worktree } from '../../../shared/worktree/types'
 
-vi.mock('./worktree-activation', () => ({ activateAndRevealWorktree: () => true }))
+const mocks = vi.hoisted(() => ({ activateAndRevealWorkspace: vi.fn(() => true) }))
+
+vi.mock('./worktree-activation', () => ({
+  activateAndRevealWorkspace: mocks.activateAndRevealWorkspace
+}))
 
 import { activateWorkspaceTabPaletteResult } from './workspace-tab-palette-activation'
 
@@ -78,6 +82,7 @@ it('keeps the selected diff active when an editor for the same file shares its g
       contentType: 'diff'
     })
   ).toEqual({ status: 'activated' })
+  expect(mocks.activateAndRevealWorkspace).toHaveBeenCalledWith('wt')
   expect(useAppStore.getState().groupsByWorktree.wt[0].activeTabId).toBe('diff')
   expect(useAppStore.getState().activeFileId).toBe('file')
 })

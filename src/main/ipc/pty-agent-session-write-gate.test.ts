@@ -68,6 +68,7 @@ import { TERMINAL_INPUT_CHUNK_MAX_BYTES } from '../../shared/terminal-input'
 import type { AgentSessionLease, AgentSessionRecord } from '../../shared/agent-session-record'
 import type { IPtyProvider } from '../providers/types'
 import { setPtyHostBindings } from './pty-host-bindings'
+import { createPtyIpcTestWindowRegistry } from './pty-ipc-test-window-registry'
 
 // The renderer IPC path and the runtime controller are the two byte entry points this module owns;
 // both are proved to consult the lease, and both are proved to leave an unbound PTY alone.
@@ -80,10 +81,20 @@ const handlers = new Map<string, (...args: unknown[]) => unknown>()
 const records = new Map<string, AgentSessionRecord>()
 
 const mainWindow = {
+  id: 1,
   isDestroyed: () => false,
-  webContents: { on: vi.fn(), send: vi.fn(), removeListener: vi.fn() }
+  on: vi.fn(),
+  once: vi.fn(),
+  removeListener: vi.fn(),
+  webContents: {
+    isDestroyed: () => false,
+    on: vi.fn(),
+    send: vi.fn(),
+    removeListener: vi.fn()
+  }
 }
 const mainWindowIpcEvent = { sender: mainWindow.webContents }
+const windowRegistry = createPtyIpcTestWindowRegistry()
 
 let ptyController: { write: (ptyId: string, data: string) => boolean } | null = null
 
@@ -150,6 +161,7 @@ function lastRefusal(): { id: string; agentSessionRefusal?: { code: string } } |
 beforeEach(() => {
   handlers.clear()
   records.clear()
+  windowRegistry.install(mainWindow)
   handleMock.mockReset()
   onMock.mockReset()
   mainWindow.webContents.send.mockReset()

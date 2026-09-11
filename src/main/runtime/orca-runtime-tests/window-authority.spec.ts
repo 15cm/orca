@@ -249,6 +249,77 @@ describe('OrcaRuntimeService', () => {
     })
   })
 
+  it('promotes a surviving desktop publisher when the authoritative window closes', () => {
+    const runtime = createRuntime()
+
+    runtime.attachWindow(TEST_WINDOW_ID)
+    runtime.syncWindowGraph(TEST_WINDOW_ID, { tabs: [], leaves: [] })
+    runtime.attachWindow(2)
+    runtime.syncWindowGraph(2, { tabs: [], leaves: [] })
+    runtime.releaseWindow(TEST_WINDOW_ID)
+    runtime.markGraphUnavailable(TEST_WINDOW_ID)
+
+    expect(runtime.getStatus()).toMatchObject({
+      authoritativeWindowId: 2,
+      graphStatus: 'ready',
+      rendererGraphEpoch: 1
+    })
+  })
+
+  it('retires a secondary publication without disturbing authoritative graph state', () => {
+    const runtime = createRuntime()
+
+    runtime.attachWindow(TEST_WINDOW_ID)
+    runtime.syncWindowGraph(TEST_WINDOW_ID, { tabs: [], leaves: [] })
+    runtime.attachWindow(2)
+    runtime.syncWindowGraph(2, { tabs: [], leaves: [] })
+    runtime.releaseWindow(2)
+    runtime.markGraphUnavailable(2)
+
+    expect(runtime.getStatus()).toMatchObject({
+      authoritativeWindowId: TEST_WINDOW_ID,
+      graphStatus: 'ready'
+    })
+  })
+
+  it('promotes headless fallback when the last desktop publisher closes', () => {
+    const runtime = createRuntime()
+
+    runtime.syncWindowGraph(HEADLESS_RUNTIME_WINDOW_ID, { tabs: [], leaves: [] })
+    runtime.attachWindow(TEST_WINDOW_ID)
+    runtime.releaseWindow(TEST_WINDOW_ID)
+    runtime.markGraphUnavailable(TEST_WINDOW_ID)
+
+    expect(runtime.getStatus()).toMatchObject({
+      authoritativeWindowId: HEADLESS_RUNTIME_WINDOW_ID,
+      graphStatus: 'ready'
+    })
+  })
+
+  it('prefers headless fallback over a surviving sibling desktop publisher', () => {
+    const runtime = createRuntime()
+
+    runtime.syncWindowGraph(HEADLESS_RUNTIME_WINDOW_ID, { tabs: [], leaves: [] })
+    runtime.attachWindow(TEST_WINDOW_ID)
+    runtime.attachWindow(2)
+    runtime.syncWindowGraph(2, { tabs: [], leaves: [] })
+
+    runtime.releaseWindow(TEST_WINDOW_ID)
+    runtime.markGraphUnavailable(TEST_WINDOW_ID)
+
+    expect(runtime.getStatus()).toMatchObject({
+      authoritativeWindowId: HEADLESS_RUNTIME_WINDOW_ID,
+      graphStatus: 'ready'
+    })
+
+    // Native close and renderer teardown can report the same window twice.
+    runtime.markGraphUnavailable(TEST_WINDOW_ID)
+    expect(runtime.getStatus()).toMatchObject({
+      authoritativeWindowId: HEADLESS_RUNTIME_WINDOW_ID,
+      graphStatus: 'ready'
+    })
+  })
+
   it('restores headless graph authority after a promoted renderer reload times out', async () => {
     vi.useFakeTimers()
     try {

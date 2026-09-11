@@ -182,6 +182,7 @@ describe('createMainWindow', () => {
       loadURL: vi.fn(() => Promise.resolve()),
       close: vi.fn(() => {
         windowHandlers.close({} as never)
+        windowHandlers.closed?.()
       })
     }
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -194,8 +195,9 @@ describe('createMainWindow', () => {
     })
     const onRendererProcessGone = vi.fn()
 
-    createMainWindow(null, { onRendererProcessGone })
+    createMainWindow(null, { getIsQuitting: () => true, onRendererProcessGone })
 
+    windowHandlers.close?.({ preventDefault: vi.fn() } as never)
     ipcHandlers['window:confirm-close']?.({ sender: webContents })
     windowHandlers['render-process-gone']?.(
       {} as never,

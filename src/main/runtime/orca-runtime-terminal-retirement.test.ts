@@ -148,6 +148,59 @@ function makePersistedSplitSession(): WorkspaceSessionState {
 }
 
 describe('OrcaRuntimeService terminal surface retirement', () => {
+  it('consumes a spawn owner when the PTY is adopted, preventing resurrection after a move', () => {
+    const runtime = new OrcaRuntimeService()
+    runtime.attachWindow(1)
+    runtime.registerPtyOwnerWindow('pty-moved', 1)
+    const graph = {
+      tabs: [
+        {
+          tabId: 'tab',
+          worktreeId: WORKTREE_ID,
+          title: 'Terminal',
+          activeLeafId: 'leaf',
+          layout: { type: 'leaf' as const, leafId: 'leaf' }
+        }
+      ],
+      leaves: [
+        {
+          tabId: 'tab',
+          worktreeId: WORKTREE_ID,
+          leafId: 'leaf',
+          paneRuntimeId: 1,
+          ptyId: 'pty-moved'
+        }
+      ]
+    }
+    runtime.syncWindowGraph(1, graph)
+    runtime.attachWindow(2)
+    runtime.syncWindowGraph(2, graph)
+    expect(runtime.claimPtyOwnerWindow('pty-moved', 2)).toBe('claimed')
+    runtime.releaseWindow(1)
+    expect(runtime.resolveOwnerWindowIdForPtyId('pty-moved')).toBe(2)
+    runtime.releaseWindow(2)
+    expect(runtime.resolveOwnerWindowIdForPtyId('pty-moved')).toBeNull()
+  })
+
+  it('does not resurrect exited PTY ownership from a stale graph leaf', () => {
+    const runtime = new OrcaRuntimeService()
+    runtime.attachWindow(1)
+    syncSplit(runtime)
+    const changes: unknown[] = []
+    ;(
+      runtime as unknown as { onPtyOwnerWindowsChanged: (changes: unknown[]) => void }
+    ).onPtyOwnerWindowsChanged = (next) => {
+      changes.push(...next)
+    }
+
+    expect(runtime.resolveOwnerWindowIdForPtyId('pty-left')).toBe(1)
+    runtime.onPtyExit('pty-left', 0)
+    runtime.handleWindowScopesChanged()
+
+    expect(runtime.resolveOwnerWindowIdForPtyId('pty-left')).toBeNull()
+    expect(changes).toEqual([{ ptyId: 'pty-left', previousWindowId: 1, nextWindowId: null }])
+  })
+
   it('releases each early-exit fence after its matching registration is rejected', () => {
     const runtime = new OrcaRuntimeService()
     const internals = runtime as unknown as {

@@ -138,6 +138,14 @@ export class OrcaRuntimeWithOnPtyExit extends OrcaRuntimeWithOnClientDisconnecte
     this.providerModeSnapshotScansByPtyId.delete(ptyId)
     this.providerBufferAcquisitionsByPtyId.delete(ptyId)
     this.providerVisibleStateByPtyId.delete(ptyId)
+    // Keep derived owner until rebuild so owner->null diff emits exactly once.
+    this.suppressedPtyOwnerWindowIds.add(ptyId)
+    this.transientPtyOwnerWindowById.delete(ptyId)
+    this.explicitPtyOwnerWindowById.delete(ptyId)
+    this.handleWindowScopesChanged()
+    // Rebuild emits the single owner->null transition; drop the derived entry explicitly so
+    // stale graph publications cannot retain it or satisfy future ownership lookups.
+    this.ptyOwnerWindowById.delete(ptyId)
     this.providerVisibleRetryAtByPtyId.delete(ptyId)
     this.agentPromptExplicitStatusFloorByPtyId.delete(ptyId)
     // Safe against respawn: `getPtyLifecycleGeneration` lazily mints from the

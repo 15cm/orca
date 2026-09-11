@@ -40,6 +40,8 @@ function stateWithLocalScopedTwins(): unknown {
     ],
     worktreesByRepo: { 'repo-1': [makeTwin(), makeTwin('ssh:beta')] },
     filterRepoIds: [],
+    filterGroupIds: [],
+    projectGroups: [],
     showSleepingWorkspaces: true,
     tabsByWorktree: {},
     ptyIdsByTabId: {},

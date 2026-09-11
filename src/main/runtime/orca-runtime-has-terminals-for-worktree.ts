@@ -133,20 +133,44 @@ export class OrcaRuntimeWithHasTerminalsForWorktree extends OrcaRuntimeWithStopE
   }
 
   markGraphUnavailable(windowId: number): void {
+    const hasContribution = this.windowGraphPublications.has(windowId)
     if (
       this.authoritativeWindowId === HEADLESS_RUNTIME_WINDOW_ID &&
       windowId === this.pendingHeadlessPromotionWindowId
     ) {
       this.pendingHeadlessPromotionWindowId = null
+      if (hasContribution) {
+        this.dropWindowGraphContribution(windowId)
+      }
       return
     }
     if (windowId !== this.authoritativeWindowId) {
+      // A secondary close retires only its own publication. The lifecycle may
+      // already have called releaseWindow, so this must be idempotent.
+      if (hasContribution) {
+        this.dropWindowGraphContribution(windowId)
+      }
       return
     }
+    if (hasContribution) {
+      this.dropWindowGraphContribution(windowId)
+    }
     this.graphReloadLifecycle.settleActive('cancelled')
+    // Headless fallback owns recovery precedence over sibling desktop publishers.
     if (this.shouldRestoreHeadlessGraph(windowId)) {
       this.pendingHeadlessPromotionWindowId = null
       this.restoreHeadlessGraphAuthority()
+      return
+    }
+    // Keep the aggregate graph ready when another desktop publisher survives.
+    const successorWindowId = this.nextGraphPublisherWindowId(windowId)
+    if (successorWindowId !== null) {
+      this.authoritativeWindowId = successorWindowId
+      this.rendererGeneration = null
+      this.rendererGraphEpoch += 1
+      this.graphStatus = 'ready'
+      this.setTerminalSideEffectConsumerAvailable(true)
+      this.rejectAllWaiters('terminal_handle_stale')
       return
     }
     // Why: once the authoritative renderer graph disappears, fail closed for live-terminal ops instead of guessing from old state.
@@ -177,5 +201,14 @@ export class OrcaRuntimeWithHasTerminalsForWorktree extends OrcaRuntimeWithStopE
       return
     }
     this.transitionGraphReloadToTerminalState(windowId)
+  }
+
+  protected nextGraphPublisherWindowId(excludedWindowId: number): number | null {
+    for (const windowId of this.windowGraphPublications.keys()) {
+      if (windowId !== excludedWindowId && windowId !== HEADLESS_RUNTIME_WINDOW_ID) {
+        return windowId
+      }
+    }
+    return null
   }
 }

@@ -1,18 +1,11 @@
 import { installRuntimeLinearCommandSurface } from './runtime-linear-command-surface'
 import { OrcaRuntimeWithResolveWaiter } from './orca-runtime-resolve-waiter'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
-import type { PtyOwnerWindowChange } from './window-pty-ownership-priority'
+import type { RuntimeLeafRecord } from './runtime-terminal-state-records'
 
 class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
-  private readonly ptyOwnerWindowById = new Map<string, number>()
-  private readonly onPtyOwnerWindowsChanged?: (changes: PtyOwnerWindowChange[]) => void
-
   constructor(...args: ConstructorParameters<typeof OrcaRuntimeWithResolveWaiter>) {
     super(...args)
-    const deps = args[2] as
-      | { onPtyOwnerWindowsChanged?: (changes: PtyOwnerWindowChange[]) => void }
-      | undefined
-    this.onPtyOwnerWindowsChanged = deps?.onPtyOwnerWindowsChanged
   }
 
   resolveOwnerWindowIdForPtyId(ptyId: string): number | null {
@@ -24,6 +17,10 @@ class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
   }
 
   registerPtyOwnerWindow(ptyId: string, windowId: number): void {
+    if (this.suppressedPtyOwnerWindowIds.has(ptyId)) {
+      return
+    }
+    this.transientPtyOwnerWindowById.set(ptyId, windowId)
     const previousWindowId = this.ptyOwnerWindowById.get(ptyId) ?? null
     this.ptyOwnerWindowById.set(ptyId, windowId)
     if (previousWindowId !== windowId) {
@@ -35,15 +32,20 @@ class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
     ptyId: string,
     windowId: number
   ): 'claimed' | 'already-owner' | 'unavailable' {
-    if (!this.ptyOwnerWindowById.has(ptyId)) {
+    const publication = this.windowGraphPublications.get(windowId)
+    if (
+      !publication ||
+      ![...publication.leafKeys].some((key) => this.leaves.get(key)?.ptyId === ptyId)
+    ) {
       return 'unavailable'
     }
     const previousWindowId = this.ptyOwnerWindowById.get(ptyId) ?? null
     if (previousWindowId === windowId) {
+      this.explicitPtyOwnerWindowById.set(ptyId, windowId)
       return 'already-owner'
     }
-    this.ptyOwnerWindowById.set(ptyId, windowId)
-    this.onPtyOwnerWindowsChanged?.([{ ptyId, previousWindowId, nextWindowId: windowId }])
+    this.explicitPtyOwnerWindowById.set(ptyId, windowId)
+    this.rebuildOwnerWindowIndexes()
     return 'claimed'
   }
 
@@ -54,6 +56,83 @@ class OrcaRuntimeService extends OrcaRuntimeWithResolveWaiter {
   senderWindowOwnsTerminalHandle(handle: string, senderWindowId: number): boolean {
     const leaf = this.resolveLeafForHandle(handle)
     return leaf?.ptyId != null && this.resolveOwnerWindowIdForPtyId(leaf.ptyId) === senderWindowId
+  }
+
+  resolveOwnerWindowIdForTabId(tabId: string): number | null {
+    return this.tabOwnerWindowById.get(tabId) ?? null
+  }
+  resolveOwnerWindowIdForWorktreeTab(worktreeId: string, tabId: string): number | null {
+    return this.tabOwnerWindowByWorktreeAndTabId.get(`${worktreeId}\0${tabId}`) ?? null
+  }
+  resolveOwnerWindowIdForLeaf(tabId: string, leafId: string): number | null {
+    return this.leafOwnerWindowByKey.get(this.getLeafKey(tabId, leafId)) ?? null
+  }
+  resolveOwnerWindowIdForLeafId(leafId: string): number | null {
+    for (const [key, owner] of this.leafOwnerWindowByKey) {
+      if (key.endsWith(`::${leafId}`)) {
+        return owner
+      }
+    }
+    return null
+  }
+  resolveOwnerWindowIdForBrowserPageId(pageId: string): number | null {
+    return this.browserPageOwnerWindowById.get(pageId) ?? null
+  }
+  handleWindowScopesChanged(): void {
+    this.rebuildOwnerWindowIndexes()
+  }
+  /** Drop one renderer's contribution after its native window closes. */
+  releaseWindow(windowId: number): void {
+    this.dropWindowGraphContribution(windowId)
+  }
+
+  /** Retire only leaves unique to a closed publisher; siblings remain live. */
+  protected dropWindowGraphContribution(windowId: number): void {
+    const publication = this.windowGraphPublications.get(windowId)
+    this.windowGraphPublications.delete(windowId)
+    for (const [ptyId, owner] of this.transientPtyOwnerWindowById) {
+      if (owner === windowId) {
+        this.transientPtyOwnerWindowById.delete(ptyId)
+      }
+    }
+    for (const [ptyId, owner] of this.explicitPtyOwnerWindowById) {
+      if (owner === windowId) {
+        this.explicitPtyOwnerWindowById.delete(ptyId)
+      }
+    }
+    if (!publication) {
+      this.rebuildOwnerWindowIndexes()
+      return
+    }
+    const survivingTabs = new Set<string>()
+    const survivingLeaves = new Set<string>()
+    for (const other of this.windowGraphPublications.values()) {
+      other.tabIds.forEach((id) => survivingTabs.add(id))
+      other.leafKeys.forEach((key) => survivingLeaves.add(key))
+    }
+    const retiredLeaves: RuntimeLeafRecord[] = []
+    for (const leafKey of publication.leafKeys) {
+      if (!survivingLeaves.has(leafKey)) {
+        const leaf = this.leaves.get(leafKey)
+        if (leaf) {
+          retiredLeaves.push(leaf)
+        }
+      }
+    }
+    this.rememberDetachedPreAllocatedLeaves(retiredLeaves)
+    for (const leaf of retiredLeaves) {
+      const leafKey = this.getLeafKey(leaf.tabId, leaf.leafId)
+      this.invalidateLeafHandle(leafKey)
+      this.leaves.delete(leafKey)
+    }
+    for (const tabId of publication.tabIds) {
+      if (!survivingTabs.has(tabId)) {
+        this.tabs.delete(tabId)
+      }
+    }
+    this.rebuildLeafPtyIndex()
+    this.rebuildOwnerWindowIndexes()
+    this.refreshWritableFlags()
   }
 }
 type OrcaRuntimeServiceExport = RuntimeCommandSurfaceHost<OrcaRuntimeService>

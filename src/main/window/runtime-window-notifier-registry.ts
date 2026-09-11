@@ -26,10 +26,19 @@ export function hasRuntimeWindowNotifiers(): boolean {
 export function getPreferredRuntimeWindowNotifier(): RuntimeWindowNotifier | null {
   const preferred = getFocusedOrLastActiveMainWindow()
   const preferredNotifier = preferred ? notifiersByWindowId.get(preferred.id) : undefined
-  if (preferredNotifier) {
+  if (preferredNotifier && !preferredNotifier.window.isDestroyed()) {
     return preferredNotifier
   }
-  return notifiersByWindowId.values().next().value ?? null
+  if (preferredNotifier) {
+    notifiersByWindowId.delete(preferred!.id)
+  }
+  for (const [windowId, notifier] of notifiersByWindowId) {
+    if (!notifier.window.isDestroyed()) {
+      return notifier
+    }
+    notifiersByWindowId.delete(windowId)
+  }
+  return null
 }
 
 export function getRuntimeWindowNotifierById(
@@ -53,7 +62,11 @@ export function resolveRuntimeWindowNotifier(
 }
 
 export function broadcastRuntimeWindowNotification(channel: string, ...values: unknown[]): void {
-  for (const notifier of notifiersByWindowId.values()) {
+  for (const [windowId, notifier] of notifiersByWindowId) {
+    if (notifier.window.isDestroyed()) {
+      notifiersByWindowId.delete(windowId)
+      continue
+    }
     notifier.send(channel, ...values)
   }
 }

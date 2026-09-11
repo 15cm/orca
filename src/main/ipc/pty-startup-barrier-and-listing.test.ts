@@ -64,6 +64,7 @@ describe('registerPtyHandlers', () => {
     const runtime = {
       setPtyController: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
       onPtyData: vi.fn(() => 12),
@@ -109,6 +110,7 @@ describe('registerPtyHandlers', () => {
     const runtime = {
       setPtyController: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       noteTerminalSpawnCommand: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
@@ -142,6 +144,7 @@ describe('registerPtyHandlers', () => {
 
     expect(daemonSpawn).toHaveBeenCalledTimes(1)
     expect(result.id).toBe(daemonSpawn.mock.calls[0]?.[0].sessionId)
+    expect(runtime.registerPtyOwnerWindow).toHaveBeenCalledWith(result.id, mainWindow.id)
     expect(spawnMock).not.toHaveBeenCalled()
   })
   it('does not wait on the desktop startup barrier for SSH spawns or kills', async () => {

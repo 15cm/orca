@@ -83,6 +83,7 @@ describe('registerPtyHandlers Codex launch refusal on an unreadable managed home
     return {
       setPtyController: vi.fn(),
       registerPty: vi.fn(),
+      registerPtyOwnerWindow: vi.fn(),
       noteTerminalSpawnCommand: vi.fn(),
       onPtySpawned: vi.fn(),
       onPtyExit: vi.fn(),
@@ -277,10 +278,11 @@ describe('registerPtyHandlers Codex launch refusal on an unreadable managed home
       register(() => TEST_CODEX_HOME, runtime)
       const controller = runtime.setPtyController.mock.calls[0]?.[0] as RuntimeSpawnController
 
-      await controller.spawn({ cols: 80, rows: 24, launchAgent: 'codex' })
+      const spawned = await controller.spawn({ cols: 80, rows: 24, launchAgent: 'codex' })
 
       expect(daemonSpawn).toHaveBeenCalledOnce()
       expect(daemonSpawn.mock.calls[0]?.[0].env).toMatchObject({ CODEX_HOME: TEST_CODEX_HOME })
+      expect(runtime.registerPtyOwnerWindow).toHaveBeenCalledWith(spawned.id, mainWindow.id)
     })
 
     it('refuses the spawn when the first home resolution is indeterminate', async () => {

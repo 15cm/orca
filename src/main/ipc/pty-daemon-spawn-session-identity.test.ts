@@ -153,7 +153,8 @@ describe('registerPtyHandlers', () => {
             controller = next
           }),
           registerPreAllocatedHandleForPty: vi.fn(),
-          registerPty: vi.fn()
+          registerPty: vi.fn(),
+          registerPtyOwnerWindow: vi.fn()
         }
         handlers.clear()
         registerPtyHandlers(mainWindow as never, runtime as never)

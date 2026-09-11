@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ReactI18Next from 'react-i18next'
 import type { FolderWorkspace } from '../../../shared/folder-workspace-types'
+import { encodePaletteIdentity } from '@/lib/palette-match/palette-ranking'
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
 import WorktreeJumpPalette from './WorktreeJumpPalette'
@@ -199,19 +200,21 @@ async function search(query: string): Promise<void> {
   await flushEffects()
 }
 
-function getTabRow(tabId: string): HTMLElement | null {
-  return (
-    [...testContainer.querySelectorAll<HTMLElement>('[data-command-item]')].find((node) =>
-      node.dataset.commandItem?.includes(tabId)
-    ) ?? null
+function workspaceTabItemId(worktreeId: string, tabId: string, executionHostId = ''): string {
+  return encodePaletteIdentity(['workspace-tab', executionHostId, worktreeId, tabId])
+}
+
+function getTabRow(worktreeId: string, tabId: string, executionHostId = ''): HTMLElement | null {
+  return testContainer.querySelector(
+    `[data-command-item="${workspaceTabItemId(worktreeId, tabId, executionHostId)}"]`
   )
 }
 
 function getTabRowIds(): string[] {
+  const workspaceTabPrefix = encodePaletteIdentity(['workspace-tab'])
   return [...testContainer.querySelectorAll<HTMLElement>('[data-command-item]')]
     .map((node) => node.dataset.commandItem ?? '')
-    .filter((id) => id.startsWith('workspace-tab'))
-    .map((id) => id.split('\u0000').at(-1) ?? '')
+    .filter((id) => id.startsWith(workspaceTabPrefix))
 }
 
 describe('WorktreeJumpPalette folder-workspace tabs', () => {
@@ -237,8 +240,8 @@ describe('WorktreeJumpPalette folder-workspace tabs', () => {
     await renderPalette(makeFolderWorkspaceTabState(makeFolderWorkspace()))
     await search('ORCA-42')
 
-    expect(getTabRowIds()).toEqual(['tab-tasks'])
-    expect(getTabRow('tab-tasks')?.textContent).toContain('Tasks')
+    expect(getTabRowIds()).toEqual([workspaceTabItemId(WORKSPACE_KEY, 'tab-tasks', 'local')])
+    expect(getTabRow(WORKSPACE_KEY, 'tab-tasks', 'local')?.textContent).toContain('Tasks')
   })
 
   it('hands the folder workspace key to activation when the row is chosen', async () => {
@@ -246,7 +249,7 @@ describe('WorktreeJumpPalette folder-workspace tabs', () => {
     await search('ORCA-42')
 
     await act(async () => {
-      getTabRow('tab-tasks')?.click()
+      getTabRow(WORKSPACE_KEY, 'tab-tasks', 'local')?.click()
     })
     await flushEffects()
 
@@ -269,7 +272,9 @@ describe('WorktreeJumpPalette folder-workspace tabs', () => {
     )
     await search('ORCA-42')
 
-    const hostChip = getTabRow('tab-tasks')?.querySelector('[data-slot="palette-open-tab-host"]')
+    const hostChip = getTabRow(WORKSPACE_KEY, 'tab-tasks', 'ssh:remote-1')?.querySelector(
+      '[aria-label="Host: build-box"]'
+    )
     expect(hostChip?.textContent).toBe('build-box')
   })
 
@@ -293,6 +298,9 @@ describe('WorktreeJumpPalette folder-workspace tabs', () => {
     )
     await search('ORCA-42')
 
-    expect(getTabRowIds()).toEqual(['tab-tasks', 'tab-alpha'])
+    expect(getTabRowIds()).toEqual([
+      workspaceTabItemId(WORKSPACE_KEY, 'tab-tasks', 'local'),
+      workspaceTabItemId('wt-alpha', 'tab-alpha')
+    ])
   })
 })

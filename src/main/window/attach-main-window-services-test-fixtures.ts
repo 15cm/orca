@@ -1,12 +1,13 @@
 import { vi } from 'vitest'
 import type { Mock } from 'vitest'
 import type { Store } from '../persistence'
+import type { RuntimeNotifier } from '../runtime/runtime-notifier-contract'
 
 export type MockFn = Mock<(...args: never[]) => unknown>
 
 export type RuntimeStub = {
   attachWindow: MockFn
-  setNotifier: MockFn
+  setNotifier: Mock<(notifier: RuntimeNotifier | null) => void>
   markRendererReloading: MockFn
   markRendererReloadCancelled: MockFn
   markGraphReloadFailed: MockFn

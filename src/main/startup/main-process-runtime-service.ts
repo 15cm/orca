@@ -20,6 +20,9 @@ import { prepareCodexRuntimeHomeForLaunch } from './codex-launch-preparation'
 import type { RuntimeDesktopWindowStatus } from '../../shared/runtime-types'
 import { ArtifactCloudService } from '../artifacts/artifact-cloud-service'
 import { SkillCloudService } from '../skills/skill-cloud-service'
+import { handlePtyOwnerWindowsChanged } from '../ipc/pty/delivery/owner-transfer'
+import { getMainWindowById } from '../window/main-window-registry'
+import { resolveWindowScopeForWebContents } from '../window/window-view-state-registry'
 import { isArtifactSharingEnabled } from '../../shared/artifact-sharing-gate'
 import {
   AgentStatusObservedPaneIdentities,
@@ -84,6 +87,13 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
       }
     },
     getDesktopWindowStatus,
+    resolveWindowProjectGroupId: (windowId) => {
+      const window = getMainWindowById(windowId)
+      return window
+        ? (resolveWindowScopeForWebContents(window.webContents.id)?.projectGroupId ?? null)
+        : null
+    },
+    onPtyOwnerWindowsChanged: handlePtyOwnerWindowsChanged,
     // Why: worktree.ps pulls hook-reported agent status (same source as the desktop sidebar) at query time so mobile shows the same agents.
     getAgentStatusSnapshot: () =>
       agentHookServer.getStatusSnapshot().filter((entry) => entry.providerSessionOnly !== true),

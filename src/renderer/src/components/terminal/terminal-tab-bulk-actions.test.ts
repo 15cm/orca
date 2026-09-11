@@ -74,7 +74,7 @@ describe('adopted native-chat disposal in legacy terminal bulk actions', () => {
 
     await closeOtherTerminalTabs('keep', 'wt-1')
 
-    expect(mocks.closeTab).toHaveBeenCalledWith('close-a')
+    expect(mocks.closeLocalTerminalTabState).toHaveBeenCalledWith('close-a', {})
     expect(mocks.closeStructuredTerminalSessionWithRetry).toHaveBeenCalledWith(
       { kind: 'local' },
       'codex-adopted-1'
@@ -106,7 +106,7 @@ describe('adopted native-chat disposal in legacy terminal bulk actions', () => {
 
     await closeTerminalTabsToRight('keep', 'wt-1')
 
-    expect(mocks.closeTab).toHaveBeenCalledWith('close-a')
+    expect(mocks.closeLocalTerminalTabState).toHaveBeenCalledWith('close-a', {})
     expect(mocks.closeStructuredTerminalSessionWithRetry).toHaveBeenCalledWith(
       { kind: 'local' },
       'codex-adopted-2'

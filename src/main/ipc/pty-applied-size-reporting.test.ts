@@ -203,7 +203,8 @@ describe('registerPtyHandlers', () => {
           controller = next
         }),
         registerPreAllocatedHandleForPty: vi.fn(),
-        registerPty: vi.fn()
+        registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn()
       }
       handlers.clear()
       registerPtyHandlers(mainWindow as never, runtime as never)
@@ -238,6 +239,7 @@ describe('registerPtyHandlers', () => {
         setPtyController: vi.fn(),
         createPreAllocatedTerminalHandle: vi.fn(() => null),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         getDriver: vi.fn(() => ({ kind: 'host' })),
         isResizeSuppressed: vi.fn(() => false),
         onPtySpawned: vi.fn(),
@@ -269,6 +271,7 @@ describe('registerPtyHandlers', () => {
         setPtyController: vi.fn(),
         createPreAllocatedTerminalHandle: vi.fn(() => null),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         getDriver: vi.fn(() => ({ kind: 'host' })),
         isResizeSuppressed: vi.fn(() => false),
         onPtySpawned: vi.fn(),
@@ -292,6 +295,7 @@ describe('registerPtyHandlers', () => {
         setPtyController: vi.fn(),
         createPreAllocatedTerminalHandle: vi.fn(() => null),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         getDriver: vi.fn(() => ({ kind: 'idle' })),
         // The fix: a PTY with a remote viewer reports true even though driver state stays idle/desktop.
         isRemoteDesktopResizeDriven: vi.fn(() => true),
@@ -340,6 +344,7 @@ describe('registerPtyHandlers', () => {
         setPtyController: vi.fn(),
         createPreAllocatedTerminalHandle: vi.fn(() => null),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         getDriver: vi.fn(() => ({ kind: 'idle' })),
         claimRemoteDesktopHost: vi.fn().mockResolvedValue(false),
         onPtySpawned: vi.fn(),
@@ -366,6 +371,7 @@ describe('registerPtyHandlers', () => {
         setPtyController: vi.fn(),
         createPreAllocatedTerminalHandle: vi.fn(() => null),
         registerPty: vi.fn(),
+        registerPtyOwnerWindow: vi.fn(),
         getDriver: vi.fn(() => ({ kind: 'mobile', clientId: 'phone-A' })),
         isRemoteDesktopResizeDriven: vi.fn(() => false),
         isResizeSuppressed: vi.fn(() => false),

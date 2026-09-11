@@ -69,6 +69,10 @@ export type PtyIpcTestWebContents = {
 
 /** The mocked BrowserWindow handed to registerPtyHandlers. */
 export type PtyIpcTestMainWindow = {
+  id: number
+  on: Mock
+  once: Mock
+  removeListener: Mock
   isDestroyed: () => boolean
   isFocused: () => boolean
   isVisible: () => boolean

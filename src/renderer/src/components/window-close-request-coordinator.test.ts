@@ -22,6 +22,7 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
 
 describe('window-close-request-coordinator', () => {
   const confirmWindowClose = vi.fn()
+  const cancelWindowClose = vi.fn()
   const unregisterFns: (() => void)[] = []
 
   const addGuard = (guard: () => boolean | Promise<boolean>): void => {
@@ -30,13 +31,14 @@ describe('window-close-request-coordinator', () => {
 
   beforeEach(() => {
     confirmWindowClose.mockClear()
+    cancelWindowClose.mockClear()
     vi.mocked(toast.error).mockClear()
     // Why: dispatch falls back to the preload bridge when no rich handler is
-    // registered; stub just the surface it touches.
+    // registered; stub the preload surface it touches.
     const windowTarget = new EventTarget() as EventTarget & {
-      api: { ui: { confirmWindowClose: () => void } }
+      api: { ui: { confirmWindowClose: () => void; cancelWindowClose: () => void } }
     }
-    windowTarget.api = { ui: { confirmWindowClose } }
+    windowTarget.api = { ui: { confirmWindowClose, cancelWindowClose } }
     ;(globalThis as unknown as { window: typeof windowTarget }).window = windowTarget
   })
 
@@ -146,6 +148,7 @@ describe('window-close-request-coordinator', () => {
 
     expect(confirmWindowClose).not.toHaveBeenCalled()
     expect(handler).not.toHaveBeenCalled()
+    expect(cancelWindowClose).toHaveBeenCalledTimes(1)
     expect(toast.error).not.toHaveBeenCalled()
   })
 

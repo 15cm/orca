@@ -4,6 +4,7 @@ import type { RuntimeStore } from './runtime-store-contract'
 import type { StatsCollector } from '../stats/collector'
 import type { IPtyProvider } from '../providers/types'
 import type { RuntimeTerminalAgentStatusEvent } from './runtime-terminal-contracts'
+import type { PtyOwnerWindowChange } from './window-pty-ownership-priority'
 import type { TerminalSideEffectBatch } from '../../shared/terminal-side-effect-facts'
 import type { AgentStatusIpcPayload } from '../../shared/agent-status-types'
 import type { StructuredAgentSessionStatusSink } from '../native-chat/agent-session-wire/structured-agent-session-status-feed'
@@ -89,13 +90,15 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
       buildAgentHookPtyEnv?: () => Record<string, string>
       getDesktopWindowStatus?: () => RuntimeDesktopWindowStatus
       resolveWindowProjectGroupId?: (windowId: number) => string | null
-      onPtyOwnerWindowsChanged?: (changes: unknown[]) => void
+      onPtyOwnerWindowsChanged?: (changes: readonly PtyOwnerWindowChange[]) => void
       agentSessionClaimSigner?: AgentSessionClaimSigner
       skillTransactionRecovery?: Promise<unknown>
       orchestrationEnvironmentTransport?: OrchestrationEnvironmentTransport
     }
   ) {
     super()
+    this.resolveWindowProjectGroupIdFn = deps?.resolveWindowProjectGroupId ?? null
+    this.onPtyOwnerWindowsChanged = deps?.onPtyOwnerWindowsChanged ?? null
     this.store = store
     store?.onSettingsChanged?.((updates) => {
       if ('experimentalStructuredNativeChat' in updates) {

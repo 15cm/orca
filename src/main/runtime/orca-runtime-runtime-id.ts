@@ -52,6 +52,7 @@ import {
 } from './orca-runtime-postlude'
 import { RuntimeTerminalWait as RuntimeTerminalWaitController } from './runtime-terminal-wait'
 import type { PtyLivenessVerdict } from '../../shared/pty-liveness-verdict'
+import type { PtyOwnerWindowChange } from './window-pty-ownership-priority'
 
 export class OrcaRuntimeWithRuntimeId {
   protected readonly runtimeId = randomUUID()
@@ -81,6 +82,26 @@ export class OrcaRuntimeWithRuntimeId {
   protected pendingHeadlessPromotionWindowId: number | null = null
 
   protected rendererGeneration: string | null = null
+
+  /** Per-window graph contributions; ownership is derived from these publications. */
+  protected windowGraphPublications = new Map<
+    number,
+    {
+      tabIds: Set<string>
+      leafKeys: Set<string>
+      browserPageIds: Set<string>
+    }
+  >()
+  protected tabOwnerWindowById = new Map<string, number>()
+  protected tabOwnerWindowByWorktreeAndTabId = new Map<string, number>()
+  protected leafOwnerWindowByKey = new Map<string, number>()
+  protected ptyOwnerWindowById = new Map<string, number>()
+  protected suppressedPtyOwnerWindowIds = new Set<string>()
+  protected transientPtyOwnerWindowById = new Map<string, number>()
+  protected explicitPtyOwnerWindowById = new Map<string, number>()
+  protected browserPageOwnerWindowById = new Map<string, number>()
+  protected resolveWindowProjectGroupIdFn: ((windowId: number) => string | null) | null = null
+  protected onPtyOwnerWindowsChanged: ((changes: PtyOwnerWindowChange[]) => void) | null = null
 
   protected readonly graphReloadLifecycle = new RuntimeGraphReloadLifecycle({
     timeoutMs: RUNTIME_GRAPH_RELOAD_TIMEOUT_MS,

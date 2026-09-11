@@ -10,6 +10,36 @@ export const notificationShowMock: MainWindowSpy = vi.fn()
 export const browserWindowMock: Mock<
   (options: Electron.BrowserWindowConstructorOptions) => unknown
 > = vi.fn()
+
+// Local fixtures intentionally model only the APIs under test; fill the registry lifecycle surface centrally.
+const browserWindowMockImplementation = browserWindowMock.mockImplementation.bind(browserWindowMock)
+browserWindowMock.mockImplementation = ((factory: (...args: unknown[]) => unknown) =>
+  browserWindowMockImplementation(function (...args: unknown[]) {
+    const instance = factory(...args)
+    if (!instance || typeof instance !== 'object') {
+      return instance
+    }
+    const windowLike = instance as Record<string, unknown>
+    if (typeof windowLike.once !== 'function') {
+      windowLike.once = vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        const onceHandler = (...eventArgs: unknown[]) => {
+          const removeListener = windowLike.removeListener
+          if (typeof removeListener === 'function') {
+            removeListener.call(windowLike, event, onceHandler)
+          }
+          handler(...eventArgs)
+        }
+        const on = windowLike.on
+        if (typeof on === 'function') {
+          on.call(windowLike, event, onceHandler)
+        }
+      })
+    }
+    if (typeof windowLike.removeListener !== 'function') {
+      windowLike.removeListener = vi.fn()
+    }
+    return instance
+  })) as typeof browserWindowMock.mockImplementation
 export const openExternalMock: MainWindowSpy = vi.fn()
 export const attachGuestPoliciesMock: MainWindowSpy = vi.fn()
 export const attachRouteGuestMock: MainWindowSpy = vi.fn(() => false)

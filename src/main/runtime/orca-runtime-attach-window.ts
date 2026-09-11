@@ -19,6 +19,13 @@ export class OrcaRuntimeWithAttachWindow extends OrcaRuntimeWithNotifySshStateCh
       this.persistWindowlessPtyBindingsForDesktopAttach()
       this.pendingHeadlessPromotionWindowId = windowId
       this.authoritativeWindowId = windowId
+      if (!this.windowGraphPublications.has(windowId)) {
+        this.windowGraphPublications.set(windowId, {
+          tabIds: new Set(),
+          leafKeys: new Set(),
+          browserPageIds: new Set()
+        })
+      }
       this.beginGraphReload(windowId)
       return
     }
@@ -27,6 +34,13 @@ export class OrcaRuntimeWithAttachWindow extends OrcaRuntimeWithNotifySshStateCh
       // background PTYs keep arriving; every windowless gap needs this handoff.
       this.persistWindowlessPtyBindingsForDesktopAttach()
       this.authoritativeWindowId = windowId
+    }
+    if (!this.windowGraphPublications.has(windowId)) {
+      this.windowGraphPublications.set(windowId, {
+        tabIds: new Set(),
+        leafKeys: new Set(),
+        browserPageIds: new Set()
+      })
     }
   }
 

@@ -247,6 +247,7 @@ describe('registerPtyHandlers', () => {
           setPtyController: vi.fn(),
           onPtyExit: vi.fn(),
           registerPty: vi.fn(),
+          registerPtyOwnerWindow: vi.fn(),
           onPtySpawned: vi.fn()
         }
         handlers.clear()

@@ -196,11 +196,16 @@ export class OrcaRuntimeWithStopTerminalsForWorktree extends OrcaRuntimeWithReso
       options.resolvedRuntimeEnvironmentId !== undefined
         ? options
         : this.getWorktreeHostFence(worktree)
-    const ptyIds = this.collectWorktreePtyIds(worktree.id, hostFence).filter(
-      (ptyId) =>
+    const collectedPtyIds = this.collectWorktreePtyIds(worktree.id, hostFence)
+    const ptyIds: string[] = []
+    for (const ptyId of collectedPtyIds) {
+      if (
         options.senderWindowId === undefined ||
         this.resolveOwnerWindowIdForPtyId?.(ptyId) === options.senderWindowId
-    )
+      ) {
+        ptyIds.push(ptyId)
+      }
+    }
 
     let stopped = 0
     for (const ptyId of ptyIds) {
