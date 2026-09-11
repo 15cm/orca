@@ -13,7 +13,9 @@ const storeMock = vi.hoisted(() => ({
   state: {
     keybindings: {},
     unifiedTabsByWorktree: {},
-    groupsByWorktree: {}
+    groupsByWorktree: {},
+    worktreesByRepo: {},
+    folderWorkspaces: []
   } as Record<string, unknown>
 }))
 
@@ -156,6 +158,8 @@ beforeEach(() => {
   storeMock.state = {
     keybindings: {},
     dropUnifiedTab: storeMock.dropUnifiedTab,
+    worktreesByRepo: {},
+    folderWorkspaces: [],
     groupsByWorktree: {
       'wt-1': [
         {

@@ -26,6 +26,7 @@ import type { OpenFile } from '../../store/slices/editor'
 import { shouldBlockEditorTabLocalOpen } from './editor-tab-local-open-guard'
 import { translate } from '@/i18n/i18n'
 import { TabWorkspaceLayoutMenuSection } from './TabWorkspaceLayoutMenuSection'
+import { TabMoveToWorkspaceMenuSection } from './TabMoveToWorkspaceMenuSection'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
 
 const isMac = navigator.userAgent.includes('Mac')
@@ -132,11 +133,8 @@ export function EditorFileTabContextMenu({
           onOpenRenameInput()
         }}
       >
-        <TabWorkspaceLayoutMenuSection
-          unifiedTabId={unifiedTabId}
-          groupId={groupId}
-          trailingSeparator
-        />
+        <TabWorkspaceLayoutMenuSection unifiedTabId={unifiedTabId} groupId={groupId} />
+        <TabMoveToWorkspaceMenuSection unifiedTabId={unifiedTabId} trailingSeparator />
         <DropdownMenuItem
           disabled={!canRename || isRenaming}
           onSelect={() => {

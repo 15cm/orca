@@ -14753,6 +14753,13 @@
         "EditorFileTabContextMenu": {
           "closeOthers": "その他を閉じる",
           "closeTabsToLeft": "左側のタブを閉じる"
+        },
+        "TabMoveToWorkspaceMenuSection": {
+          "moveToWorkspace": "ワークスペースへ移動"
+        },
+        "tabMoveToWorkspace": {
+          "moved": "タブを {{workspace}} に移動しました",
+          "keepsWorkingDirectory": "実行中のプロセスは作業ディレクトリを維持します: {{path}}"
         }
       }
     },

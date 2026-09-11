@@ -15,6 +15,7 @@ const TAB_MENU_SOURCES = [
   'SortableTabContextMenu.tsx',
   'BrowserTab.tsx',
   'TabWorkspaceLayoutMenuSection.tsx',
+  'TabMoveToWorkspaceMenuSection.tsx',
   'TerminalTabSplitMenuSection.tsx'
 ] as const
 

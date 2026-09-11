@@ -66,6 +66,12 @@ vi.mock('lucide-react', () => ({
   ExternalLink: function ExternalLink(props: Record<string, unknown>) {
     return { type: 'ExternalLink', props }
   },
+  FolderInput: function FolderInput(props: Record<string, unknown>) {
+    return { type: 'FolderInput', props }
+  },
+  FolderSymlink: function FolderSymlink(props: Record<string, unknown>) {
+    return { type: 'FolderSymlink', props }
+  },
   Globe: function Globe(props: Record<string, unknown>) {
     return { type: 'Globe', props }
   },

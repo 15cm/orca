@@ -18,6 +18,8 @@ import type { AgentKind, LaunchSource, RequestKind } from '../../shared/telemetr
 import type { PreloadApi } from '../api-types'
 
 export const ptySessionControlApi = {
+  rehomeTabWorktree: (tabId: string, worktreeId: string): Promise<{ rehomedPtyIds: string[] }> =>
+    ipcRenderer.invoke('pty:rehomeTabWorktree', { tabId, worktreeId }),
   spawn: (opts: {
     cols: number
     rows: number

@@ -14831,6 +14831,13 @@
         "EditorFileTabContextMenu": {
           "closeOthers": "다른 탭 닫기",
           "closeTabsToLeft": "왼쪽으로 탭 닫기"
+        },
+        "TabMoveToWorkspaceMenuSection": {
+          "moveToWorkspace": "워크스페이스로 이동"
+        },
+        "tabMoveToWorkspace": {
+          "moved": "탭을 {{workspace}}(으)로 이동했습니다",
+          "keepsWorkingDirectory": "실행 중인 프로세스는 작업 디렉터리를 유지합니다: {{path}}"
         }
       }
     },

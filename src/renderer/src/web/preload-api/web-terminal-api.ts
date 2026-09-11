@@ -44,6 +44,7 @@ export function createPtyApi(): NonNullable<Partial<PreloadApi>['pty']> {
     getAuthoritativeBufferSnapshotCapabilities: (ids) =>
       Promise.resolve(ids.map((id) => ({ id, authoritative: false }))),
     hasPty: () => Promise.resolve(null),
+    rehomeTabWorktree: () => Promise.resolve({ rehomedPtyIds: [] }),
     getMainBufferSnapshot: () => Promise.resolve(null),
     // Why: remote-runtime PTYs skip local main (no side-effect source); renderer byte parsing stays authoritative.
     onSideEffect: () => noopUnsubscribe,

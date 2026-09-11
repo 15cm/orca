@@ -4,8 +4,20 @@ import type { TerminalWaiter } from './runtime-terminal-contracts'
 import type { RuntimeTerminalWait } from '../../shared/runtime-types'
 import type { BrowserWindow } from 'electron'
 import { getRuntimeDesktopSurface } from './runtime-desktop-surface'
+import { rehomeTerminalTabWorktreeRecords } from './terminal-tab-worktree-rehome'
 
 export class OrcaRuntimeWithResolveWaiter extends OrcaRuntimeWithDeliverPendingMessages {
+  rehomeTerminalTabWorktree(tabId: string, worktreeId: string): { rehomedPtyIds: string[] } {
+    const rehomedPtyIds = rehomeTerminalTabWorktreeRecords(
+      { tabs: this.tabs, leaves: this.leaves, ptys: this.ptysById },
+      tabId,
+      worktreeId
+    )
+    for (const ptyId of rehomedPtyIds) {
+      this.recordPtyWorktree(ptyId, worktreeId)
+    }
+    return { rehomedPtyIds }
+  }
   protected resolveWaiter(waiter: TerminalWaiter, result: RuntimeTerminalWait): void {
     this.terminalWaiters.resolve(waiter, result)
   }

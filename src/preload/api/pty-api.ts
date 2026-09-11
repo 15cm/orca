@@ -128,6 +128,9 @@ export type PtyApi = {
     ids: string[]
   ) => Promise<{ id: string; authoritative: boolean | null }[]>
   hasPty: (id: string) => Promise<boolean | null>
+  /** Re-keys a live terminal tab's workspace binding in main after a
+   *  cross-workspace tab move. Never respawns or reattaches the PTY. */
+  rehomeTabWorktree: (tabId: string, worktreeId: string) => Promise<{ rehomedPtyIds: string[] }>
   getMainBufferSnapshot: (
     id: string,
     opts?: { scrollbackRows?: number }

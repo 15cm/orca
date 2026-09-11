@@ -17293,6 +17293,13 @@
         "EditorFileTabContextMenu": {
           "closeOthers": "Close Others",
           "closeTabsToLeft": "Close Tabs To The Left"
+        },
+        "TabMoveToWorkspaceMenuSection": {
+          "moveToWorkspace": "Move to Workspace"
+        },
+        "tabMoveToWorkspace": {
+          "moved": "Tab moved to {{workspace}}",
+          "keepsWorkingDirectory": "The running process keeps its working directory: {{path}}"
         }
       }
     },

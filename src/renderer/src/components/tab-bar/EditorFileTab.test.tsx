@@ -57,65 +57,7 @@ vi.mock('@dnd-kit/sortable', () => ({
   })
 }))
 
-vi.mock('lucide-react', () => ({
-  ArrowDown: function ArrowDown(props: Record<string, unknown>) {
-    return { type: 'ArrowDown', props }
-  },
-  ArrowLeft: function ArrowLeft(props: Record<string, unknown>) {
-    return { type: 'ArrowLeft', props }
-  },
-  ArrowRight: function ArrowRight(props: Record<string, unknown>) {
-    return { type: 'ArrowRight', props }
-  },
-  ArrowUp: function ArrowUp(props: Record<string, unknown>) {
-    return { type: 'ArrowUp', props }
-  },
-  Columns2: function Columns2(props: Record<string, unknown>) {
-    return { type: 'Columns2', props }
-  },
-  CopyX: function CopyX(props: Record<string, unknown>) {
-    return { type: 'CopyX', props }
-  },
-  PanelLeftClose: function PanelLeftClose(props: Record<string, unknown>) {
-    return { type: 'PanelLeftClose', props }
-  },
-  Copy: function Copy(props: Record<string, unknown>) {
-    return { type: 'Copy', props }
-  },
-  ExternalLink: function ExternalLink(props: Record<string, unknown>) {
-    return { type: 'ExternalLink', props }
-  },
-  Eye: function Eye(props: Record<string, unknown>) {
-    return { type: 'Eye', props }
-  },
-  ListX: function ListX(props: Record<string, unknown>) {
-    return { type: 'ListX', props }
-  },
-  PanelRightClose: function PanelRightClose(props: Record<string, unknown>) {
-    return { type: 'PanelRightClose', props }
-  },
-  GitCompareArrows: function GitCompareArrows(props: Record<string, unknown>) {
-    return { type: 'GitCompareArrows', props }
-  },
-  Pencil: function Pencil(props: Record<string, unknown>) {
-    return { type: 'Pencil', props }
-  },
-  Pin: function Pin(props: Record<string, unknown>) {
-    return { type: 'Pin', props }
-  },
-  PinOff: function PinOff(props: Record<string, unknown>) {
-    return { type: 'PinOff', props }
-  },
-  Rows2: function Rows2(props: Record<string, unknown>) {
-    return { type: 'Rows2', props }
-  },
-  ShieldAlert: function ShieldAlert(props: Record<string, unknown>) {
-    return { type: 'ShieldAlert', props }
-  },
-  X: function X(props: Record<string, unknown>) {
-    return { type: 'X', props }
-  }
-}))
+vi.mock('lucide-react', async () => (await import('./lucide-icon-stub-fixture')).stubEveryIcon())
 
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: function DropdownMenu(props: { children?: unknown }) {

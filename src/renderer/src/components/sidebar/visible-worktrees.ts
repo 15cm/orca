@@ -1,4 +1,14 @@
 import type { Repo } from '../../../../shared/repo-types'
+import {
+  getPublishedVisibleWorktreeIds,
+  getPublishedVisibleWorktreeShortcutTargets,
+  type VisibleWorktreeShortcutTarget
+} from './rendered-sidebar-worktree-publication'
+export {
+  setVisibleWorktreeIds,
+  setVisibleWorktreeShortcutTargets,
+  type VisibleWorktreeShortcutTarget
+} from './rendered-sidebar-worktree-publication'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { WorktreeLineage } from '../../../../shared/worktree/lineage-types'
 export type { SidebarFilterState } from './visible-worktree-kinds'
@@ -227,37 +237,6 @@ export function computeVisibleWorktreeIds(
 }
 
 /**
- * Module-level cache of the visible worktree IDs as last computed by
- * WorktreeList's render pipeline.
- *
- * Why: WorktreeList freezes its sort order via sortedIds / sortEpoch useMemo
- * and only re-sorts when sortEpoch bumps. If getVisibleWorktreeIds()
- * recomputes sort order from a live Zustand snapshot, the Cmd+1–9 shortcut
- * could target a different worktree than what's rendered at that sidebar
- * position. By caching the IDs that WorktreeList actually rendered, the
- * shortcut numbering always matches the sidebar card order.
- *
- * Why null vs []: [] is a real rendered order (everything collapsed/filtered);
- * null means WorktreeList is unmounted.
- */
-let _publishedVisibleIds: string[] | null = null
-export type VisibleWorktreeShortcutTarget = {
-  id: string
-  executionHostId?: Worktree['hostId']
-}
-let _publishedVisibleShortcutTargets: VisibleWorktreeShortcutTarget[] | null = null
-
-export function setVisibleWorktreeIds(ids: string[] | null): void {
-  _publishedVisibleIds = ids
-}
-
-export function setVisibleWorktreeShortcutTargets(
-  targets: VisibleWorktreeShortcutTarget[] | null
-): void {
-  _publishedVisibleShortcutTargets = targets
-}
-
-/**
  * Compute the visible worktree IDs on-demand from the current Zustand store
  * state. Called by the App-level Cmd+1–9 handler (not a React hook — reads
  * store snapshot at call time).
@@ -303,8 +282,9 @@ export function buildVisibleWorktreeOptionsFromState(
 
 export function getVisibleWorktreeIds(): string[] {
   // Prefer the published IDs that mirror the rendered sidebar order.
-  if (_publishedVisibleIds) {
-    return _publishedVisibleIds
+  const published = getPublishedVisibleWorktreeIds()
+  if (published) {
+    return published
   }
 
   const state = useAppStore.getState()
@@ -356,8 +336,9 @@ export function getVisibleWorktreeIds(): string[] {
 }
 
 export function getVisibleWorktreeShortcutTargets(): VisibleWorktreeShortcutTarget[] {
-  if (_publishedVisibleShortcutTargets) {
-    return _publishedVisibleShortcutTargets
+  const publishedTargets = getPublishedVisibleWorktreeShortcutTargets()
+  if (publishedTargets) {
+    return publishedTargets
   }
   const state = useAppStore.getState()
   const visibleIds = getVisibleWorktreeIds()

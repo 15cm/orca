@@ -8,10 +8,12 @@ import type {
 } from '../../../../../shared/tab-types'
 import type { WorkspaceSessionState } from '../../../../../shared/workspace-session-state-types'
 import type { WorkspaceSessionHydrationOptions } from '@/lib/workspace-session-hydration-keys'
+import type { TabWorkspaceMove } from '../tab-workspace-move'
 
 export type TabSplitDirection = 'left' | 'right' | 'up' | 'down'
 
 export type TabsSlice = {
+  moveUnifiedTabToWorkspace: (tabId: string, targetWorktreeId: string) => TabWorkspaceMove | null
   unifiedTabsByWorktree: Record<string, Tab[]>
   groupsByWorktree: Record<string, TabGroup[]>
   activeGroupIdByWorktree: Record<string, string>

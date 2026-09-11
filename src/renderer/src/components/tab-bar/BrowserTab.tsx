@@ -35,6 +35,7 @@ import { preventMiddleButtonDefault } from './middle-button-default-guard'
 import { translate } from '@/i18n/i18n'
 import { TAB_CONTAINER_WIDTH_CLASSES, TAB_LABEL_WIDTH_CLASSES } from './tab-width-rules'
 import { TabWorkspaceLayoutMenuSection } from './TabWorkspaceLayoutMenuSection'
+import { TabMoveToWorkspaceMenuSection } from './TabMoveToWorkspaceMenuSection'
 import { useTabStripPointerActivation } from './tab-strip-pointer-activation'
 import { TAB_CONTEXT_MENU_CONTENT_CLASS } from './tab-context-menu-sizing'
 import { cn } from '@/lib/utils'
@@ -263,8 +264,8 @@ export default function BrowserTab({
           <TabWorkspaceLayoutMenuSection
             unifiedTabId={dragData.unifiedTabId}
             groupId={dragData.groupId}
-            trailingSeparator
           />
+          <TabMoveToWorkspaceMenuSection unifiedTabId={dragData.unifiedTabId} trailingSeparator />
           {onDuplicate ? (
             <>
               <DropdownMenuItem onSelect={onDuplicate}>

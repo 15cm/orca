@@ -14718,6 +14718,13 @@
         "EditorFileTabContextMenu": {
           "closeOthers": "Cerrar otras",
           "closeTabsToLeft": "Cerrar pestañas a la izquierda"
+        },
+        "TabMoveToWorkspaceMenuSection": {
+          "moveToWorkspace": "Mover a workspace"
+        },
+        "tabMoveToWorkspace": {
+          "moved": "Pestaña movida a {{workspace}}",
+          "keepsWorkingDirectory": "El proceso en ejecución conserva su directorio de trabajo: {{path}}"
         }
       }
     },

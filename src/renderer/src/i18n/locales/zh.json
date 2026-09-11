@@ -14796,6 +14796,13 @@
         "EditorFileTabContextMenu": {
           "closeOthers": "关闭其他",
           "closeTabsToLeft": "关闭左侧的选项卡"
+        },
+        "TabMoveToWorkspaceMenuSection": {
+          "moveToWorkspace": "移动到工作区"
+        },
+        "tabMoveToWorkspace": {
+          "moved": "标签页已移动到 {{workspace}}",
+          "keepsWorkingDirectory": "正在运行的进程保留其工作目录：{{path}}"
         }
       }
     },

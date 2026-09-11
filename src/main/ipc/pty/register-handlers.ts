@@ -111,6 +111,7 @@ export function registerPtyHandlers(
   ipcMain.removeHandler('pty:kill')
   ipcMain.removeHandler('pty:listSessions')
   ipcMain.removeHandler('pty:hasPty')
+  ipcMain.removeHandler('pty:rehomeTabWorktree')
   ipcMain.removeHandler('pty:hasChildProcesses')
   ipcMain.removeHandler('pty:getForegroundProcess')
   ipcMain.removeHandler('pty:inspectProcess')
@@ -128,6 +129,17 @@ export function registerPtyHandlers(
   ipcMain.removeHandler('pty:resetRendererDeliveryDebug')
   ipcMain.removeHandler('pty:reportRendererDeliveryState')
   ipcMain.removeHandler('pty:writeAccepted')
+  ipcMain.handle(
+    'pty:rehomeTabWorktree',
+    async (_event, args: { tabId: string; worktreeId: string }) => {
+      if (!args?.tabId || !args?.worktreeId) {
+        return { rehomedPtyIds: [] }
+      }
+      return (
+        runtime?.rehomeTerminalTabWorktree(args.tabId, args.worktreeId) ?? { rehomedPtyIds: [] }
+      )
+    }
+  )
   ipcMain.removeAllListeners('pty:write')
   ipcMain.removeAllListeners('pty:ackColdRestore')
   ipcMain.removeAllListeners('pty:ackData')
