@@ -21,6 +21,10 @@ import {
   isWorkspaceFromOtherDevice
 } from '@/components/sidebar/workspace-creator-visibility'
 import type { Worktree } from '../../../shared/worktree/types'
+import {
+  collectPaletteTabIndexWorkspaces,
+  excludePaletteFolderWorkspaces
+} from './cmd-j/palette-folder-workspace-tab-index'
 import { EMPTY_SORTED_WORKTREES } from './worktree-jump-palette-model'
 import type { WorktreeJumpPaletteFilter } from './use-worktree-jump-palette-filter'
 import type { WorktreeJumpPaletteLocalState } from './use-worktree-jump-palette-local-state'
@@ -28,7 +32,6 @@ import type { WorktreeJumpPaletteStoreState } from './use-worktree-jump-palette-
 import { buildWorktreeJumpPaletteDocumentIndex } from './worktree-jump-palette-document-index'
 import { buildWorktreeJumpPaletteWorktreeMaps } from './worktree-jump-palette-worktree-maps'
 import type { PaletteSearchContext } from '@/lib/palette-match/palette-ranking'
-
 type WorktreeJumpPaletteWorktreesInput = WorktreeJumpPaletteStoreState &
   Pick<
     WorktreeJumpPaletteFilter,
@@ -37,7 +40,6 @@ type WorktreeJumpPaletteWorktreesInput = WorktreeJumpPaletteStoreState &
   Pick<WorktreeJumpPaletteLocalState, 'paletteSearchQuery'> & {
     paletteSearchContext: PaletteSearchContext
   }
-
 export function useWorktreeJumpPaletteWorktrees({
   paletteSearchQuery,
   paletteSearchContext,
@@ -46,6 +48,7 @@ export function useWorktreeJumpPaletteWorktrees({
   agentStatusByPaneKey,
   tabsByWorktree,
   allWorktrees,
+  folderWorkspaces,
   filterPredicate,
   hideDefaultBranchWorkspace,
   hideAutomationGeneratedWorkspaces,
@@ -80,8 +83,6 @@ export function useWorktreeJumpPaletteWorktrees({
   const worktreeIdsWithLiveAgent = useMemo(
     () =>
       new Set(
-        // The palette recomputes this snapshot when status inputs change; the
-        // clock intentionally reflects the render that performs that snapshot.
         // oxlint-disable-next-line react/purity
         getLiveAgentStatusByWorktreeId(agentStatusByPaneKey, tabsByWorktree, Date.now()).keys()
       ),
@@ -176,13 +177,14 @@ export function useWorktreeJumpPaletteWorktrees({
     })
     return hasQuery && filterPredicate ? scope.filter(filterPredicate.matchesWorktree) : scope
   }, [allWorktrees, filterPredicate, hasQuery, switchableWorktreesForRows])
-  const browserSortedWorktrees = useMemo(() => {
+  const paletteTabIndexWorkspaces = useMemo(() => {
     if (!paletteStatusInputsActive) {
       return EMPTY_SORTED_WORKTREES
     }
+    const tabWorkspaces = collectPaletteTabIndexWorkspaces(allWorktrees, folderWorkspaces)
     const scope = filterPredicate
-      ? allWorktrees.filter(filterPredicate.matchesWorktree)
-      : allWorktrees
+      ? tabWorkspaces.filter(filterPredicate.matchesWorktree)
+      : tabWorkspaces
     return sortWorktreesSmart(
       scope,
       tabsByWorktree,
@@ -196,6 +198,7 @@ export function useWorktreeJumpPaletteWorktrees({
   }, [
     paletteStatusInputsActive,
     allWorktrees,
+    folderWorkspaces,
     filterPredicate,
     tabsByWorktree,
     repoMap,
@@ -205,6 +208,10 @@ export function useWorktreeJumpPaletteWorktrees({
     migrationUnsupportedByPtyId,
     terminalLayoutsByTabId
   ])
+  const browserSortedWorktrees = useMemo(
+    () => excludePaletteFolderWorkspaces(paletteTabIndexWorkspaces),
+    [paletteTabIndexWorkspaces]
+  )
   const sortedWorktrees = useMemo(
     () =>
       hasQuery
@@ -213,8 +220,8 @@ export function useWorktreeJumpPaletteWorktrees({
     [hasQuery, browserSortedWorktrees, searchScopeWorktrees]
   )
   const paletteWorktreeIndex = useMemo(
-    () => buildPaletteWorktreeIndex(browserSortedWorktrees),
-    [browserSortedWorktrees]
+    () => buildPaletteWorktreeIndex(paletteTabIndexWorkspaces),
+    [paletteTabIndexWorkspaces]
   )
   const resolveWorktree = useMemo(
     () =>
@@ -223,8 +230,8 @@ export function useWorktreeJumpPaletteWorktrees({
     [paletteWorktreeIndex]
   )
   const { worktreeMap, worktreeOrder } = useMemo(
-    () => buildWorktreeJumpPaletteWorktreeMaps(browserSortedWorktrees),
-    [browserSortedWorktrees]
+    () => buildWorktreeJumpPaletteWorktreeMaps(paletteTabIndexWorkspaces),
+    [paletteTabIndexWorkspaces]
   )
   const checksReviewByWorktree = useMemo(
     () =>
@@ -297,5 +304,4 @@ export function useWorktreeJumpPaletteWorktrees({
     worktreeMatches
   }
 }
-
 export type WorktreeJumpPaletteWorktrees = ReturnType<typeof useWorktreeJumpPaletteWorktrees>

@@ -29,6 +29,7 @@ export function useWorktreeJumpPaletteStoreState({
   const recordFeatureInteraction = useAppStore((state) => state.recordFeatureInteraction)
   const revealSidebarRow = useAppStore((state) => state.revealSidebarRow)
   const worktreesByRepo = useAppStore((state) => state.worktreesByRepo)
+  const folderWorkspaces = useAppStore((state) => state.folderWorkspaces)
   const allWorktrees = useMemo(
     () => dedupePaletteWorktrees(Object.values(worktreesByRepo).flat()),
     [worktreesByRepo]
@@ -126,6 +127,7 @@ export function useWorktreeJumpPaletteStoreState({
     recordFeatureInteraction,
     revealSidebarRow,
     worktreesByRepo,
+    folderWorkspaces,
     allWorktrees,
     repos,
     projectGroups,
