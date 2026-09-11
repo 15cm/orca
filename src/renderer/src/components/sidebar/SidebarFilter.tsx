@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
+import { useProjectFilterSelection } from './use-project-filter-selection'
 import { FilterToggleRow } from './FilterToggleRow'
 import { useShortcutLabel } from '@/hooks/useShortcutLabel'
 import { searchRepos } from '@/lib/repo-search'
@@ -68,6 +69,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
   )
   const filterRepoIds = useAppStore((s) => s.filterRepoIds)
   const setFilterRepoIds = useAppStore((s) => s.setFilterRepoIds)
+  const setFilterGroupIds = useAppStore((s) => s.setFilterGroupIds)
   const repos = useAppStore((s) => s.repos)
   const addRepo = useAppStore((s) => s.addRepo)
 
@@ -98,19 +100,14 @@ const SidebarFilter = React.memo(function SidebarFilter({
   )
 
   const canFilterRepos = repos.length > 1
-  // Why: derive from current repos so stale ids (e.g. lingering after a repo
-  // is removed) don't inflate counts or falsely signal an applied filter.
-  const selectedRepoIdSet = useMemo(() => {
-    const set = new Set<string>()
-    for (const r of repos) {
-      if (filterRepoIds.includes(r.id)) {
-        set.add(r.id)
-      }
-    }
-    return set
-  }, [repos, filterRepoIds])
+  const projectFilter = useProjectFilterSelection()
+  const selectedRepoIdSet = useMemo(
+    () => new Set(projectFilter.selectedRepos.map((repo) => repo.id)),
+    [projectFilter.selectedRepos]
+  )
   const selectedCount = selectedRepoIdSet.size
-  const hasRepoFilter = selectedCount > 0
+  // Why: groups picked in the sidebar's Projects filter hide cards here too.
+  const hasRepoFilter = projectFilter.hasRepoFilter
   const hasSleepingFilter = showSleepingWorkspaces !== DEFAULT_SHOW_SLEEPING_WORKSPACES
   // Why counted: turning the exemption off is the only way that row narrows the
   // list — but only while its parent row is on, which is also when it renders.
@@ -133,7 +130,8 @@ const SidebarFilter = React.memo(function SidebarFilter({
     (hideCliCreatedWorkspaces ? 1 : 0) +
     (hideDetachedHeadWorkspaces ? 1 : 0) +
     (hasSleepingExemptionFilter ? 1 : 0) +
-    selectedCount
+    selectedCount +
+    projectFilter.selectedGroups.length
 
   const filteredRepos = useMemo(() => searchRepos(repos, query), [repos, query])
   const commandValue =
@@ -150,6 +148,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideDetachedHeadWorkspaces(false)
     setAlwaysShowDefaultBranchWorkspace(true)
     setFilterRepoIds([])
+    setFilterGroupIds([])
   }, [
     setShowSleepingWorkspaces,
     setHideDefaultBranchWorkspace,
@@ -157,7 +156,8 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setHideCliCreatedWorkspaces,
     setHideDetachedHeadWorkspaces,
     setAlwaysShowDefaultBranchWorkspace,
-    setFilterRepoIds
+    setFilterRepoIds,
+    setFilterGroupIds
   ])
 
   // Why: derive ids from the live repos list at click time so a repo added
@@ -166,7 +166,10 @@ const SidebarFilter = React.memo(function SidebarFilter({
     setFilterRepoIds(repos.map((r) => r.id))
   }, [repos, setFilterRepoIds])
 
-  const clearRepos = useCallback(() => setFilterRepoIds([]), [setFilterRepoIds])
+  const clearRepos = useCallback(() => {
+    setFilterRepoIds([])
+    setFilterGroupIds([])
+  }, [setFilterRepoIds, setFilterGroupIds])
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
@@ -286,7 +289,7 @@ const SidebarFilter = React.memo(function SidebarFilter({
                 {translate('auto.components.sidebar.SidebarFilter.5f7085a077', 'Projects')}
                 {hasRepoFilter && (
                   <span className="ml-1.5 normal-case tracking-normal font-medium text-foreground">
-                    · {selectedCount}
+                    · {projectFilter.effectiveRepoCount}
                   </span>
                 )}
               </span>

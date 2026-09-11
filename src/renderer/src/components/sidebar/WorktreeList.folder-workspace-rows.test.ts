@@ -109,6 +109,7 @@ function setFolderWorkspaceFixtureState(
     collapsedGroups: new Set<string>(),
     deleteStateByWorktreeId: {},
     filterRepoIds: [],
+    filterGroupIds: [],
     ...makeFolderWorkspacePathStatusState(),
     folderWorkspaces: [folderWorkspace],
     groupBy: 'repo',

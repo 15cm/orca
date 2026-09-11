@@ -28,6 +28,7 @@ import { toast } from 'sonner'
 import { isDetachedHeadWorkspace } from '@/components/sidebar/visible-worktrees'
 import type { ExecutionHostId } from '../../../shared/execution-host'
 import { findFolderWorkspaceOwner } from './folder-workspace-runtime-owner'
+import { clearProjectFilterHidingRepo } from '@/components/sidebar/project-filter-resolution'
 import type { WorktreeStartupPayload } from '@/lib/worktree-startup-payload'
 import type { IssueCommandLaunch } from '@/lib/worktree-setup-issue-command-queue'
 import {
@@ -296,9 +297,7 @@ export function activateAndRevealWorktree(
 
   // 5. Clear sidebar filters hiding the target — reveal needs the card rendered, else it silently no-ops.
   if (opts?.clearSidebarFilters !== false) {
-    if (state.filterRepoIds.length > 0 && !state.filterRepoIds.includes(wt.repoId)) {
-      state.setFilterRepoIds([])
-    }
+    clearProjectFilterHidingRepo(state, wt.repoId)
     if (
       state.hideAutomationGeneratedWorkspaces &&
       wt.automationProvenance?.kind === 'created-by-automation'

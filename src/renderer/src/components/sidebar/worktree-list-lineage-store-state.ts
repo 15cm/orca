@@ -110,6 +110,7 @@ export function setLineageFixtureState(
       ])
     ),
     filterRepoIds: [],
+    filterGroupIds: [],
     ...makeFolderWorkspacePathStatusState(),
     groupBy,
     hideDefaultBranchWorkspace: false,

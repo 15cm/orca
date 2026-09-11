@@ -28,6 +28,7 @@ export type PersistedUIWriteBaseline = {
   alwaysShowDefaultBranchWorkspace: boolean
   showDotfilesByWorktree: Record<string, boolean>
   filterRepoIds: readonly string[]
+  filterGroupIds: readonly string[]
   acknowledgedAgentsByPaneKey: Record<string, number>
   activityClearedAtByPaneKey: Record<string, number>
   manuallyUnreadTurnsByPaneKey: Record<string, number>
@@ -57,6 +58,7 @@ const PERSISTED_UI_WRITE_BASELINE_FIELD_SET = {
   alwaysShowDefaultBranchWorkspace: true,
   showDotfilesByWorktree: true,
   filterRepoIds: true,
+  filterGroupIds: true,
   acknowledgedAgentsByPaneKey: true,
   activityClearedAtByPaneKey: true,
   manuallyUnreadTurnsByPaneKey: true
@@ -96,7 +98,7 @@ function stringArrayEqual(a: readonly string[], b: readonly string[]): boolean {
 }
 
 function writeFieldEqual(field: keyof PersistedUIWriteBaseline, a: unknown, b: unknown): boolean {
-  if (field === 'filterRepoIds') {
+  if (field === 'filterRepoIds' || field === 'filterGroupIds') {
     return stringArrayEqual(a as readonly string[], b as readonly string[])
   }
   if (
@@ -148,6 +150,8 @@ export function persistedUIWriteFieldsToWireUpdate(
       // Why: the store keeps this readonly for identity stability, but PersistedUI crosses to
       // main, which owns a mutable array — copy at the boundary rather than widening the wire type.
       update.filterRepoIds = [...(fields.filterRepoIds ?? [])]
+    } else if (field === 'filterGroupIds') {
+      update.filterGroupIds = [...(fields.filterGroupIds ?? [])]
     } else {
       assignSameNameWireField(
         update,
@@ -161,7 +165,7 @@ export function persistedUIWriteFieldsToWireUpdate(
 
 type SameNameWriteField = Exclude<
   keyof PersistedUIWriteBaseline,
-  'showSleepingWorkspaces' | 'filterRepoIds'
+  'showSleepingWorkspaces' | 'filterRepoIds' | 'filterGroupIds'
 >
 
 // Compile check: every non-special mirror field must exist on PersistedUIState

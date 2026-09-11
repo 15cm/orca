@@ -1,9 +1,9 @@
 import type { Worktree } from '../../../../shared/worktree/types'
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
+import { clearProjectFilterHidingRepo, type ProjectFilterInputs } from './project-filter-resolution'
 
-export type AddRepoSkipFinalizationState = {
+export type AddRepoSkipFinalizationState = ProjectFilterInputs & {
   activeRepoId: string | null
-  filterRepoIds: readonly string[]
   showActiveOnly: boolean
   hideDefaultBranchWorkspace: boolean
   showSleepingWorkspaces: boolean
@@ -11,6 +11,7 @@ export type AddRepoSkipFinalizationState = {
   worktreesByRepo: Record<string, Worktree[]>
   setActiveRepo: (repoId: string | null) => void
   setFilterRepoIds: (repoIds: string[]) => void
+  setFilterGroupIds: (groupIds: string[]) => void
   setShowActiveOnly: (value: boolean) => void
   setHideDefaultBranchWorkspace: (value: boolean) => void
   setAlwaysShowDefaultBranchWorkspace: (value: boolean) => void
@@ -27,9 +28,7 @@ export function finalizeImportedRepoAfterSkip(
   if (state.activeRepoId !== importedRepoId) {
     state.setActiveRepo(importedRepoId)
   }
-  if (state.filterRepoIds.length > 0 && !state.filterRepoIds.includes(importedRepoId)) {
-    state.setFilterRepoIds([])
-  }
+  clearProjectFilterHidingRepo(state, importedRepoId)
   if (state.showActiveOnly) {
     state.setShowActiveOnly(false)
   }

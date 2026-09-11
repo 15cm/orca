@@ -198,6 +198,7 @@ function setFlatWorktreeState(): void {
     fetchIssue: vi.fn(),
     fetchLinearIssue: vi.fn(),
     filterRepoIds: [],
+    filterGroupIds: [],
     gitConflictOperationByWorktree: {},
     groupBy: 'none',
     hideDefaultBranchWorkspace: false,

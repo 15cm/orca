@@ -70,6 +70,7 @@ function setProjectGroupWithoutWorktreeRowsState(
     collapsedGroups,
     deleteStateByWorktreeId: {},
     filterRepoIds,
+    filterGroupIds: [],
     ...makeFolderWorkspacePathStatusState(),
     groupBy: 'repo',
     hideDefaultBranchWorkspace: false,

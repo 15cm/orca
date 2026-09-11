@@ -21,6 +21,7 @@ import { PROJECT_ORDER_OPTIONS, SORT_OPTIONS } from './sidebar-workspace-option-
 import { WorktreeCardDisplayMenuSection } from './WorktreeCardDisplayMenuSection'
 import { translate } from '@/i18n/i18n'
 import { SidebarGroupByToggle } from './SidebarGroupByToggle'
+import { useProjectFilterSelection } from './use-project-filter-selection'
 
 export function useWorkspaceOptionsFilterBadge(): {
   hasAnyFilter: boolean
@@ -38,7 +39,7 @@ export function useWorkspaceOptionsFilterBadge(): {
   const repos = useAppStore((s) => s.repos)
   const visibleWorkspaceHostIds = useAppStore((s) => s.visibleWorkspaceHostIds)
 
-  const selectedCount = useMemo(() => {
+  const selectedRepoCount = useMemo(() => {
     let count = 0
     for (const repo of repos) {
       if (filterRepoIds.includes(repo.id)) {
@@ -53,6 +54,8 @@ export function useWorkspaceOptionsFilterBadge(): {
     showSleepingWorkspaces,
     alwaysShowDefaultBranchWorkspace
   )
+  const { selectedGroups } = useProjectFilterSelection()
+  const selectedCount = selectedRepoCount + selectedGroups.length
   const hasRepoFilter = selectedCount > 0
   const hasHostVisibilityFilter = visibleWorkspaceHostIds !== null
   const hasAnyFilter =

@@ -5327,7 +5327,8 @@
           "4815c70605": "No projects match",
           "bbbc6e8e3b": "No unselected projects match",
           "allProjects": "All projects",
-          "selectedProjectsCount": "{{value0}} projects"
+          "selectedProjectsCount": "{{value0}} projects",
+          "groupsHeading": "Groups"
         },
         "SidebarSettingsHelpMenu": {
           "ad3d3ed7f1": "Restart Orca",

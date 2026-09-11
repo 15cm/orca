@@ -59,6 +59,7 @@ import {
 import { isDefaultBranchWorkspace } from './default-branch-workspace'
 import { getLineageAncestorIndex, getSortedWorktreeRankIndex } from './visible-worktree-indexes'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
+import { selectEffectiveFilterRepoIds } from './project-filter-resolution'
 
 /**
  * Whether the "Hide sleeping" sweep must keep this row (#8873).
@@ -250,7 +251,12 @@ export function buildVisibleWorktreeOptionsFromState(
   repoMap: Map<string, Repo>
 ): VisibleWorktreeOptions {
   return {
-    filterRepoIds: state.filterRepoIds,
+    filterRepoIds: selectEffectiveFilterRepoIds({
+      filterRepoIds: state.filterRepoIds,
+      filterGroupIds: state.filterGroupIds,
+      repos: state.repos,
+      projectGroups: state.projectGroups
+    }),
     showSleepingWorkspaces: state.showSleepingWorkspaces,
     tabsByWorktree: state.tabsByWorktree,
     ptyIdsByTabId: state.ptyIdsByTabId,
@@ -281,7 +287,6 @@ export function buildVisibleWorktreeOptionsFromState(
 }
 
 export function getVisibleWorktreeIds(): string[] {
-  // Prefer the published IDs that mirror the rendered sidebar order.
   const published = getPublishedVisibleWorktreeIds()
   if (published) {
     return published
@@ -290,7 +295,6 @@ export function getVisibleWorktreeIds(): string[] {
   const state = useAppStore.getState()
   const allWorktrees = getAllWorktreesFromState(state).filter((w) => !w.isArchived)
 
-  // Hoist repoMap so it's built once and reused across all branches below.
   const repoMap = getRepoMapFromState(state)
 
   let sortedIds: string[]
@@ -331,7 +335,6 @@ export function getVisibleWorktreeIds(): string[] {
         worktreeMatchesVisibleHost(worktree, visibleHostIds, repoMap, defaultHostId)
     )
     .sort((a, b) => (visibleIdRank.get(a.id) ?? 0) - (visibleIdRank.get(b.id) ?? 0))
-  // Why the row pipeline: grouping, pinning and main-worktree hoisting reorder cards, so a flat sort numbers the wrong workspace.
   return computeRenderedSidebarWorktreeOrder(state, visibleWorktrees)
 }
 
@@ -341,8 +344,7 @@ export function getVisibleWorktreeShortcutTargets(): VisibleWorktreeShortcutTarg
     return publishedTargets
   }
   const state = useAppStore.getState()
-  const visibleIds = getVisibleWorktreeIds()
-  const visibleIdRank = new Map(visibleIds.map((id, index) => [id, index]))
+  const visibleIdRank = new Map(getVisibleWorktreeIds().map((id, index) => [id, index]))
   const repoMap = getRepoMapFromState(state)
   const visibleHostIds = getVisibleWorkspaceHostIdSet(state)
   const defaultHostId = getSettingsFocusedExecutionHostId(state.settings)

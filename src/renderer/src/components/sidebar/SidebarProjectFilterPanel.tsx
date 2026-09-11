@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Server, X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { FolderTree, Server } from 'lucide-react'
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList
@@ -13,6 +12,9 @@ import RepoBadgeLabel from '@/components/repo/RepoBadgeLabel'
 import { searchRepos } from '@/lib/repo-search'
 import type { Repo } from '../../../../shared/repo-types'
 import { translate } from '@/i18n/i18n'
+import type { ProjectGroupFilterOption } from './project-filter-selection'
+import { SelectedProjectFilterChips } from './SidebarProjectFilterChips'
+import { PROJECT_GROUP_HEADER_INDENT } from './worktree-list/rows/indentation'
 
 function projectCommandFilter(_value: string, search: string, keywords?: string[]): number {
   const query = search.trim().toLowerCase()
@@ -34,12 +36,34 @@ function projectCommandFilter(_value: string, search: string, keywords?: string[
   return 0
 }
 
+const GROUP_VALUE_PREFIX = 'group:'
+const REPO_VALUE_PREFIX = 'repo:'
+
+function parseCommandValue(value: string): { kind: 'group' | 'repo'; id: string } | null {
+  if (value.startsWith(GROUP_VALUE_PREFIX)) {
+    return { kind: 'group', id: value.slice(GROUP_VALUE_PREFIX.length) }
+  }
+  if (value.startsWith(REPO_VALUE_PREFIX)) {
+    return { kind: 'repo', id: value.slice(REPO_VALUE_PREFIX.length) }
+  }
+  return null
+}
+
+const PICKER_ITEM_CLASS =
+  'mx-1 my-0.5 items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] leading-5 font-medium data-[selected=true]:bg-black/8 dark:data-[selected=true]:bg-white/14'
+const PICKER_GROUP_CLASS =
+  'p-0 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-1.5 [&_[cmdk-group-heading]]:pb-0.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase'
+
 type SidebarProjectFilterPanelProps = {
   availableRepos: Repo[]
+  availableGroups: ProjectGroupFilterOption[]
   selectedRepos: Repo[]
+  selectedGroups: ProjectGroupFilterOption[]
   hasRepoFilter: boolean
-  filterRepoIds: readonly string[]
-  setFilterRepoIds: (ids: string[]) => void
+  onSelectRepo: (repoId: string) => void
+  onRemoveRepo: (repoId: string) => void
+  onSelectGroup: (groupId: string) => void
+  onRemoveGroup: (groupId: string) => void
 }
 
 /**
@@ -49,13 +73,17 @@ type SidebarProjectFilterPanelProps = {
  */
 export function SidebarProjectFilterPanel({
   availableRepos,
+  availableGroups,
   selectedRepos,
+  selectedGroups,
   hasRepoFilter,
-  filterRepoIds,
-  setFilterRepoIds
+  onSelectRepo,
+  onRemoveRepo,
+  onSelectGroup,
+  onRemoveGroup
 }: SidebarProjectFilterPanelProps): React.JSX.Element {
   const [query, setQuery] = useState('')
-  const [highlightedRepoId, setHighlightedRepoId] = useState('')
+  const [highlightedValue, setHighlightedValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Why: `autoFocus` cannot survive here — it fires during commit, while the
@@ -67,44 +95,62 @@ export function SidebarProjectFilterPanel({
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  const handleSelectRepo = useCallback(
+  const selectRepo = useCallback(
     (repoId: string) => {
-      if (!filterRepoIds.includes(repoId)) {
-        setFilterRepoIds([...filterRepoIds, repoId])
-      }
+      onSelectRepo(repoId)
       setQuery('')
     },
-    [filterRepoIds, setFilterRepoIds]
+    [onSelectRepo]
   )
 
-  const handleRemoveProject = useCallback(
-    (repoId: string) => {
-      setFilterRepoIds(filterRepoIds.filter((id) => id !== repoId))
+  const selectGroup = useCallback(
+    (groupId: string) => {
+      onSelectGroup(groupId)
+      setQuery('')
     },
-    [filterRepoIds, setFilterRepoIds]
+    [onSelectGroup]
   )
 
   const handleInputKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
       // Why: this command is embedded in a Radix dropdown; text keys should
       // stay in the search field instead of triggering menu typeahead.
-      if (event.key === 'Backspace' && query === '' && selectedRepos.length > 0) {
+      if (event.key === 'Backspace' && query === '') {
+        // Why: chips render groups before projects, so the last project pick is the last chip.
         const lastRepo = selectedRepos.at(-1)
+        const lastGroup = selectedGroups.at(-1)
         if (lastRepo) {
           event.preventDefault()
           event.stopPropagation()
-          handleRemoveProject(lastRepo.id)
+          onRemoveRepo(lastRepo.id)
+        } else if (lastGroup) {
+          event.preventDefault()
+          event.stopPropagation()
+          onRemoveGroup(lastGroup.group.id)
         }
         return
       }
 
       if (event.key === 'Enter') {
-        const highlightedRepo = availableRepos.find((repo) => repo.id === highlightedRepoId)
+        const highlighted = parseCommandValue(highlightedValue)
+        if (
+          highlighted?.kind === 'group' &&
+          availableGroups.some((option) => option.group.id === highlighted.id)
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          selectGroup(highlighted.id)
+          return
+        }
+        const highlightedRepo =
+          highlighted?.kind === 'repo'
+            ? availableRepos.find((repo) => repo.id === highlighted.id)
+            : undefined
         const repo = highlightedRepo ?? searchRepos(availableRepos, query)[0]
         if (repo) {
           event.preventDefault()
           event.stopPropagation()
-          handleSelectRepo(repo.id)
+          selectRepo(repo.id)
         }
         return
       }
@@ -125,20 +171,57 @@ export function SidebarProjectFilterPanel({
         event.stopPropagation()
       }
     },
-    [availableRepos, handleRemoveProject, handleSelectRepo, highlightedRepoId, query, selectedRepos]
+    [
+      availableGroups,
+      availableRepos,
+      highlightedValue,
+      onRemoveGroup,
+      onRemoveRepo,
+      query,
+      selectGroup,
+      selectRepo,
+      selectedGroups,
+      selectedRepos
+    ]
   )
+
+  const hasGroups = availableGroups.length > 0
+  const repoItems = availableRepos.map((repo) => (
+    <CommandItem
+      key={repo.id}
+      value={`${REPO_VALUE_PREFIX}${repo.id}`}
+      keywords={[repo.displayName, repo.path]}
+      onSelect={() => selectRepo(repo.id)}
+      className={PICKER_ITEM_CLASS}
+    >
+      <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
+        <RepoBadgeLabel name={repo.displayName} color={repo.badgeColor} className="max-w-full" />
+        {repo.connectionId && (
+          <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
+            <Server className="size-2.5" />
+            {translate('auto.components.sidebar.SidebarRepositoryFilterSection.2656053db4', 'SSH')}
+          </span>
+        )}
+      </span>
+    </CommandItem>
+  ))
 
   return (
     <Command
       filter={projectCommandFilter}
-      onValueChange={setHighlightedRepoId}
+      onValueChange={setHighlightedValue}
       className="bg-transparent"
     >
-      <SelectedProjectPills selectedRepos={selectedRepos} onRemoveProject={handleRemoveProject} />
+      <SelectedProjectFilterChips
+        selectedGroups={selectedGroups}
+        selectedRepos={selectedRepos}
+        onRemoveGroup={onRemoveGroup}
+        onRemoveRepo={onRemoveRepo}
+      />
       <CommandInput
         ref={inputRef}
         placeholder={
-          selectedRepos.length > 0
+          hasRepoFilter
             ? translate(
                 'auto.components.sidebar.SidebarRepositoryFilterSection.5a273fbfce',
                 'Add project...'
@@ -167,79 +250,63 @@ export function SidebarProjectFilterPanel({
                 'No projects match'
               )}
         </CommandEmpty>
-        {availableRepos.map((repo) => (
-          <CommandItem
-            key={repo.id}
-            value={repo.id}
-            keywords={[repo.displayName, repo.path]}
-            onSelect={() => handleSelectRepo(repo.id)}
-            className="mx-1 my-0.5 items-center gap-2 rounded-[7px] px-2 py-1 text-[12px] leading-5 font-medium data-[selected=true]:bg-black/8 dark:data-[selected=true]:bg-white/14"
+        {/* Why: headings only earn their space once groups exist; the flat list stays as it was. */}
+        {hasGroups && (
+          <CommandGroup
+            heading={translate(
+              'auto.components.sidebar.SidebarRepositoryFilterSection.groupsHeading',
+              'Groups'
+            )}
+            className={PICKER_GROUP_CLASS}
           >
-            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5">
-              <RepoBadgeLabel
-                name={repo.displayName}
-                color={repo.badgeColor}
-                className="max-w-full"
+            {availableGroups.map((option) => (
+              <ProjectGroupFilterItem
+                key={option.group.id}
+                option={option}
+                onSelect={selectGroup}
               />
-              {repo.connectionId && (
-                <span className="shrink-0 inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[9px] font-medium leading-none text-muted-foreground">
-                  <Server className="size-2.5" />
-                  {translate(
-                    'auto.components.sidebar.SidebarRepositoryFilterSection.2656053db4',
-                    'SSH'
-                  )}
-                </span>
-              )}
-            </span>
-          </CommandItem>
-        ))}
+            ))}
+          </CommandGroup>
+        )}
+        {hasGroups ? (
+          <CommandGroup
+            heading={translate(
+              'auto.components.sidebar.SidebarRepositoryFilterSection.7679f0c268',
+              'Projects'
+            )}
+            className={PICKER_GROUP_CLASS}
+          >
+            {repoItems}
+          </CommandGroup>
+        ) : (
+          repoItems
+        )}
       </CommandList>
     </Command>
   )
 }
 
-function SelectedProjectPills({
-  selectedRepos,
-  onRemoveProject
+function ProjectGroupFilterItem({
+  option,
+  onSelect
 }: {
-  selectedRepos: Repo[]
-  onRemoveProject: (repoId: string) => void
-}) {
-  if (selectedRepos.length === 0) {
-    return null
-  }
-
+  option: ProjectGroupFilterOption
+  onSelect: (groupId: string) => void
+}): React.JSX.Element {
   return (
-    <div className="scrollbar-sleek mx-1 mb-1 flex max-h-16 flex-wrap gap-1 overflow-y-auto rounded-[7px] border border-border/70 bg-muted/25 p-1">
-      {selectedRepos.map((repo) => (
-        <Badge
-          key={repo.id}
-          variant="outline"
-          className="h-5 max-w-full gap-1 border-border/70 bg-background px-1.5 py-0 text-[11px] font-medium"
-        >
-          <RepoBadgeLabel
-            name={repo.displayName}
-            color={repo.badgeColor}
-            className="max-w-[8rem]"
-            badgeClassName="size-1.5"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label={translate(
-              'auto.components.sidebar.SidebarRepositoryFilterSection.f10ca29601',
-              'Remove {{value0}} filter',
-              { value0: repo.displayName }
-            )}
-            className="-mr-1 size-4 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onRemoveProject(repo.id)}
-          >
-            <X className="size-2.5" strokeWidth={2.5} />
-          </Button>
-        </Badge>
-      ))}
-    </div>
+    <CommandItem
+      value={`${GROUP_VALUE_PREFIX}${option.group.id}`}
+      keywords={[option.group.name]}
+      onSelect={() => onSelect(option.group.id)}
+      className={PICKER_ITEM_CLASS}
+      // Why: same per-level step as the sidebar's group headers, so the picker reads as that tree.
+      style={{ paddingLeft: 8 + option.depth * PROJECT_GROUP_HEADER_INDENT }}
+    >
+      <FolderTree className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{option.group.name}</span>
+      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        {option.repoCount}
+      </span>
+    </CommandItem>
   )
 }

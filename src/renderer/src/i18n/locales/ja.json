@@ -4419,7 +4419,8 @@
           "4815c70605": "一致するプロジェクトはありません",
           "bbbc6e8e3b": "選択されていないプロジェクトは一致しません",
           "allProjects": "すべてのプロジェクト",
-          "selectedProjectsCount": "{{value0}} 件のプロジェクト"
+          "selectedProjectsCount": "{{value0}} 件のプロジェクト",
+          "groupsHeading": "グループ"
         },
         "SidebarSettingsHelpMenu": {
           "ad3d3ed7f1": "Orca を再起動",

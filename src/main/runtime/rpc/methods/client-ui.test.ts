@@ -425,7 +425,8 @@ describe('client UI RPC methods', () => {
         showActiveOnly: true,
         hideSleepingWorkspaces: true,
         hideAutomationGeneratedWorkspaces: true,
-        filterRepoIds: ['repo-1']
+        filterRepoIds: ['repo-1'],
+        filterGroupIds: ['group-1']
       })
     )
 
@@ -436,7 +437,8 @@ describe('client UI RPC methods', () => {
       showActiveOnly: true,
       hideSleepingWorkspaces: true,
       hideAutomationGeneratedWorkspaces: true,
-      filterRepoIds: ['repo-1']
+      filterRepoIds: ['repo-1'],
+      filterGroupIds: ['group-1']
     })
     expect(response).toMatchObject({ ok: true, result: { ui: omitPairingLocalUiFields(updated) } })
   })

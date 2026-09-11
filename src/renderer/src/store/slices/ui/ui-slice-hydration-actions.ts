@@ -174,6 +174,7 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
             validRepoIds.size === 0
               ? persistedFilterRepoIds
               : persistedFilterRepoIds.filter((repoId) => validRepoIds.has(repoId)),
+          filterGroupIds: sanitizePersistedRepoIds(ui.filterGroupIds),
           agentsVisibleHostIds: preserveStringArrayIdentity(
             s.agentsVisibleHostIds,
             normalizeVisibleExecutionHostIds(ui.agentsVisibleHostIds)

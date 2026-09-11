@@ -64,6 +64,8 @@ export type UISlicePreferences = {
   toggleShowDotfilesForWorktree: (worktreeId: string) => void
   filterRepoIds: readonly string[]
   setFilterRepoIds: (ids: readonly string[]) => void
+  filterGroupIds: readonly string[]
+  setFilterGroupIds: (ids: readonly string[]) => void
   /** Agents-view scope filters, independent from workspace navigation filters. */
   agentsVisibleHostIds: VisibleWorkspaceHostIds
   setAgentsVisibleHostIds: (ids: VisibleWorkspaceHostIds) => void

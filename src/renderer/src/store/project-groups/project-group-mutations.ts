@@ -16,6 +16,7 @@ import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import type { ProjectRemovalFailure, RepoSlice } from '../repos/repo-state'
 import { mergeProjectCompatibilityForHostRepoChange } from '../repos/repo-catalog-identity'
 import { applyProjectGroupDeleteCascade } from './project-group-removal-state'
+import { dropDeletedProjectGroupFilterIds } from '../../components/sidebar/project-filter-resolution'
 import { repoWithFetchedOwner, settingsForRepoOwner } from '../repos/owner-routing'
 import { projectGroupWithFetchedOwner } from './project-group-owner-stamping'
 
@@ -128,7 +129,17 @@ export function createProjectGroupMutationActions(
         if (!deleted) {
           return false
         }
-        set((s) => applyProjectGroupDeleteCascade(s, groupId, ownerHostId))
+        set((s) => {
+          const next = applyProjectGroupDeleteCascade(s, groupId, ownerHostId)
+          return {
+            ...next,
+            filterGroupIds: dropDeletedProjectGroupFilterIds(
+              s.filterGroupIds,
+              s.projectGroups,
+              next.projectGroups
+            )
+          }
+        })
         return true
       } catch (err) {
         console.error('Failed to delete project group:', err)

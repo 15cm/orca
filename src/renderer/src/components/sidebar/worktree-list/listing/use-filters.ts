@@ -2,13 +2,16 @@ import { useCallback, useMemo } from 'react'
 import { useAppStore } from '@/store'
 import { DEFAULT_SHOW_SLEEPING_WORKSPACES } from '../../../../../../shared/constants'
 import { computeClearFilterActions, sidebarHasActiveFilters } from '../../visible-worktrees'
+import { selectEffectiveFilterRepoIds } from '../../project-filter-resolution'
 
 export type SidebarWorktreeFilters = ReturnType<typeof useSidebarWorktreeFilters>
 
 // Every sidebar filter, plus the single escape hatch that resets all of them.
 export function useSidebarWorktreeFilters() {
   const showSleepingWorkspaces = useAppStore((s) => s.showSleepingWorkspaces)
-  const filterRepoIds = useAppStore((s) => s.filterRepoIds)
+  // Why: explicit picks plus project-group members; the row pipeline never sees the two halves.
+  const filterRepoIds = useAppStore(selectEffectiveFilterRepoIds)
+  const filterGroupIds = useAppStore((s) => s.filterGroupIds)
   const hideDefaultBranchWorkspace = useAppStore((s) => s.hideDefaultBranchWorkspace)
   const hideAutomationGeneratedWorkspaces = useAppStore((s) => s.hideAutomationGeneratedWorkspaces)
   const hideCliCreatedWorkspaces = useAppStore((s) => s.hideCliCreatedWorkspaces)
@@ -30,6 +33,7 @@ export function useSidebarWorktreeFilters() {
     (s) => s.setAlwaysShowDefaultBranchWorkspace
   )
   const setFilterRepoIds = useAppStore((s) => s.setFilterRepoIds)
+  const setFilterGroupIds = useAppStore((s) => s.setFilterGroupIds)
   const setVisibleWorkspaceHostIds = useAppStore((s) => s.setVisibleWorkspaceHostIds)
 
   // Why: count hideDefaultBranchWorkspace as a filter so the Clear Filters escape hatch stays reachable when it alone empties the list.
@@ -67,6 +71,9 @@ export function useSidebarWorktreeFilters() {
     }
     if (actions.resetFilterRepoIds) {
       setFilterRepoIds([])
+      if (filterGroupIds.length > 0) {
+        setFilterGroupIds([])
+      }
     }
     if (actions.resetHideDefaultBranchWorkspace) {
       setHideDefaultBranchWorkspace(false)
@@ -92,6 +99,8 @@ export function useSidebarWorktreeFilters() {
   }, [
     setShowSleepingWorkspaces,
     setFilterRepoIds,
+    setFilterGroupIds,
+    filterGroupIds,
     setHideDefaultBranchWorkspace,
     setHideAutomationGeneratedWorkspaces,
     setHideCliCreatedWorkspaces,

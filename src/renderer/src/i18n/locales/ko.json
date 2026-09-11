@@ -4424,7 +4424,8 @@
           "4815c70605": "일치하는 프로젝트가 없습니다.",
           "bbbc6e8e3b": "선택되지 않은 일치하는 프로젝트가 없습니다.",
           "allProjects": "모든 프로젝트",
-          "selectedProjectsCount": "프로젝트 {{value0}}개"
+          "selectedProjectsCount": "프로젝트 {{value0}}개",
+          "groupsHeading": "그룹"
         },
         "SidebarSettingsHelpMenu": {
           "ad3d3ed7f1": "Orca 재시작",

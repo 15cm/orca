@@ -33,16 +33,43 @@ const REPOS = [
   { id: 'r3', displayName: 'gamma', path: '/tmp/gamma' }
 ]
 
+function makeGroup(id: string, name: string, parentGroupId: string | null = null) {
+  return {
+    id,
+    name,
+    parentPath: null,
+    parentGroupId,
+    createdFrom: 'manual',
+    tabOrder: 0,
+    isCollapsed: false,
+    color: null,
+    createdAt: 0,
+    updatedAt: 0
+  }
+}
+
+const GROUPS = [makeGroup('g-perc', 'Perc'), makeGroup('g-services', 'Perc (Services)', 'g-perc')]
+const GROUPED_REPOS = [
+  { ...REPOS[0], projectGroupId: 'g-services' },
+  { ...REPOS[1], projectGroupId: 'g-services' },
+  REPOS[2]
+]
+
 let container: HTMLDivElement
 let root: Root
 let setFilterRepoIds: ReturnType<typeof vi.fn>
+let setFilterGroupIds: ReturnType<typeof vi.fn>
 
 function setState(overrides: Record<string, unknown> = {}): void {
   setFilterRepoIds = vi.fn()
+  setFilterGroupIds = vi.fn()
   mocks.state = {
     repos: REPOS,
+    projectGroups: [],
     filterRepoIds: [],
+    filterGroupIds: [],
     setFilterRepoIds,
+    setFilterGroupIds,
     ...overrides
   }
 }
@@ -205,5 +232,130 @@ describe('SidebarRepositoryFilterSection', () => {
     render()
 
     expect(document.querySelector('[data-slot="dropdown-menu-sub-trigger"]')).toBeNull()
+  })
+})
+
+function subTrigger(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="dropdown-menu-sub-trigger"]')
+}
+
+function commandValues(prefix: 'group:' | 'repo:'): string[] {
+  return [...document.querySelectorAll<HTMLElement>(`[data-slot="command-item"]`)]
+    .map((item) => item.getAttribute('data-value') ?? '')
+    .filter((value) => value.startsWith(prefix))
+}
+
+describe('SidebarRepositoryFilterSection project groups', () => {
+  it('keeps the flat project list when no groups exist', async () => {
+    render()
+    openSubmenu()
+    await settle()
+
+    expect(document.querySelectorAll('[cmdk-group-heading]')).toHaveLength(0)
+    expect(commandValues('repo:')).toEqual(['repo:r1', 'repo:r2', 'repo:r3'])
+  })
+
+  it('lists groups in their own section, indented by depth, above projects', async () => {
+    setState({ repos: GROUPED_REPOS, projectGroups: GROUPS })
+    render()
+    openSubmenu()
+    await settle()
+
+    const headings = [...document.querySelectorAll('[cmdk-group-heading]')].map(
+      (heading) => heading.textContent
+    )
+    expect(headings).toEqual(['Groups', 'Projects'])
+    expect(commandValues('group:')).toEqual(['group:g-perc', 'group:g-services'])
+    const indents = [...document.querySelectorAll<HTMLElement>('[data-value^="group:"]')].map(
+      (item) => item.style.paddingLeft
+    )
+    expect(indents).toEqual(['8px', '18px'])
+    expect(commandValues('repo:')).toEqual(['repo:r1', 'repo:r2', 'repo:r3'])
+  })
+
+  it('selects a group as a whole without touching explicit project picks', async () => {
+    setState({ repos: GROUPED_REPOS, projectGroups: GROUPS })
+    render()
+    openSubmenu()
+    await settle()
+
+    const item = document.querySelector<HTMLElement>('[data-value="group:g-services"]')
+    act(() => item?.click())
+
+    expect(setFilterGroupIds).toHaveBeenCalledWith(['g-services'])
+    expect(setFilterRepoIds).not.toHaveBeenCalled()
+  })
+
+  it('shows a selected group as one chip and hides its members from the picker', async () => {
+    setState({ repos: GROUPED_REPOS, projectGroups: GROUPS, filterGroupIds: ['g-services'] })
+    render()
+    openSubmenu()
+    await settle()
+
+    const chips = document.querySelectorAll('[data-slot="badge"]')
+    expect(chips).toHaveLength(1)
+    expect(chips[0]?.textContent).toContain('Perc (Services)')
+    expect(commandValues('repo:')).toEqual(['repo:r3'])
+    expect(commandValues('group:')).toEqual(['group:g-perc'])
+
+    const remove = document.querySelector<HTMLElement>(
+      '[aria-label="Remove Perc (Services) filter"]'
+    )
+    act(() => remove?.click())
+    expect(setFilterGroupIds).toHaveBeenCalledWith([])
+  })
+
+  it('hides subgroups of a selected group but keeps its ancestors selectable', async () => {
+    setState({ repos: GROUPED_REPOS, projectGroups: GROUPS, filterGroupIds: ['g-perc'] })
+    render()
+    openSubmenu()
+    await settle()
+
+    expect(commandValues('group:')).toEqual([])
+    expect(commandValues('repo:')).toEqual(['repo:r3'])
+  })
+
+  it('names a lone selected group in the trigger row and counts admitted projects', async () => {
+    setState({ repos: GROUPED_REPOS, projectGroups: GROUPS, filterGroupIds: ['g-services'] })
+    render()
+
+    expect(subTrigger()?.textContent).toContain('Perc (Services)')
+
+    openSubmenu()
+    await settle()
+    const header = document.querySelector('[data-slot="dropdown-menu-sub-content"] span')
+    expect(header?.textContent).toContain('· 2')
+  })
+
+  it('reads a mixed selection as the projects it admits', () => {
+    setState({
+      repos: GROUPED_REPOS,
+      projectGroups: GROUPS,
+      filterGroupIds: ['g-services'],
+      filterRepoIds: ['r3']
+    })
+    render()
+
+    expect(subTrigger()?.textContent).toContain('3 projects')
+  })
+
+  it('clears both halves of the filter from the header button', async () => {
+    setState({
+      repos: GROUPED_REPOS,
+      projectGroups: GROUPS,
+      filterGroupIds: ['g-services'],
+      filterRepoIds: ['r3']
+    })
+    render()
+    openSubmenu()
+    await settle()
+
+    const clear = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Clear'
+    )
+    act(() => clear?.click())
+
+    expect(setFilterRepoIds).toHaveBeenCalledWith([])
+    expect(setFilterGroupIds).toHaveBeenCalledWith([])
   })
 })

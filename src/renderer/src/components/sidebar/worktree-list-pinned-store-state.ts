@@ -37,6 +37,7 @@ export function setPinnedFixtureState(): void {
     collapsedGroups: new Set<string>(),
     deleteStateByWorktreeId: {},
     filterRepoIds: [],
+    filterGroupIds: [],
     ...makeFolderWorkspacePathStatusState(),
     groupBy: 'none',
     hideDefaultBranchWorkspace: false,

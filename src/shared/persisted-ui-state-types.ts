@@ -75,6 +75,8 @@ export type PersistedUIState = {
   /** Per-worktree Explorer dotfile visibility. Missing entries inherit the default: show. */
   showDotfilesByWorktree?: Record<string, boolean>
   filterRepoIds: string[]
+  /** Project groups whose members (including nested subgroups) the sidebar shows. */
+  filterGroupIds?: string[]
   /** Agents-view host scope; deliberately separate from visibleWorkspaceHostIds so a monitoring surface never inherits nav filters silently. `null` = all hosts. */
   agentsVisibleHostIds?: VisibleWorkspaceHostIds
   /** Agents-view project filter; empty = all projects. Separate from filterRepoIds (workspace nav). */

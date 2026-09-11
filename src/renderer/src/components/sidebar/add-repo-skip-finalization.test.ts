@@ -32,6 +32,9 @@ function makeState(overrides: Partial<AddRepoSkipFinalizationState>): AddRepoSki
   return {
     activeRepoId: null,
     filterRepoIds: [],
+    filterGroupIds: [],
+    repos: [],
+    projectGroups: [],
     showActiveOnly: false,
     hideDefaultBranchWorkspace: false,
     showSleepingWorkspaces: true,
@@ -39,6 +42,7 @@ function makeState(overrides: Partial<AddRepoSkipFinalizationState>): AddRepoSki
     worktreesByRepo: {},
     setActiveRepo: vi.fn(),
     setFilterRepoIds: vi.fn(),
+    setFilterGroupIds: vi.fn(),
     setShowActiveOnly: vi.fn(),
     setHideDefaultBranchWorkspace: vi.fn(),
     setAlwaysShowDefaultBranchWorkspace: vi.fn(),
@@ -143,5 +147,35 @@ describe('finalizeImportedRepoAfterSkip', () => {
     expect(state.setFilterRepoIds).toHaveBeenCalledWith([])
     expect(state.setShowActiveOnly).toHaveBeenCalledWith(false)
     expect(state.setHideDefaultBranchWorkspace).not.toHaveBeenCalled()
+  })
+})
+
+describe('finalizeImportedRepoAfterSkip with a project-group filter', () => {
+  const groups = [{ id: 'g-services', parentGroupId: null }]
+
+  it('clears a group filter that would hide the imported project', () => {
+    const state = makeState({
+      filterGroupIds: ['g-services'],
+      projectGroups: groups,
+      repos: [{ id: 'repo-old', projectGroupId: 'g-services' }]
+    })
+
+    finalizeImportedRepoAfterSkip(state, 'repo-new')
+
+    expect(state.setFilterGroupIds).toHaveBeenCalledWith([])
+    expect(state.setFilterRepoIds).not.toHaveBeenCalled()
+  })
+
+  it('leaves the filter alone when the imported project lands inside a filtered group', () => {
+    const state = makeState({
+      filterGroupIds: ['g-services'],
+      projectGroups: groups,
+      repos: [{ id: 'repo-new', projectGroupId: 'g-services' }]
+    })
+
+    finalizeImportedRepoAfterSkip(state, 'repo-new')
+
+    expect(state.setFilterGroupIds).not.toHaveBeenCalled()
+    expect(state.setFilterRepoIds).not.toHaveBeenCalled()
   })
 })

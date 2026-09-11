@@ -152,6 +152,8 @@ export function createUiPreferenceActions(set: UISliceSet, get: UISliceGet): Par
 
     filterRepoIds: [],
     setFilterRepoIds: (ids) => set({ filterRepoIds: ids }),
+    filterGroupIds: [],
+    setFilterGroupIds: (ids) => set({ filterGroupIds: ids }),
 
     agentsVisibleHostIds: null,
     setAgentsVisibleHostIds: (ids) => {

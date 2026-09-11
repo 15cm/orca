@@ -50,6 +50,7 @@ function setEmptyUngroupedProjectState(filterRepoIds: string[] = []): void {
     collapsedGroups: new Set<string>(),
     deleteStateByWorktreeId: {},
     filterRepoIds,
+    filterGroupIds: [],
     ...makeFolderWorkspacePathStatusState(),
     groupBy: 'repo',
     hideDefaultBranchWorkspace: false,

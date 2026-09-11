@@ -311,3 +311,24 @@ describe('project group deletion store routing', () => {
     consoleError.mockRestore()
   })
 })
+
+describe('project group deletion and the sidebar group filter', () => {
+  it('drops deleted subtree ids from filterGroupIds and keeps ids it did not touch', async () => {
+    const childGroup: ProjectGroup = {
+      ...projectGroup,
+      id: 'child',
+      parentGroupId: projectGroup.id
+    }
+    projectGroupsDelete.mockResolvedValue(true)
+    const store = createTestStore()
+    store.setState({
+      projectGroups: [projectGroup, childGroup],
+      repos: [{ ...remoteRepo, id: 'nested', projectGroupId: childGroup.id }],
+      filterGroupIds: ['child', 'offline-host-group']
+    })
+
+    await expect(store.getState().deleteProjectGroup(projectGroup.id)).resolves.toBe(true)
+
+    expect(store.getState().filterGroupIds).toEqual(['offline-host-group'])
+  })
+})
