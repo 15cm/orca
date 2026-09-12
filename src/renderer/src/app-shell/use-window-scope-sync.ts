@@ -10,13 +10,43 @@ import { releaseWorkspacesToAnotherWindow } from '../lib/release-workspaces-to-a
  * name a remote host's group by itself).
  */
 export function useWindowScopeSync(): void {
+  const applyWindowScopeSnapshot = useAppStore((s) => s.applyWindowScopeSnapshot)
   const applyWindowScopeChange = useAppStore((s) => s.applyWindowScopeChange)
   const { scope, group } = useWindowScopeProject()
 
-  useEffect(
-    () => window.api.ui.onWindowScopeChanged(applyWindowScopeChange),
-    [applyWindowScopeChange]
-  )
+  useEffect(() => {
+    let disposed = false
+    let hydrated = false
+    const pending: Parameters<typeof applyWindowScopeChange>[0][] = []
+    const unsubscribe = window.api.ui.onWindowScopeChanged((payload) => {
+      if (!hydrated) {
+        pending.push(payload)
+        return
+      }
+      applyWindowScopeChange(payload)
+    })
+    void window.api.ui
+      .getWindowScope()
+      .then((snapshot) => {
+        if (disposed) {
+          return
+        }
+        applyWindowScopeSnapshot(snapshot)
+        hydrated = true
+        pending.forEach(applyWindowScopeChange)
+        pending.length = 0
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          console.error('Failed to hydrate window scope:', error)
+        }
+      })
+    return () => {
+      disposed = true
+      pending.length = 0
+      unsubscribe()
+    }
+  }, [applyWindowScopeChange, applyWindowScopeSnapshot])
 
   // Why the optional call: an older preload has no such channel, and a windowless renderer
   // (paired web, pop-out) is the implicit window — neither ever gives a project away.

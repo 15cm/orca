@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import type { Mock } from 'vitest'
+import { _resetWindowControlIpcHandlersForTests } from './window-control-registration-latch'
 
 /** Loose spy signature: these stand in for electron APIs the suites only assert calls on. */
 export type MainWindowSpy = Mock<(...args: unknown[]) => unknown>
@@ -155,6 +156,7 @@ export function browserManagerMock(): BrowserManagerModuleMock {
 }
 
 export function resetMainWindowMocks(): void {
+  _resetWindowControlIpcHandlersForTests()
   browserWindowMock.mockReset()
   hasLiveMainWindowsMock.mockReset()
   hasLiveMainWindowsMock.mockReturnValue(false)

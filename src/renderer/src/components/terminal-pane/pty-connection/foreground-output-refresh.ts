@@ -28,6 +28,7 @@ import {
 } from './foreground-output-scan'
 import { isRemoteRuntimePtyId } from './paired-parked-terminal-restore'
 
+import type { PtyModelRestoreNeededEvent } from '../../../../../shared/pty-model-restore-marker'
 import type { ConnectPanePtySession } from './connect-pane-pty-session'
 
 export function bindForegroundOutputRefresh(session: ConnectPanePtySession): void {
@@ -51,7 +52,7 @@ export function bindForegroundOutputRefresh(session: ConnectPanePtySession): voi
   }
 
   // Why: main reports dropped renderer-bound bytes out-of-band, routed per PTY by pty-model-restore-channel.ts.
-  function handleModelRestoreNeededMarker(): void {
+  function handleModelRestoreNeededMarker(event: PtyModelRestoreNeededEvent): void {
     if (session.disposed) {
       return
     }
@@ -61,9 +62,13 @@ export function bindForegroundOutputRefresh(session: ConnectPanePtySession): voi
     // Why: dropped bytes invalidate cross-chunk carry — a partial OSC-9999 prefix spanning the gap would corrupt the next live chunk.
     session.transport.resetCrossChunkParserState?.()
     // Why gated (rc.7.perf loop): on a visible pane these markers come from our own restore starving ACKs; re-arming per marker kept the fetch loop alive all flood, so defer to one post-flood repaint.
-    if (session.isForegroundRestoreBackpressureContext()) {
+    if (event.reason !== 'owner-change' && session.isForegroundRestoreBackpressureContext()) {
       session.noteHiddenOutputRestoreFloodBackpressure()
       return
+    }
+    if (event.reason === 'owner-change') {
+      // Owner handoff invalidates the destination model, so generic flood suppression cannot defer it.
+      session.resetHiddenOutputRestoreFloodSuppression()
     }
     // Why the emulator too: it carries state across chunks exactly like the
     // parser does. If the gap swallowed the `ESC[22m` closing a bold run,

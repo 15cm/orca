@@ -49,6 +49,7 @@ import { updateGpuAccelerationAboutPanel } from './gpu-lifecycle'
 import { reconcileManagedWslCliRegistrations } from '../cli/wsl-cli-registration-reconciliation'
 import { createWslCliReconciliationStartupBarrier } from './wsl-cli-reconciliation-startup-barrier'
 import { isAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
+import { setScopedWindowsEnabled } from '../window/window-view-state-registry'
 
 export async function initializeReadyFoundation(): Promise<void> {
   logStartupMilestone('app-ready')
@@ -139,6 +140,8 @@ export async function initializeReadyFoundation(): Promise<void> {
     storageAuthority: state.isServeMode ? 'runtime' : 'desktop'
   })
   state.store = store
+  // Project-window routing and ownership use this launch-time snapshot before runtime/window setup.
+  setScopedWindowsEnabled(store.getSettings().experimentalMultiWindow === true)
   // Why: create pending readiness before the guard can observe the default session.
   // Why parked on state instead of awaited here: Dock/Launchpad launches don't inherit shell
   // proxy env vars, so the persisted proxy must land before any app-owned network fetcher runs —

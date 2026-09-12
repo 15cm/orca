@@ -80,8 +80,12 @@ function makeSplitSnapshot(): RuntimeMobileSessionTabsSnapshot {
   }
 }
 
-function syncSplit(runtime: OrcaRuntimeService, snapshot = makeSplitSnapshot()): void {
-  runtime.syncWindowGraph(1, {
+function syncSplit(
+  runtime: OrcaRuntimeService,
+  snapshot = makeSplitSnapshot(),
+  windowId = 1
+): void {
+  runtime.syncWindowGraph(windowId, {
     tabs: [
       {
         tabId: 'tab',
@@ -180,6 +184,28 @@ describe('OrcaRuntimeService terminal surface retirement', () => {
     expect(runtime.resolveOwnerWindowIdForPtyId('pty-moved')).toBe(2)
     runtime.releaseWindow(2)
     expect(runtime.resolveOwnerWindowIdForPtyId('pty-moved')).toBeNull()
+  })
+
+  it('publishes a claimed owner after the resolver points to the destination window', () => {
+    const runtime = new OrcaRuntimeService()
+    runtime.attachWindow(1)
+    syncSplit(runtime)
+    runtime.attachWindow(2)
+    syncSplit(runtime, makeSplitSnapshot(), 2)
+    const resolvedOwners: (number | null)[] = []
+    ;(
+      runtime as unknown as {
+        onPtyOwnerWindowsChanged: (changes: { ptyId: string }[]) => void
+      }
+    ).onPtyOwnerWindowsChanged = (changes) => {
+      resolvedOwners.push(
+        ...changes.map(({ ptyId }) => runtime.resolveOwnerWindowIdForPtyId(ptyId))
+      )
+    }
+
+    expect(runtime.claimPtyOwnerWindow('pty-left', 2)).toBe('claimed')
+
+    expect(resolvedOwners).toEqual([2])
   })
 
   it('does not resurrect exited PTY ownership from a stale graph leaf', () => {

@@ -103,6 +103,17 @@ describe('initial proxy application ordering', () => {
     expect(foundation).not.toMatch(/await\s+(?:state\.)?initialProxyApplication/)
   })
 
+  it('enables scoped-window ownership after loading the launch-time settings', () => {
+    const foundation = readStartupSource('main-process-ready-foundation.ts')
+    const storeIndex = foundation.indexOf('state.store = store')
+    const scopeIndex = foundation.indexOf(
+      'setScopedWindowsEnabled(store.getSettings().experimentalMultiWindow === true)'
+    )
+
+    expect(storeIndex).toBeGreaterThanOrEqual(0)
+    expect(scopeIndex).toBeGreaterThan(storeIndex)
+  })
+
   it('awaits the proxy after the window opens and before the desktop relay starts', () => {
     const launch = readStartupSource('main-process-runtime-launch.ts')
     const desktopStart = launch.indexOf('async function launchDesktopMode(')

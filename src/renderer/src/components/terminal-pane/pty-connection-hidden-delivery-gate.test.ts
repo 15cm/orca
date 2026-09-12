@@ -678,5 +678,42 @@ describe('connectPanePty', () => {
         vi.useRealTimers()
       }
     })
+
+    it('immediately repaints an owner change during an in-flight foreground restore', async () => {
+      enableMainAuthority()
+      const deps = createDeps({ isVisibleRef: { current: true } })
+      await connectHiddenPane(deps)
+      const transportOptions = createdTransportOptions.at(-1) as {
+        onPtySpawn?: (ptyId: string) => void
+      }
+      transportOptions.onPtySpawn?.('pty-id')
+      const getMainBufferSnapshot = window.api.pty.getMainBufferSnapshot as unknown as ReturnType<
+        typeof vi.fn
+      >
+      const firstSnapshot = createDeferred<{
+        data: string
+        cols: number
+        rows: number
+        seq: number
+      }>()
+      getMainBufferSnapshot
+        .mockReturnValueOnce(firstSnapshot.promise)
+        .mockResolvedValue({ data: 'new owner repaint\r\n', cols: 100, rows: 30, seq: 96 })
+      const { _dispatchPtyModelRestoreNeededForTest } = await import('./pty-model-restore-channel')
+
+      _dispatchPtyModelRestoreNeededForTest({ id: 'pty-id', reason: 'pending-cap', markerSeq: 64 })
+      await flushAsyncTicks(4)
+      expect(getMainBufferSnapshot).toHaveBeenCalledTimes(1)
+
+      _dispatchPtyModelRestoreNeededForTest({
+        id: 'pty-id',
+        reason: 'owner-change',
+        markerSeq: 80
+      })
+      firstSnapshot.resolve({ data: 'old owner snapshot\r\n', cols: 100, rows: 30, seq: 64 })
+      await flushAsyncTicks(20)
+
+      expect(getMainBufferSnapshot).toHaveBeenCalledTimes(2)
+    })
   })
 })

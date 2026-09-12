@@ -135,6 +135,9 @@ through an injected resolver (`resolveWindowProjectGroupId`, wired in `main/inde
 
 `onPtyOwnerWindowsChanged` reports every owner change to `ipc/pty/delivery/owner-transfer.ts`:
 
+The runtime swaps its owner indexes before invoking that callback, so restore delivery resolves
+the destination window rather than sending the moved prompt back to the previous owner.
+
 - **Backpressure credit is per PTY and per renderer.** Bytes in flight to the previous owner can
   never be ACKed by the new one, so `settleRendererDeliveryForOwnerTransfer` repays that credit
   once, drops the pending backlog (the restore below repaints it) and deletes the accounting entry

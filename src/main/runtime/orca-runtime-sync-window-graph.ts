@@ -218,8 +218,7 @@ export class OrcaRuntimeWithSyncWindowGraph extends OrcaRuntimeWithAttachWindow 
       tabs: this.tabs,
       leaves: this.leaves,
       store: this.store,
-      resolveWindowProjectGroupId: this.resolveWindowProjectGroupIdFn ?? (() => null),
-      onChanges: this.onPtyOwnerWindowsChanged ?? undefined
+      resolveWindowProjectGroupId: this.resolveWindowProjectGroupIdFn ?? (() => null)
     })
     for (const ptyId of indexes.consumedTransientPtyIds) {
       this.transientPtyOwnerWindowById.delete(ptyId)
@@ -229,5 +228,9 @@ export class OrcaRuntimeWithSyncWindowGraph extends OrcaRuntimeWithAttachWindow 
     this.leafOwnerWindowByKey = indexes.leafOwners
     this.ptyOwnerWindowById = indexes.ptyOwners
     this.browserPageOwnerWindowById = indexes.browserPageOwners
+    // Restore routing resolves through these indexes, so publish only after they are current.
+    if (indexes.ptyOwnerChanges.length > 0) {
+      this.onPtyOwnerWindowsChanged?.(indexes.ptyOwnerChanges)
+    }
   }
 }

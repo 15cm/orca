@@ -31,13 +31,13 @@ export function rebuildRuntimeWindowOwnershipIndex(args: {
     getFolderWorkspaces?: () => readonly { id: string; projectGroupId: string }[]
   } | null
   resolveWindowProjectGroupId: (windowId: number) => string | null
-  onChanges?: (changes: PtyOwnerWindowChange[]) => void
 }): {
   tabOwners: Map<string, number>
   tabOwnersByWorktree: Map<string, number>
   leafOwners: Map<string, number>
   ptyOwners: Map<string, number>
   browserPageOwners: Map<string, number>
+  ptyOwnerChanges: PtyOwnerWindowChange[]
   /** Transient spawn claims replaced by ownership from a published graph. */
   consumedTransientPtyIds: Set<string>
 } {
@@ -118,10 +118,7 @@ export function rebuildRuntimeWindowOwnershipIndex(args: {
       ptyOwners.set(ptyId, owner)
     }
   }
-  const changes = diffPtyOwnerWindows(args.previousPtyOwners, ptyOwners)
-  if (changes.length) {
-    args.onChanges?.(changes)
-  }
+  const ptyOwnerChanges = diffPtyOwnerWindows(args.previousPtyOwners, ptyOwners)
   const consumedTransientPtyIds = new Set<string>()
   for (const ptyId of args.transientClaims.keys()) {
     if (publishedPtyIds.has(ptyId) && ptyOwners.has(ptyId)) {
@@ -134,6 +131,7 @@ export function rebuildRuntimeWindowOwnershipIndex(args: {
     leafOwners,
     ptyOwners,
     browserPageOwners,
+    ptyOwnerChanges,
     consumedTransientPtyIds
   }
 }
