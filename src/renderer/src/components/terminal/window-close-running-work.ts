@@ -45,6 +45,9 @@ export async function assessWindowCloseRunningWork(params: {
   isQuitting: boolean
 }): Promise<WindowCloseRunningWork> {
   const state = useAppStore.getState()
+  if (state.settings?.confirmCloseWindowWithRunningProcess === false) {
+    return { kind: 'none' }
+  }
   const ptyIds = new Set(
     Object.values(state.tabsByWorktree)
       .flatMap((worktreeTabs) => worktreeTabs ?? [])

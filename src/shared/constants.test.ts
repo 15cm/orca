@@ -77,6 +77,10 @@ describe('getDefaultSettings', () => {
     expect(getDefaultSettings('/tmp').confirmClosePinnedTab).toBe(true)
   })
 
+  it('confirms before closing windows with running processes by default', () => {
+    expect(getDefaultSettings('/tmp').confirmCloseWindowWithRunningProcess).toBe(true)
+  })
+
   it('keeps file-editor word wrapping enabled by default', () => {
     expect(getDefaultSettings('/tmp').editorWordWrap).toBe(true)
   })

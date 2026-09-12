@@ -63,6 +63,23 @@ afterEach(() => {
 })
 
 describe('assessWindowCloseRunningWork', () => {
+  it('does not probe or warn when window close confirmation is disabled', async () => {
+    getStateMock.mockReturnValue({
+      settings: {
+        activeRuntimeEnvironmentId: null,
+        confirmCloseWindowWithRunningProcess: false
+      },
+      tabsByWorktree: { 'worktree-1': [{ id: 'tab-1' }] },
+      ptyIdsByTabId: { 'tab-1': [SSH_PTY] },
+      terminalLayoutsByTabId: {}
+    })
+
+    await expect(assessWindowCloseRunningWork({ isQuitting: false })).resolves.toEqual({
+      kind: 'none'
+    })
+    expect(inspectRuntimeTerminalProcessMock).not.toHaveBeenCalled()
+  })
+
   it('warns about a live process on an SSH host (F15: remote work was filtered out entirely)', async () => {
     setState([SSH_PTY])
     answerWith({ [SSH_PTY]: BUSY })

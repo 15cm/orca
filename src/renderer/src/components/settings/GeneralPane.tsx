@@ -158,6 +158,36 @@ export function GeneralPane({
             }
           />
         </SearchableSetting>
+        <SearchableSetting
+          title={translate(
+            'auto.components.settings.GeneralPane.confirmWindowClose',
+            'Confirm before closing windows with running processes'
+          )}
+          description={translate(
+            'auto.components.settings.GeneralPane.confirmWindowCloseDescription',
+            'Show a confirmation dialog before closing a window with running processes.'
+          )}
+          keywords={['window', 'terminal', 'process', 'confirm', 'close']}
+        >
+          <SettingsSwitchRow
+            label={translate(
+              'auto.components.settings.GeneralPane.confirmWindowClose',
+              'Confirm before closing windows with running processes'
+            )}
+            description={translate(
+              'auto.components.settings.GeneralPane.confirmWindowCloseDescription',
+              'Show a confirmation dialog before closing a window with running processes.'
+            )}
+            checked={settings.confirmCloseWindowWithRunningProcess ?? true}
+            onChange={() =>
+              updateSettings({
+                confirmCloseWindowWithRunningProcess: !(
+                  settings.confirmCloseWindowWithRunningProcess ?? true
+                )
+              })
+            }
+          />
+        </SearchableSetting>
       </section>
     ) : null,
     matchesSettingsSearch(searchQuery, getGeneralWorkspaceSearchEntries()) ? (

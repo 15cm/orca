@@ -151,6 +151,17 @@ export const getGeneralNavigationSearchEntries = createLocalizedCatalog(() => [
       ...translateSearchKeyword('auto.components.settings.general.search.9f8558233a', 'confirm'),
       ...translateSearchKeyword('auto.components.settings.general.search.afa37a34e1', 'close')
     ]
+  },
+  {
+    title: translate(
+      'auto.components.settings.general.search.confirmWindowClose',
+      'Confirm before closing windows with running processes'
+    ),
+    description: translate(
+      'auto.components.settings.general.search.confirmWindowCloseDescription',
+      'Show a confirmation dialog before closing a window with running processes.'
+    ),
+    keywords: ['window', 'terminal', 'process', 'confirm', 'close']
   }
 ])
 
