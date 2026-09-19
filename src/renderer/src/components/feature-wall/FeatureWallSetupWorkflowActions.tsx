@@ -134,7 +134,6 @@ export function SetupScriptAction(): React.JSX.Element {
     const nextHookSettings: RepoHookSettings = {
       ...defaults,
       ...current,
-      setupRunPolicy: current?.setupRunPolicy ?? defaults.setupRunPolicy,
       // Why: setup guide edits are local repo commands and must run after save.
       commandSourcePolicy: current?.commandSourcePolicy ?? 'local-only',
       scripts: {

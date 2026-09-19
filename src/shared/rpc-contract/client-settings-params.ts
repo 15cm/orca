@@ -9,6 +9,7 @@ import {
 } from '../tui-agent-launch-defaults'
 import { normalizePRBotAuthorOverrides } from '../pr-bot-author-overrides'
 import { WorktreeVisibilityDefaultsUpdate } from './worktree-visibility-defaults-params'
+import { isSetupRunPolicy } from '../setup-run-policy'
 
 export const TaskProviderParam = z.custom<TaskProvider>(isTaskProvider, {
   message: 'Unknown task provider'
@@ -59,6 +60,7 @@ export const NativeChatSessionOptionsMutation = z.discriminatedUnion('type', [
 
 export const GitHubProjectRef = z
   .object({
+    defaultSetupRunPolicy: z.unknown().refine(isSetupRunPolicy).optional(),
     owner: z.string(),
     ownerType: z.enum(['organization', 'user']),
     number: z.number().int(),

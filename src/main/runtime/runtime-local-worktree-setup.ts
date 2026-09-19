@@ -31,7 +31,7 @@ export async function prepareRuntimeLocalWorktreeSetup(args: {
   const effectiveDecision = request.runHooks ? 'run' : (request.setupDecision ?? 'inherit')
   let defaultTabs: CreateWorktreeResult['defaultTabs']
   try {
-    defaultTabs = getDefaultTabsLaunch(yamlHooks, repo, effectiveDecision)
+    defaultTabs = getDefaultTabsLaunch(yamlHooks, repo, effectiveDecision, settings)
   } catch (error) {
     console.warn(`[hooks] default tab commands skipped for ${worktreePath}:`, error)
     defaultTabs = yamlHooks?.defaultTabs
@@ -39,7 +39,7 @@ export async function prepareRuntimeLocalWorktreeSetup(args: {
       : undefined
   }
   const shouldRunSetup = Boolean(
-    hooks?.scripts.setup && shouldRunSetupForCreate(repo, effectiveDecision)
+    hooks?.scripts.setup && shouldRunSetupForCreate(repo, effectiveDecision, settings)
   )
   let didStartInProcessSetupHook = false
   if (shouldRunSetup && hooks?.scripts.setup) {

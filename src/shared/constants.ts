@@ -195,7 +195,6 @@ export function getDefaultVoiceSettings(): VoiceSettings {
 export function getDefaultRepoHookSettings(): RepoHookSettings {
   return {
     mode: 'auto',
-    setupRunPolicy: 'run-by-default',
     setupAgentStartupPolicy: DEFAULT_SETUP_AGENT_STARTUP_POLICY,
     scripts: {
       setup: '',

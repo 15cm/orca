@@ -44,6 +44,7 @@ export type DerivedComposerStateInput = Pick<
   | 'sparseEnabled'
   | 'sparsePresetsByRepo'
   | 'sparseSelectedPresetId'
+  | 'settings'
   | 'worktreesByRepo'
   | 'yamlHooks'
 >

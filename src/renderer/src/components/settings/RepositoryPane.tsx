@@ -223,6 +223,7 @@ export function RepositoryPane({
         forceVisible={forceFullPaneForRepoMatch}
         onCopyTemplate={() => void handleCopyTemplate()}
         onUpdateHookSettings={updateSelectedRepoHookSettings}
+        globalSetupRunPolicy={settings?.defaultSetupRunPolicy}
       />
     ) : null
 

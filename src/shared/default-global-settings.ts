@@ -16,6 +16,7 @@ import {
 } from './left-sidebar-appearance'
 import { DEFAULT_SOURCE_CONTROL_GROUP_ORDER } from './source-control-group-order'
 import { DESKTOP_TERMINAL_SCROLLBACK_ROWS_DEFAULT } from './terminal-scrollback-policy'
+import { DEFAULT_SETUP_RUN_POLICY } from './setup-run-policy'
 
 export function buildDefaultSettings(args: {
   workspaceDir: string
@@ -30,6 +31,7 @@ export function buildDefaultSettings(args: {
   voice: VoiceSettings
 }): GlobalSettings {
   return {
+    defaultSetupRunPolicy: DEFAULT_SETUP_RUN_POLICY,
     workspaceDir: args.workspaceDir,
     worktreeVisibilityDefaults: { external: 'hide' },
     nestWorkspaces: true,

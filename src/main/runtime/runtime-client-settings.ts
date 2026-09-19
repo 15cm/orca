@@ -45,6 +45,7 @@ export type RuntimeClientSettings = Pick<
   | 'artifactSharingEnabled'
   | 'worktreeVisibilityDefaults'
   | 'agentSkillSharingEnabled'
+  | 'defaultSetupRunPolicy'
 > & {
   hostSettingOverrides: RuntimeHostDisplayLabelOverrides
 }
@@ -74,6 +75,7 @@ export type RuntimeClientSettingsUpdate = Pick<
   | 'minimaxEndpoint'
   | 'prBotAuthorOverrides'
   | 'worktreeVisibilityDefaults'
+  | 'defaultSetupRunPolicy'
 >
 
 export class RuntimeClientSettingsController {
@@ -91,6 +93,7 @@ export class RuntimeClientSettingsController {
     }
     const settings = this.store.getSettings()
     return {
+      defaultSetupRunPolicy: settings.defaultSetupRunPolicy ?? 'run-by-default',
       defaultTuiAgent: settings.defaultTuiAgent ?? null,
       disabledTuiAgents: settings.disabledTuiAgents ?? [],
       agentCmdOverrides: settings.agentCmdOverrides ?? {},

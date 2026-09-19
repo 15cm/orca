@@ -44,6 +44,7 @@ type RepositoryHooksSectionProps = {
   forceVisible?: boolean
   onCopyTemplate: () => void
   onUpdateHookSettings: (settings: RepoHookSettings) => void
+  globalSetupRunPolicy?: SetupRunPolicy
 }
 
 export function RepositoryHooksSection({
@@ -55,7 +56,8 @@ export function RepositoryHooksSection({
   copiedTemplate,
   forceVisible = false,
   onCopyTemplate,
-  onUpdateHookSettings
+  onUpdateHookSettings,
+  globalSetupRunPolicy = 'run-by-default'
 }: RepositoryHooksSectionProps): React.JSX.Element {
   useTranslation()
   const settingsSearchQuery = useAppStore((state) => state.settingsSearchQuery)
@@ -88,8 +90,8 @@ export function RepositoryHooksSection({
     selectedHostId
   })
   const localHookFields = getLocalHookFields()
-  const selectedSetupRunPolicy: SetupRunPolicy =
-    hookSettingsDraft.setupRunPolicy ?? 'run-by-default'
+  const selectedSetupRunPolicy: SetupRunPolicy | 'global' =
+    hookSettingsDraft.setupRunPolicy ?? 'global'
   const selectedSetupAgentStartupPolicy: SetupAgentStartupPolicy =
     hookSettingsDraft.setupAgentStartupPolicy ?? 'start-immediately'
   const sharedSetupScript = yamlHooks?.scripts.setup
@@ -176,6 +178,7 @@ export function RepositoryHooksSection({
         <RepositorySetupPolicySetting
           setupRunPolicy={selectedSetupRunPolicy}
           setupAgentStartupPolicy={selectedSetupAgentStartupPolicy}
+          globalSetupRunPolicy={globalSetupRunPolicy}
           onRunPolicyChange={(setupRunPolicy) => updateHookSettingsPolicyDraft({ setupRunPolicy })}
           onStartupPolicyChange={(setupAgentStartupPolicy) =>
             updateHookSettingsPolicyDraft({ setupAgentStartupPolicy })

@@ -3,6 +3,8 @@ import type { OrcaHooks, SetupRunPolicy } from '../../../../shared/orca-yaml-hoo
 import type { ProjectHostSetup } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { SetupDecision } from '../../../../shared/worktree/create-types'
+import type { GlobalSettings } from '../../../../shared/global-settings-types'
+import { resolveSetupRunPolicy } from '../../../../shared/setup-run-policy'
 import { getSetupConfig } from '@/lib/new-workspace'
 
 type AutomationSetupSource = {
@@ -14,7 +16,8 @@ function getAutomationSetupSource(
   repoId: string,
   repos: readonly Repo[],
   projectHostSetups: readonly ProjectHostSetup[],
-  yamlHooks: OrcaHooks | null | undefined
+  yamlHooks: OrcaHooks | null | undefined,
+  settings?: Pick<GlobalSettings, 'defaultSetupRunPolicy'> | null
 ): AutomationSetupSource | null {
   const setup = projectHostSetups.find(
     (candidate) => candidate.repoId === repoId && candidate.setupState === 'ready'
@@ -30,7 +33,7 @@ function getAutomationSetupSource(
   }
   return {
     setupScript: setupConfig.command,
-    setupRunPolicy: hookSettings?.setupRunPolicy ?? 'run-by-default'
+    setupRunPolicy: resolveSetupRunPolicy({ hookSettings }, settings)
   }
 }
 
@@ -50,12 +53,19 @@ export function getVisibleAutomationSetupDecision(args: {
   repos: readonly Repo[]
   projectHostSetups: readonly ProjectHostSetup[]
   yamlHooks?: OrcaHooks | null
+  settings?: Pick<GlobalSettings, 'defaultSetupRunPolicy'> | null
 }): Extract<SetupDecision, 'run' | 'skip'> | undefined {
   if (args.createTarget !== 'orca' || args.workspaceMode !== 'new_per_run') {
     return undefined
   }
   return getAutomationSetupDefaultDecision(
-    getAutomationSetupSource(args.repoId, args.repos, args.projectHostSetups, args.yamlHooks)
+    getAutomationSetupSource(
+      args.repoId,
+      args.repos,
+      args.projectHostSetups,
+      args.yamlHooks,
+      args.settings
+    )
   )
 }
 
@@ -66,6 +76,7 @@ export function resolveAutomationSetupDecisionForSave(args: {
   repos: readonly Repo[]
   projectHostSetups: readonly ProjectHostSetup[]
   yamlHooks?: OrcaHooks | null
+  settings?: Pick<GlobalSettings, 'defaultSetupRunPolicy'> | null
   draftSetupDecision: Extract<SetupDecision, 'run' | 'skip'> | undefined
 }): Extract<SetupDecision, 'run' | 'skip'> | undefined {
   if (args.createTarget !== 'orca' || args.workspaceMode !== 'new_per_run') {

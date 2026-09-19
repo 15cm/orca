@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { Repo } from '../../shared/repo-types'
+import type { SetupRunPolicy } from '../../shared/orca-yaml-hook-types'
 import {
   getEffectiveHooks,
   hasHooksFile,
@@ -20,6 +21,7 @@ import { joinWorktreeRelativePath } from './runtime-relative-paths'
 
 type RuntimeRepositoryHooksCommandsDeps = {
   resolveRepo: (selector: string) => Promise<Repo>
+  getSettings?: () => { defaultSetupRunPolicy?: SetupRunPolicy }
 }
 
 export class RuntimeRepositoryHooksCommands {
@@ -33,7 +35,7 @@ export class RuntimeRepositoryHooksCommands {
         return {
           hasHooksFile: false,
           hooks: null,
-          setupRunPolicy: getEffectiveSetupRunPolicy(repo),
+          setupRunPolicy: getEffectiveSetupRunPolicy(repo, this.deps.getSettings?.()),
           source: null
         }
       }
@@ -43,7 +45,7 @@ export class RuntimeRepositoryHooksCommands {
         return {
           hasHooksFile: Boolean(hooks),
           hooks,
-          setupRunPolicy: getEffectiveSetupRunPolicy(repo),
+          setupRunPolicy: getEffectiveSetupRunPolicy(repo, this.deps.getSettings?.()),
           source: hooks ? ('orca.yaml' as const) : null,
           setupTrust: setupTrust(repo, getDefaultTabCommandTrustContent(hooks))
         }
@@ -51,7 +53,7 @@ export class RuntimeRepositoryHooksCommands {
         return {
           hasHooksFile: false,
           hooks: null,
-          setupRunPolicy: getEffectiveSetupRunPolicy(repo),
+          setupRunPolicy: getEffectiveSetupRunPolicy(repo, this.deps.getSettings?.()),
           source: null
         }
       }
@@ -62,7 +64,7 @@ export class RuntimeRepositoryHooksCommands {
     return {
       hasHooksFile: hasFile,
       hooks,
-      setupRunPolicy: getEffectiveSetupRunPolicy(repo),
+      setupRunPolicy: getEffectiveSetupRunPolicy(repo, this.deps.getSettings?.()),
       source: hasFile ? ('orca.yaml' as const) : hooks ? ('legacy' as const) : null,
       setupTrust: setupTrust(repo, getDefaultTabCommandTrustContent(sharedHooks))
     }

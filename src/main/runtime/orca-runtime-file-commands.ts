@@ -196,7 +196,8 @@ export class OrcaRuntimeWithFileCommands extends OrcaRuntimeWithPreservedBranchC
   protected readonly gitHubProjectCommands = new RuntimeGitHubProjectCommands()
 
   protected readonly repositoryHooks = new RuntimeRepositoryHooksCommands({
-    resolveRepo: (selector) => this.resolveRepoSelector(selector)
+    resolveRepo: (selector) => this.resolveRepoSelector(selector),
+    getSettings: () => this.requireStore().getSettings()
   })
 
   protected readonly repositoryIssueCommand = new RuntimeRepositoryIssueCommand({

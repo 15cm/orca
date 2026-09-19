@@ -18,6 +18,7 @@ import { normalizeAppIconId } from '../../../shared/app-icon'
 import { normalizeUiLanguage } from '../../../shared/ui-language'
 import { normalizeWorktreeVisibilityDefaults } from '../../../shared/external-worktree-visibility'
 import { normalizePRBotAuthorOverrides } from '../../../shared/pr-bot-author-overrides'
+import { normalizeSetupRunPolicy } from '../../../shared/setup-run-policy'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import {
   addMobilePairingCustomAddress,
@@ -56,6 +57,9 @@ export function updateSettings(
   options: { notifyListeners?: boolean; originWebContentsId?: number } = {}
 ): GlobalSettings {
   const sanitizedUpdates = stripRetiredGlobalSettings(updates)
+  if ('defaultSetupRunPolicy' in updates) {
+    sanitizedUpdates.defaultSetupRunPolicy = normalizeSetupRunPolicy(updates.defaultSetupRunPolicy)
+  }
   if ('opencodeSessionCookie' in updates && !updates.opencodeSessionCookie) {
     operations.removeRetainedBlob(PROTECTED_SECRET_SLOT.opencodeSessionCookie)
   }

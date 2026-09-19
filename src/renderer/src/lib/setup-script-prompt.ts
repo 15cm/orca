@@ -167,7 +167,6 @@ export function buildImportedHookSettings(
   return {
     ...defaults,
     ...current,
-    setupRunPolicy: current?.setupRunPolicy ?? defaults.setupRunPolicy,
     // Why: imported setup commands are stored as local settings. If a shared
     // hook file exists, run-both preserves its archive hook; otherwise local
     // settings need to be authoritative so the imported setup actually runs.

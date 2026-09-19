@@ -1,4 +1,3 @@
-import { getDefaultRepoHookSettings } from '../../../../shared/constants'
 import type {
   RepoHookSettings,
   SetupAgentStartupPolicy
@@ -14,14 +13,13 @@ export function buildSetupAgentStartupHookSettings(
   current: RepoHookSettings | undefined,
   setupAgentStartupPolicy: SetupAgentStartupPolicy
 ): RepoHookSettings {
-  const defaults = getDefaultRepoHookSettings()
   return {
-    ...defaults,
+    mode: current?.mode ?? 'auto',
     ...current,
-    setupRunPolicy: current?.setupRunPolicy ?? defaults.setupRunPolicy,
     setupAgentStartupPolicy,
     scripts: {
-      ...defaults.scripts,
+      setup: '',
+      archive: '',
       ...current?.scripts
     }
   }

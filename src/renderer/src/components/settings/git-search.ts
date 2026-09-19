@@ -5,6 +5,18 @@ import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 
 export const getGitPaneSearchEntries = createLocalizedCatalog(() => [
   {
+    title: 'Default Workspace Setup',
+    description: 'Applies when a project and host has no override.',
+    keywords: [
+      'setup',
+      'workspace',
+      'global',
+      'ask every time',
+      'run by default',
+      'skip by default'
+    ]
+  },
+  {
     title: translate('auto.components.settings.git.search.68bd65fdb8', 'Branch Prefix'),
     description: translate(
       'auto.components.settings.git.search.5ecd91c5ef',

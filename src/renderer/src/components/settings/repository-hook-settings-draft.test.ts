@@ -14,7 +14,6 @@ describe('repository hook settings draft', () => {
 
     expect(draft).toMatchObject({
       mode: 'override',
-      setupRunPolicy: 'run-by-default',
       setupAgentStartupPolicy: 'start-immediately',
       scripts: { setup: 'pnpm install', archive: '' }
     })

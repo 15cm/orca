@@ -41,6 +41,7 @@ import type {
   ExternalWorktreeVisibility,
   WorktreeVisibilitySourcePreferences
 } from './repo-types'
+import type { SetupRunPolicy } from './orca-yaml-hook-types'
 
 /** MiniMax account region used to select the quota endpoint. */
 export type MiniMaxEndpoint = 'overseas' | 'cn'
@@ -55,6 +56,8 @@ export type WorktreeVisibilityDefaults = {
 }
 
 export type GlobalSettings = {
+  /** Default setup behavior when a repository and host have no override. */
+  defaultSetupRunPolicy: SetupRunPolicy
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
+import type { SetupRunPolicy } from '../../../../shared/orca-yaml-hook-types'
 import type { SourceControlGroupOrder } from '../../../../shared/ui-chrome-types'
 import type { SourceControlAiSettingsPatch } from '../../../../shared/source-control-ai-types'
 import { DEFAULT_SOURCE_CONTROL_GROUP_ORDER } from '../../../../shared/source-control-group-order'
@@ -50,6 +51,40 @@ const SOURCE_CONTROL_GROUP_ORDER_KEYWORDS = [
   'source control',
   'git changes'
 ]
+
+function DefaultWorkspaceSetupSetting({
+  settings,
+  updateSettings
+}: Pick<GitPaneProps, 'settings' | 'updateSettings'>): React.JSX.Element {
+  const title = 'Default Workspace Setup'
+  const description = 'Applies when a project and host has no override.'
+  const value = settings.defaultSetupRunPolicy ?? 'run-by-default'
+  return (
+    <SearchableSetting
+      title={title}
+      description={description}
+      keywords={['setup', 'workspace', 'global']}
+    >
+      <SettingsRow
+        label={title}
+        description={description}
+        control={
+          <SettingsSegmentedControl<SetupRunPolicy>
+            value={value}
+            onChange={(nextValue) => void updateSettings({ defaultSetupRunPolicy: nextValue })}
+            ariaLabel={title}
+            size="sm"
+            options={[
+              { value: 'ask', label: 'Ask every time' },
+              { value: 'run-by-default', label: 'Run by default' },
+              { value: 'skip-by-default', label: 'Skip by default' }
+            ]}
+          />
+        }
+      />
+    </SearchableSetting>
+  )
+}
 
 export function shouldShowAutoRenameBranchSetting(
   searchQuery: string,
@@ -167,6 +202,17 @@ export function GitPane({
     settings.branchPrefix === 'git-username' ? displayedGitUsername : customPrefixDraft
 
   const visibleSections = [
+    matchesSettingsSearch(searchQuery, {
+      title: 'Default Workspace Setup',
+      description: 'Applies when a project and host has no override.',
+      keywords: ['setup', 'workspace', 'global']
+    }) ? (
+      <DefaultWorkspaceSetupSetting
+        key="default-workspace-setup"
+        settings={settings}
+        updateSettings={updateSettings}
+      />
+    ) : null,
     matchesSettingsSearch(searchQuery, {
       title: translate('auto.components.settings.GitPane.330f584b50', 'Branch Prefix'),
       description: translate(

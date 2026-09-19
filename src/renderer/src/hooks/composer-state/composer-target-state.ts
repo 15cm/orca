@@ -149,6 +149,7 @@ export function useComposerTargetState(
     sparseEnabled: asyncComposerState.sparseEnabled,
     sparsePresetsByRepo: composerTargetStore.sparsePresetsByRepo,
     sparseSelectedPresetId: asyncComposerState.sparseSelectedPresetId,
+    settings: composerTargetStore.settings,
     worktreesByRepo: composerTargetStore.worktreesByRepo,
     yamlHooks: asyncComposerState.yamlHooks
   })

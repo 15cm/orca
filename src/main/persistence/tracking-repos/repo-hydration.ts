@@ -55,6 +55,7 @@ export function hydrateRepo(repo: Repo, gitUsernameCache: ReadonlyMap<string, st
     ? ''
     : (gitUsernameCache.get(repoGitUsernameCacheKey(repo)) ?? repo.gitUsername ?? '')
 
+  const defaultHookSettings = getDefaultRepoHookSettings()
   return {
     ...repoWithoutIcon,
     ...(repoIcon !== undefined ? { repoIcon } : {}),
@@ -70,12 +71,12 @@ export function hydrateRepo(repo: Repo, gitUsernameCache: ReadonlyMap<string, st
     kind: isFolderRepo(repo) ? 'folder' : 'git',
     gitUsername,
     hookSettings: {
-      ...getDefaultRepoHookSettings(),
+      ...defaultHookSettings,
       ...repo.hookSettings,
-      scripts: {
-        ...getDefaultRepoHookSettings().scripts,
-        ...repo.hookSettings?.scripts
-      }
+      scripts: { ...defaultHookSettings.scripts, ...repo.hookSettings?.scripts },
+      ...(repo.hookSettings?.setupRunPolicy !== undefined
+        ? { setupRunPolicy: repo.hookSettings.setupRunPolicy }
+        : {})
     }
   }
 }

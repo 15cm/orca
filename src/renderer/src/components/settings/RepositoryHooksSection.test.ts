@@ -151,7 +151,6 @@ describe('RepositoryHooksSection setup startup policy', () => {
 
     expect(updates.at(-1)).toMatchObject({
       setupAgentStartupPolicy: 'wait-for-setup',
-      setupRunPolicy: 'run-by-default',
       scripts: { setup: '', archive: '' }
     })
   })

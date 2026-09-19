@@ -122,7 +122,7 @@ export const CORE_COMMAND_SPECS: CommandSpec[] = [
       'By default this creates the worktree and its first terminal without switching the active Orca view.',
       'Pass --agent to launch an agent in the first terminal; --prompt sends initial work to that agent.',
       'With --agent --json, read the new agent handle from result.agentTerminalHandle; older runtimes return only result.startupTerminal.handle, and may return neither for folder-based repos.',
-      'Repo-defined setup hooks follow the repository setup policy; pass --setup run to force them.',
+      'Repo-defined setup hooks follow the repository override, then global Default Workspace Setup; pass --setup run to force them.',
       'Pass --activate when the CLI caller intentionally wants to reveal the new worktree in the app.',
       'Passing --run-hooks is kept as a legacy alias for --setup run and reveals the worktree.'
     ],

@@ -110,7 +110,7 @@ orca worktree create --name quick-check --agent codex --prompt "Summarize the di
 orca worktree create --name hidden-setup --setup inherit --json
 ```
 
-`--agent` launches the selected agent in the first terminal. `--prompt` sends initial work to that agent. `--setup run|skip|inherit` controls repo setup hooks; `inherit` follows the repo policy.
+`--agent` launches the selected agent in the first terminal. `--prompt` sends initial work to that agent. `--setup run|skip|inherit` controls repo setup hooks; `inherit` follows the repository override, then the global Default Workspace Setup policy. Omitted setup behaves the same as `inherit`.
 
 ## Terminals
 

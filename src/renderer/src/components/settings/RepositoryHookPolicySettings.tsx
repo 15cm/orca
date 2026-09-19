@@ -112,12 +112,14 @@ export function RepositorySetupPolicySetting({
   setupRunPolicy,
   setupAgentStartupPolicy,
   onRunPolicyChange,
-  onStartupPolicyChange
+  onStartupPolicyChange,
+  globalSetupRunPolicy
 }: {
-  setupRunPolicy: SetupRunPolicy
+  setupRunPolicy: SetupRunPolicy | 'global'
   setupAgentStartupPolicy: SetupAgentStartupPolicy
-  onRunPolicyChange: (policy: SetupRunPolicy) => void
+  onRunPolicyChange: (policy: SetupRunPolicy | undefined) => void
   onStartupPolicyChange: (policy: SetupAgentStartupPolicy) => void
+  globalSetupRunPolicy: SetupRunPolicy
 }): React.JSX.Element {
   const options = getSetupRunPolicyOptions()
   return (
@@ -134,11 +136,27 @@ export function RepositorySetupPolicySetting({
             )}
           </p>
         </div>
-        <SegmentedPolicyToggle
-          options={options}
-          selected={setupRunPolicy}
-          onSelect={onRunPolicyChange}
-        />
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onRunPolicyChange(undefined)}
+            title={`Uses global: ${globalSetupRunPolicy}`}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium ${setupRunPolicy === 'global' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
+          >
+            Global (
+            {globalSetupRunPolicy === 'ask'
+              ? 'Ask every time'
+              : globalSetupRunPolicy === 'run-by-default'
+                ? 'Run by default'
+                : 'Skip by default'}
+            )
+          </button>
+          <SegmentedPolicyToggle
+            options={options}
+            selected={setupRunPolicy === 'global' ? 'ask' : setupRunPolicy}
+            onSelect={onRunPolicyChange}
+          />
+        </div>
       </div>
       <div className="flex items-start justify-between gap-4 border-t border-border/60 pt-4">
         <div className="min-w-0 space-y-1">

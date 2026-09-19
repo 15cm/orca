@@ -2070,7 +2070,7 @@ export async function createRemoteWorktree(
   if (fsProvider) {
     const primaryHooks = await readRemoteEffectiveHooks(repo, fsProvider, repo.path)
     if (primaryHooks?.scripts.setup) {
-      shouldRunSetupForCreate(repo, args.setupDecision)
+      shouldRunSetupForCreate(repo, args.setupDecision, settings)
     }
   }
 
@@ -2246,7 +2246,7 @@ export async function createRemoteWorktree(
       const yamlHooks = await readRemoteOrcaYaml(fsProvider, created.path)
       const hooks = getEffectiveHooksFromConfig(repo, yamlHooks)
       try {
-        defaultTabs = getDefaultTabsLaunch(yamlHooks, repo, args.setupDecision)
+        defaultTabs = getDefaultTabsLaunch(yamlHooks, repo, args.setupDecision, settings)
       } catch (error) {
         // Why: default tab commands share setup's run policy; without a renderer decision, create the tabs but don't run them.
         console.warn(`[hooks] default tab commands skipped for ${created.path}:`, error)
@@ -2258,7 +2258,7 @@ export async function createRemoteWorktree(
       let shouldLaunchSetup = false
       if (setupScript) {
         try {
-          shouldLaunchSetup = shouldRunSetupForCreate(repo, args.setupDecision)
+          shouldLaunchSetup = shouldRunSetupForCreate(repo, args.setupDecision, settings)
         } catch (error) {
           // Why: worktree already exists; skip setup rather than fail a successful git create when the branch adds a hook without a renderer decision.
           console.warn(`[hooks] setup hook skipped for ${created.path}:`, error)
@@ -2452,7 +2452,7 @@ export async function createLocalWorktree(
   // Why: this validation doesn't depend on remote refs, so it can overlap a required remote-tracking base refresh.
   const primarySetupScript = getEffectiveHooks(repo)?.scripts.setup
   if (primarySetupScript) {
-    shouldRunSetupForCreate(repo, args.setupDecision)
+    shouldRunSetupForCreate(repo, args.setupDecision, settings)
   }
   const sparseDirectories = args.sparseCheckout
     ? normalizeSparseDirectories(args.sparseCheckout.directories)
@@ -2991,7 +2991,7 @@ export async function createLocalWorktree(
     const createdYamlHooks = loadHooks(worktreePath)
     const createdEffectiveHooks = getEffectiveHooksFromConfig(repo, createdYamlHooks)
     try {
-      defaultTabs = getDefaultTabsLaunch(createdYamlHooks, repo, args.setupDecision)
+      defaultTabs = getDefaultTabsLaunch(createdYamlHooks, repo, args.setupDecision, settings)
     } catch (error) {
       // Why: default tab commands share setup's run policy; if the target branch adds commands without a renderer decision, create the tabs but don't run them.
       console.warn(`[hooks] default tab commands skipped for ${worktreePath}:`, error)
@@ -3003,7 +3003,7 @@ export async function createLocalWorktree(
     let shouldLaunchSetup = false
     if (setupScript) {
       try {
-        shouldLaunchSetup = shouldRunSetupForCreate(repo, args.setupDecision)
+        shouldLaunchSetup = shouldRunSetupForCreate(repo, args.setupDecision, settings)
       } catch (error) {
         // Why: target branch may add setup hooks the renderer never collected a decision for; worktree exists, so skip setup rather than fail creation.
         console.warn(`[hooks] setup hook skipped for ${worktreePath}:`, error)

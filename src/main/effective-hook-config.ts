@@ -1,4 +1,5 @@
-import { getDefaultRepoHookSettings } from '../shared/constants'
+import { resolveSetupRunDecision, resolveSetupRunPolicy } from '../shared/setup-run-policy'
+import type { GlobalSettings } from '../shared/global-settings-types'
 import { resolveHookCommandSourcePolicy } from '../shared/hook-command-source-policy'
 import type {
   HookCommandSourcePolicy,
@@ -57,24 +58,19 @@ export function getEffectiveHooksFromConfig(
   }
 }
 
-export function getEffectiveSetupRunPolicy(repo: Repo): SetupRunPolicy {
-  return repo.hookSettings?.setupRunPolicy ?? getDefaultRepoHookSettings().setupRunPolicy!
+export function getEffectiveSetupRunPolicy(
+  repo: Repo,
+  settings?: { defaultSetupRunPolicy?: GlobalSettings['defaultSetupRunPolicy'] } | null
+): SetupRunPolicy {
+  return resolveSetupRunPolicy(repo, settings)
 }
 
-export function shouldRunSetupForCreate(repo: Repo, decision: SetupDecision = 'inherit'): boolean {
-  if (decision === 'run') {
-    return true
-  }
-  if (decision === 'skip') {
-    return false
-  }
-
-  const policy = getEffectiveSetupRunPolicy(repo)
-  if (policy === 'ask') {
-    throw new Error('Setup decision required for this repository')
-  }
-
-  return policy === 'run-by-default'
+export function shouldRunSetupForCreate(
+  repo: Repo,
+  decision: SetupDecision = 'inherit',
+  settings?: { defaultSetupRunPolicy?: GlobalSettings['defaultSetupRunPolicy'] } | null
+): boolean {
+  return resolveSetupRunDecision(repo, decision, settings)
 }
 
 export function getDefaultTabCommandTrustContent(hooks: OrcaHooks | null): string {
@@ -94,7 +90,8 @@ export function getDefaultTabCommandTrustContent(hooks: OrcaHooks | null): strin
 export function getDefaultTabsLaunch(
   hooks: OrcaHooks | null,
   repo: Repo,
-  decision: SetupDecision = 'inherit'
+  decision: SetupDecision = 'inherit',
+  settings?: { defaultSetupRunPolicy?: GlobalSettings['defaultSetupRunPolicy'] } | null
 ): WorktreeDefaultTabsLaunch | undefined {
   const tabs = hooks?.defaultTabs ?? []
   if (tabs.length === 0) {
@@ -110,6 +107,6 @@ export function getDefaultTabsLaunch(
   // Why: local-only repos may use shared tab titles/colors but must not run the committed orca.yaml commands.
   const canRunSharedCommands = sharedCommandPolicy !== 'local-only'
   const runCommands =
-    hasCommands && canRunSharedCommands ? shouldRunSetupForCreate(repo, decision) : false
+    hasCommands && canRunSharedCommands ? shouldRunSetupForCreate(repo, decision, settings) : false
   return { tabs, runCommands }
 }

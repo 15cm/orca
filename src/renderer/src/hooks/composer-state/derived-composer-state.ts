@@ -46,6 +46,7 @@ export function useDerivedComposerState(input: DerivedComposerStateInput) {
     sparseEnabled,
     sparsePresetsByRepo,
     sparseSelectedPresetId,
+    settings,
     worktreesByRepo,
     yamlHooks
   } = input
@@ -124,7 +125,10 @@ export function useDerivedComposerState(input: DerivedComposerStateInput) {
     [currentYamlHooks, selectedRepo, selectedRepoIsGit]
   )
 
-  const setupPolicy: SetupRunPolicy = selectedRepo?.hookSettings?.setupRunPolicy ?? 'run-by-default'
+  const setupPolicy: SetupRunPolicy =
+    selectedRepo?.hookSettings?.setupRunPolicy ??
+    settings?.defaultSetupRunPolicy ??
+    'run-by-default'
 
   const linkedWorkItemProvider = linkedWorkItem ? getLinkedWorkItemProvider(linkedWorkItem) : null
 
