@@ -9,6 +9,7 @@ import {
 } from './terminal-ime-candidate-key-release-guard'
 import { installTerminalImeCompositionTracker } from './terminal-ime-composition-tracker'
 import { installTerminalImeComposerPlaceholderMask } from './terminal-ime-composer-placeholder-mask'
+import { installTerminalImeDelayedCommitForwarder } from './terminal-ime-delayed-commit-forwarder'
 import { installTerminalImeLinuxCandidateState } from './terminal-ime-linux-candidate-state'
 import { installTerminalImeNativeTextForwarder } from './terminal-ime-native-text-forwarder'
 import { installTerminalIosHangulPreedit } from './terminal-ios-hangul-preedit'
@@ -62,6 +63,12 @@ export function installTerminalPaneInputHandling(context: PaneInputContext): voi
   const linuxImeCandidateState = isLinux
     ? installTerminalImeLinuxCandidateState(pane.terminal.element)
     : null
+  const delayedImeCommitForwarder = isLinux
+    ? installTerminalImeDelayedCommitForwarder({
+        terminalElement: pane.terminal.element,
+        sendInput: (data) => pane.terminal.input(data)
+      })
+    : null
   const imeCompositionTracker = installTerminalImeCompositionTracker(pane.terminal.element)
   const imeComposerPlaceholderMask = installTerminalImeComposerPlaceholderMask(pane.terminal)
   const iosHangulPreedit = isIosWeb
@@ -78,6 +85,7 @@ export function installTerminalPaneInputHandling(context: PaneInputContext): voi
       imeComposerPlaceholderMask.dispose()
       imeCompositionTracker.dispose()
       linuxImeCandidateState?.dispose()
+      delayedImeCommitForwarder?.dispose()
       iosHangulPreedit?.dispose()
     }
   })

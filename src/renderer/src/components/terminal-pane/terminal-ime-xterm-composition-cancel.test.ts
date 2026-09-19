@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { Terminal } from '@xterm/xterm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { installTerminalImeDelayedCommitForwarder } from './terminal-ime-delayed-commit-forwarder'
 
 function nextEventLoop(): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, 0))
@@ -115,6 +116,10 @@ describe('xterm IME composition cancellation', () => {
 
   it('still emits an empty-end commit that delivers text via a following input event', async () => {
     const { emitted, terminal, textarea } = openTerminal()
+    const forwarder = installTerminalImeDelayedCommitForwarder({
+      terminalElement: terminal.element,
+      sendInput: (data) => terminal.input(data)
+    })
 
     dispatchCompositionEvent(textarea, 'compositionstart')
     dispatchCompositionEvent(textarea, 'compositionupdate', '한')
@@ -129,6 +134,64 @@ describe('xterm IME composition cancellation', () => {
     await nextEventLoop()
 
     expect(emitted.join('')).toBe('한')
+    forwarder.dispose()
+    terminal.dispose()
+  })
+
+  it('emits a delayed commit after a voice-input status preedit is cleared', async () => {
+    const { emitted, terminal, textarea } = openTerminal()
+    const forwarder = installTerminalImeDelayedCommitForwarder({
+      terminalElement: terminal.element,
+      sendInput: (data) => terminal.input(data)
+    })
+
+    dispatchCompositionEvent(textarea, 'compositionstart')
+    updatePreedit(textarea, 'Recording…')
+    await nextEventLoop()
+    textarea.value = ''
+    dispatchCompositionEvent(textarea, 'compositionend')
+    // fcitx5-vinput receives its recognition result asynchronously after clearing status preedit.
+    await nextEventLoop()
+    textarea.value = 'voice result'
+    dispatchComposedInput(textarea, { data: 'voice result', inputType: 'insertText' })
+    await nextEventLoop()
+
+    expect(emitted.join('')).toBe('voice result')
+    forwarder.dispose()
+    terminal.dispose()
+  })
+
+  it('leaves ordinary typing after a cleared preedit with xterm', async () => {
+    const { emitted, terminal, textarea } = openTerminal()
+    const delayedForwards: string[] = []
+    const forwarder = installTerminalImeDelayedCommitForwarder({
+      terminalElement: terminal.element,
+      sendInput: (data) => {
+        delayedForwards.push(data)
+        terminal.input(data)
+      }
+    })
+
+    dispatchCompositionEvent(textarea, 'compositionstart')
+    updatePreedit(textarea, 'Recording…')
+    await nextEventLoop()
+    textarea.value = ''
+    dispatchCompositionEvent(textarea, 'compositionend')
+    await nextEventLoop()
+    const keydown = new KeyboardEvent('keydown', {
+      key: 'a',
+      code: 'KeyA',
+      bubbles: true
+    })
+    Object.defineProperty(keydown, 'keyCode', { value: 65 })
+    textarea.dispatchEvent(keydown)
+    textarea.value = 'a'
+    dispatchComposedInput(textarea, { data: 'a', inputType: 'insertText' })
+    await nextEventLoop()
+
+    expect(delayedForwards).toEqual([])
+    expect(emitted).toContain('a')
+    forwarder.dispose()
     terminal.dispose()
   })
 })
