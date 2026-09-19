@@ -617,7 +617,7 @@ describe('enableMainProcessGpuFeatures', () => {
     const { app } = await import('electron')
     const { enableMainProcessGpuFeatures } = await import('./configure-process')
 
-    setPlatform('darwin')
+    setPlatform('win32')
     delete process.env.ORCA_E2E_USER_DATA_DIR
     vi.mocked(app.commandLine.appendSwitch).mockClear()
     enableMainProcessGpuFeatures()
@@ -686,8 +686,6 @@ describe('enableMainProcessGpuFeatures', () => {
     }
 
     expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-gpu-sandbox')
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('enable-wayland-ime')
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('wayland-text-input-version', '3')
     expect(app.disableHardwareAcceleration).not.toHaveBeenCalled()
     expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith(
       'enable-features',
@@ -713,8 +711,6 @@ describe('enableMainProcessGpuFeatures', () => {
     enableMainProcessGpuFeatures()
 
     expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-gpu-sandbox')
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('enable-wayland-ime')
-    expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('wayland-text-input-version', '3')
     expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith(
       'enable-features',
       expect.stringContaining('EarlyEstablishGpuChannel')
@@ -752,7 +748,6 @@ describe('enableMainProcessGpuFeatures', () => {
     }
 
     expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith('disable-gpu-sandbox')
-    expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith('enable-wayland-ime')
     expect(app.commandLine.appendSwitch).not.toHaveBeenCalledWith('wayland-text-input-version', '3')
     expect(app.commandLine.appendSwitch).toHaveBeenCalledWith(
       'enable-features',
@@ -830,7 +825,7 @@ describe('enableMainProcessGpuFeatures', () => {
     const { app } = await import('electron')
     const { enableMainProcessGpuFeatures } = await import('./configure-process')
 
-    setPlatform('darwin')
+    setPlatform('win32')
     delete process.env.ORCA_E2E_USER_DATA_DIR
     vi.mocked(app.commandLine.appendSwitch).mockClear()
     vi.mocked(app.commandLine.getSwitchValue).mockReturnValue('ExistingFeature')

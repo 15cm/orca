@@ -7,6 +7,7 @@ import { argvRequestsServeMode, normalizeServeModeArgv } from './serve-mode-argv
 import {
   configureDevUserDataPath,
   configureElectronNetworkCompatibility,
+  configureLinuxWaylandIme,
   configureOrcaUserDataPathEnv,
   disableUnsupportedChromiumFeatures,
   enableMainProcessGpuFeatures,
@@ -318,6 +319,7 @@ export function runMainProcessPreflight(options: MainProcessPreflightOptions): b
   // Why: unconditional — a GPU-fallback launch skips enableMainProcessGpuFeatures() below.
   optOutOfHiddenPageWakeUpThrottling()
   configureElectronNetworkCompatibility()
+  configureLinuxWaylandIme()
   enableRendererHeapHeadroom()
   maybeApplyGpuFallbackForThisLaunch()
   if (!state.gpuFallbackActiveThisLaunch) {

@@ -78,6 +78,36 @@ export function disableUnsupportedChromiumFeatures(): void {
   appendDisabledChromiumFeatures([...DISABLED_CHROMIUM_FEATURES])
 }
 
+function isLinuxWaylandSession(): boolean {
+  if (process.platform !== 'linux') {
+    return false
+  }
+  const ozonePlatform = (app.commandLine.getSwitchValue('ozone-platform') ?? '').toLowerCase()
+  const ozonePlatformHint = (process.env.ELECTRON_OZONE_PLATFORM_HINT ?? '').toLowerCase()
+  const isLinuxX11Override =
+    ozonePlatform === 'x11' || (ozonePlatform === '' && ozonePlatformHint === 'x11')
+  return (
+    !isLinuxX11Override &&
+    (Boolean(process.env.WAYLAND_DISPLAY) ||
+      process.env.XDG_SESSION_TYPE === 'wayland' ||
+      ozonePlatformHint === 'wayland' ||
+      ozonePlatform === 'wayland')
+  )
+}
+
+/** Enables Chromium's native Wayland text-input path before any renderer starts. */
+export function configureLinuxWaylandIme(): void {
+  if (!isLinuxWaylandSession()) {
+    return
+  }
+  app.commandLine.appendSwitch('enable-wayland-ime')
+  app.commandLine.appendSwitch('wayland-text-input-version', '3')
+  // Electron uses GTK on Linux; Fcitx5 otherwise registers only Qt clients.
+  if (!process.env.GTK_IM_MODULE && process.env.QT_IM_MODULE?.includes('fcitx')) {
+    process.env.GTK_IM_MODULE = 'fcitx'
+  }
+}
+
 // Why: Chromium clamps hidden-page timers to 1/min after 5min on every desktop platform,
 // delaying agent-done/bell notifications ~60s. Call site is unconditional (see index.ts).
 export function optOutOfHiddenPageWakeUpThrottling(): void {
@@ -323,30 +353,16 @@ export function enableMainProcessGpuFeatures(): void {
   // 128 raises the ceiling for real layouts while staying bounded so context leaks still surface.
   app.commandLine.appendSwitch('max-active-webgl-contexts', '128')
 
-  const ozonePlatform = (app.commandLine.getSwitchValue('ozone-platform') ?? '').toLowerCase()
-  const ozonePlatformHint = (process.env.ELECTRON_OZONE_PLATFORM_HINT ?? '').toLowerCase()
-  const isLinuxX11Override =
-    ozonePlatform === 'x11' || (ozonePlatform === '' && ozonePlatformHint === 'x11')
-  const isLinuxWaylandSession =
-    process.platform === 'linux' &&
-    !isLinuxX11Override &&
-    (Boolean(process.env.WAYLAND_DISPLAY) ||
-      process.env.XDG_SESSION_TYPE === 'wayland' ||
-      ozonePlatformHint === 'wayland' ||
-      ozonePlatform === 'wayland')
-  if (isLinuxWaylandSession) {
+  const isWayland = isLinuxWaylandSession()
+  if (isWayland) {
     // Why: #5319 — Wayland loses the eager GPU channel; drop the GPU sandbox so Chromium opens it lazily.
     app.commandLine.appendSwitch('disable-gpu-sandbox')
-    // Why: Chromium otherwise does not expose the Wayland text-input-v3 path to Fcitx5, so
-    // commitString() clients such as fcitx5-vinput appear to accept input but emit no text.
-    app.commandLine.appendSwitch('enable-wayland-ime')
-    app.commandLine.appendSwitch('wayland-text-input-version', '3')
   }
 
   const existingFeatures = app.commandLine.getSwitchValue('enable-features')
   const features = [
     // Why: mirror VS Code's conservative GPU-channel flags instead of global Vulkan/SkiaGraphite/WebGPU; terminal accel is xterm WebGL.
-    ...(isLinuxWaylandSession ? [] : ['EarlyEstablishGpuChannel', 'EstablishGpuChannelAsync']),
+    ...(isWayland ? [] : ['EarlyEstablishGpuChannel', 'EstablishGpuChannelAsync']),
     existingFeatures
   ]
     .filter(Boolean)
