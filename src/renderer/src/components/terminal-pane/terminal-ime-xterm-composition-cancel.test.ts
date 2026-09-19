@@ -150,7 +150,6 @@ describe('xterm IME composition cancellation', () => {
     await nextEventLoop()
     textarea.value = ''
     dispatchCompositionEvent(textarea, 'compositionend')
-    // fcitx5-vinput receives its recognition result asynchronously after clearing status preedit.
     await nextEventLoop()
     textarea.value = 'voice result'
     dispatchComposedInput(textarea, { data: 'voice result', inputType: 'insertText' })
