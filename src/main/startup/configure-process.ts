@@ -337,6 +337,10 @@ export function enableMainProcessGpuFeatures(): void {
   if (isLinuxWaylandSession) {
     // Why: #5319 — Wayland loses the eager GPU channel; drop the GPU sandbox so Chromium opens it lazily.
     app.commandLine.appendSwitch('disable-gpu-sandbox')
+    // Why: Chromium otherwise does not expose the Wayland text-input-v3 path to Fcitx5, so
+    // commitString() clients such as fcitx5-vinput appear to accept input but emit no text.
+    app.commandLine.appendSwitch('enable-wayland-ime')
+    app.commandLine.appendSwitch('wayland-text-input-version', '3')
   }
 
   const existingFeatures = app.commandLine.getSwitchValue('enable-features')
