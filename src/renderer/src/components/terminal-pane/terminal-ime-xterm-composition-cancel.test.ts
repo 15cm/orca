@@ -161,6 +161,54 @@ describe('xterm IME composition cancellation', () => {
     terminal.dispose()
   })
 
+  it('emits a delayed vinput commit when its trigger keyup is swallowed', async () => {
+    const { emitted, terminal, textarea } = openTerminal()
+    let now = 0
+    const forwarder = installTerminalImeDelayedCommitForwarder({
+      terminalElement: terminal.element,
+      sendInput: (data) => terminal.input(data),
+      now: () => now
+    })
+
+    const keydown = new KeyboardEvent('keydown', {
+      key: 'Alt',
+      code: 'AltRight',
+      bubbles: true
+    })
+    Object.defineProperty(keydown, 'keyCode', { value: 18 })
+    textarea.dispatchEvent(keydown)
+    now = 3_500
+    textarea.value = 'voice result'
+    dispatchComposedInput(textarea, { data: 'voice result', inputType: 'insertText' })
+    await nextEventLoop()
+
+    expect(emitted.join('')).toBe('voice result')
+    forwarder.dispose()
+    terminal.dispose()
+  })
+
+  it('leaves an active composition commit with xterm after a long-held IME key', async () => {
+    const { emitted, terminal, textarea } = openTerminal()
+    let now = 0
+    const forwarder = installTerminalImeDelayedCommitForwarder({
+      terminalElement: terminal.element,
+      sendInput: (data) => terminal.input(data),
+      now: () => now
+    })
+
+    dispatchCompositionEvent(textarea, 'compositionstart')
+    updatePreedit(textarea, 'hao')
+    now = 3_500
+    textarea.value = '好'
+    dispatchCompositionEvent(textarea, 'compositionend', '好')
+    dispatchComposedInput(textarea, { data: '好', inputType: 'insertText' })
+    await nextEventLoop()
+
+    expect(emitted.join('')).toBe('好')
+    forwarder.dispose()
+    terminal.dispose()
+  })
+
   it('leaves ordinary typing after a cleared preedit with xterm', async () => {
     const { emitted, terminal, textarea } = openTerminal()
     const delayedForwards: string[] = []
