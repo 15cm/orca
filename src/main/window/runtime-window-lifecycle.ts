@@ -17,12 +17,20 @@ import { requestTerminalTabCloseFromRenderer } from './terminal-tab-close-reques
 import { createRuntimeWindowOwnerRouting } from './runtime-window-owner-routing'
 import { registerRuntimeWindowNotifierLifecycle } from './runtime-window-notifier-lifecycle'
 import { revealTerminalSessionFromRuntime } from './runtime-window-terminal-reveal'
+import { handleNativeWindowDestruction } from '../ipc/pty/delivery/lifecycle-reset'
 
 export function registerRuntimeWindowLifecycle(
   mainWindow: BrowserWindow,
   runtime: OrcaRuntimeService
 ): void {
   runtime.attachWindow(mainWindow.id)
+  // Close runs before WebContents destruction. Release runtime ownership first so the
+  // existing transfer path can restore surviving PTYs before delivery cleanup runs.
+  mainWindow.once('close', () => {
+    runtime.releaseWindow(mainWindow.id)
+    handleNativeWindowDestruction(mainWindow)
+  })
+  // BrowserWindow `closed` remains an idempotent fallback for teardown paths that skip `close`.
   mainWindow.once('closed', () => runtime.releaseWindow(mainWindow.id))
   const mainWebContents = mainWindow.webContents
   const rendererNotifications = createRuntimeRendererNotificationSender({

@@ -83,6 +83,9 @@ export function attachMainWindowServices(
   // marker poll to upgrade them without a restart (#11477).
   startFolderRepoGitUpgradeWatch(store, mainWindow)
   registerWorkspaceCleanupHandlers(store)
+  // Register close ownership before PTY lifecycle listeners: native close must release runtime
+  // ownership before WebContents destruction can classify the event.
+  registerRuntimeWindowLifecycle(mainWindow, runtime)
   registerPtyHandlers(
     mainWindow,
     runtime,
@@ -123,8 +126,6 @@ export function attachMainWindowServices(
   registerFileDropRelay(mainWindow)
   registerTccPromptNoticeHandlers(mainWindow)
   scheduleMainWindowAutoUpdaterSetup(mainWindow, store, options)
-  registerRuntimeWindowLifecycle(mainWindow, runtime)
-
   const allowedPermissions = new Set(['media', 'fullscreen', 'pointerLock'])
   mainWindow.webContents.session.setPermissionRequestHandler(
     (_webContents, permission, callback, details) => {

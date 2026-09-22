@@ -1,5 +1,5 @@
-import type { WebContents } from 'electron'
-import { getMainWindowForWebContents } from '../../../window/main-window-registry'
+import type { BrowserWindow, WebContents } from 'electron'
+import { getMainWindowForWebContents, getMainWindows } from '../../../window/main-window-registry'
 import {
   didFinishLoadHandlersByWebContents,
   rendererDidStartNavigationHandler,
@@ -18,6 +18,12 @@ import {
   resetAllRendererPtyWindowClaims
 } from './renderer-pty-window-claims'
 import { invalidatePendingPtyDrainPriority } from './visibility-state'
+
+const nativeWindowCloseHandled = new WeakSet<BrowserWindow>()
+
+function wasNativeWindowCloseHandled(window: BrowserWindow | null): boolean {
+  return window !== null && nativeWindowCloseHandled.has(window)
+}
 
 export function clearDidFinishLoadHandler(): void {
   for (const [contents, handler] of didFinishLoadHandlersByWebContents) {
@@ -38,6 +44,31 @@ export function markRendererPtysHiddenForRendererLifecycleReset(windowId?: numbe
   // Why: the dead page never ACKs its in-flight bytes, so leaked accounting would delivery-gate surviving PTYs forever after a reload/crash.
   resetRendererDeliveryAccountingForLifecycleReset()
   if (activePriorityChanged) {
+    invalidatePendingPtyDrainPriority()
+  }
+}
+
+/** Native close is not a renderer lifecycle reset when another renderer can receive PTY data. */
+export function handleNativeWindowDestruction(window: BrowserWindow): void {
+  if (nativeWindowCloseHandled.has(window)) {
+    return
+  }
+  nativeWindowCloseHandled.add(window)
+
+  const hasLiveSurvivor = getMainWindows().some((candidate) => {
+    if (candidate.id === window.id || candidate.isDestroyed()) {
+      return false
+    }
+    const contents = candidate.webContents
+    return !(typeof contents?.isDestroyed === 'function' && contents.isDestroyed())
+  })
+
+  if (!hasLiveSurvivor) {
+    markRendererPtysHiddenForRendererLifecycleReset()
+    return
+  }
+
+  if (clearRendererPtyWindowClaims(window.id)) {
     invalidatePendingPtyDrainPriority()
   }
 }
@@ -76,10 +107,16 @@ export function registerRendererLifecycleResetHandlers(webContents: WebContents)
   // Why the window id: a reload of one window must not wipe the visibility its siblings reported.
   // A sender with no registered window (paired web, pop-out) resets only the implicit bucket.
   const resetWindowId = getMainWindowForWebContents(webContents)?.id ?? IMPLICIT_RENDERER_WINDOW_ID
+  const registeredWindow = getMainWindowForWebContents(webContents)
   if (previousRendererGone) {
     markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
   }
-  const handler = (): void => markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
+  const handler = (): void => {
+    if (wasNativeWindowCloseHandled(registeredWindow)) {
+      return
+    }
+    markRendererPtysHiddenForRendererLifecycleReset(resetWindowId)
+  }
   const navigationHandler = (details: { isMainFrame: boolean; isSameDocument: boolean }) => {
     if (!details.isMainFrame || details.isSameDocument) {
       return

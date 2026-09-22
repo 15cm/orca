@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { spawnMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { registerPtyHandlers } from './pty'
+import { handleNativeWindowDestruction } from './pty/delivery/lifecycle-reset'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -111,6 +112,11 @@ describe('pty delivery after the registering window closes', () => {
       trackTestMainWindow(second.window)
       registerPtyHandlers(second.window as never)
       second.destroy()
+      handleNativeWindowDestruction(second.window as never)
+      const destroyedHandler = second.window.webContents.on.mock.calls.find(
+        ([event]) => event === 'destroyed'
+      )?.[1] as (() => void) | undefined
+      destroyedHandler?.()
       mainWindow.webContents.send.mockClear()
 
       mockProc.emitData('output after the second window closed')
