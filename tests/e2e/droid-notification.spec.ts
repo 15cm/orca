@@ -142,6 +142,35 @@ async function getRendererOrCachedAgentStatuses(page: Page): Promise<AgentStatus
   return [...rendererStatuses, ...cachedStatuses]
 }
 
+async function getResolvedVisibleTabLabel(page: Page, tabId: string): Promise<string> {
+  return page.evaluate((targetTabId) => {
+    const store = window.__store
+    if (!store) {
+      return ''
+    }
+    const state = store.getState()
+    for (const tabs of Object.values(state.tabsByWorktree)) {
+      const tab = tabs.find((candidate) => candidate.id === targetTabId)
+      if (!tab) {
+        continue
+      }
+      const unified = Object.values(state.unifiedTabsByWorktree)
+        .flat()
+        .find((candidate) => candidate.contentType === 'terminal' && candidate.entityId === tab.id)
+      return (
+        tab.customTitle?.trim() ||
+        tab.quickCommandLabel?.trim() ||
+        (state.settings?.tabAutoGenerateTitle === true ? tab.generatedTitle?.trim() : '') ||
+        unified?.customLabel?.trim() ||
+        unified?.quickCommandLabel?.trim() ||
+        (state.settings?.tabAutoGenerateTitle === true ? unified?.generatedLabel?.trim() : '') ||
+        tab.title.trim()
+      )
+    }
+    return ''
+  }, tabId)
+}
+
 async function isWorktreeUnread(page: Page, worktreeId: string): Promise<boolean> {
   return page.evaluate((targetWorktreeId) => {
     const store = window.__store
@@ -464,7 +493,7 @@ test.describe('multi-window agent completion notifications', () => {
     await waitForTerminalOutput(orcaPage, readyMarker)
 
     const { paneKey, worktreeId } = await waitForActivePaneHookDescriptor(orcaPage)
-    const firstPrompt = `multi-window-cached-${Date.now()}`
+    const firstPrompt = 'Refactor authentication middleware'
     await emitCodexHookStatus(endpoint, {
       paneKey,
       worktreeId,
@@ -510,16 +539,39 @@ test.describe('multi-window agent completion notifications', () => {
     const secondWindow = await secondWindowPromise
     await secondWindow.waitForLoadState('domcontentloaded')
     await installRendererTitleLog(secondWindow)
+    await Promise.all(
+      [orcaPage, secondWindow].map((page) =>
+        page.evaluate(() => {
+          const store = window.__store
+          if (!store) {
+            throw new Error('Store unavailable')
+          }
+          store.setState({
+            settings: { ...store.getState().settings, tabAutoGenerateTitle: true }
+          })
+        })
+      )
+    )
     await expect(
       secondWindow.getByRole('treeitem', { name: new RegExp(`Done ${firstPrompt}`) })
     ).toBeVisible({ timeout: 30_000 })
+    await expect
+      .poll(
+        async () =>
+          Promise.all([
+            getResolvedVisibleTabLabel(orcaPage, paneKey.split(':')[0]!),
+            getResolvedVisibleTabLabel(secondWindow, paneKey.split(':')[0]!)
+          ]),
+        { timeout: 30_000, message: 'Cached prompt labels did not converge across windows' }
+      )
+      .toEqual([firstPrompt, firstPrompt])
     expect(
       (await getNotificationDispatches(electronApp)).filter(
         (dispatch) => dispatch.source === 'agent-task-complete'
       )
     ).toHaveLength(1)
 
-    const freshPrompt = `multi-window-fresh-${Date.now()}`
+    const freshPrompt = `Follow-up authentication task ${Date.now()}`
     await emitCodexHookStatus(endpoint, {
       paneKey,
       worktreeId,

@@ -14,6 +14,7 @@ import type {
   PendingAgentStatusEvent
 } from './agent-status-bridge-types'
 import { shouldRetryPendingAgentStatusesAfterStoreUpdate } from './agent-status-pending-retry-gate'
+import { projectMissingGeneratedTabTitlesFromAgentStatuses } from '../../store/slices/agent-status-generated-title-projection'
 
 const PENDING_AGENT_STATUS_RETRY_MS = 100
 const PENDING_AGENT_STATUS_TTL_MS = 15_000
@@ -267,6 +268,15 @@ export function registerAgentStatusIpcBridge(unsubs: (() => void)[]): AgentStatu
   requestAgentStatusSnapshotIfReady()
   const unsubscribeAgentStatusStore = useAppStore.subscribe((state, previousState) => {
     requestAgentStatusSnapshotIfReady()
+    if (
+      previousState.settings?.tabAutoGenerateTitle !== true &&
+      state.settings?.tabAutoGenerateTitle === true
+    ) {
+      const generatedTitleUpdates = projectMissingGeneratedTabTitlesFromAgentStatuses(state)
+      if (generatedTitleUpdates.length > 0) {
+        state.setGeneratedTabTitlesFromAgentPrompts(generatedTitleUpdates)
+      }
+    }
     // Why: the timer covers module-owned rekeys; unrelated store writes cannot change attribution and must not rebuild its routing index.
     if (
       pendingAgentStatusEvents.length > 0 &&

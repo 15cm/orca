@@ -31,7 +31,7 @@ export function getTabIdFromPaneKey(paneKey: string): string | null {
 
 /** True when auto-title generation would no-op without replace (custom/quick/generated). */
 export function agentStatusTabAlreadyHasProtectedOrGeneratedTitle(
-  state: AppState,
+  state: Pick<AppState, 'tabsByWorktree'>,
   tabId: string | null,
   worktreeId?: string | null
 ): boolean {

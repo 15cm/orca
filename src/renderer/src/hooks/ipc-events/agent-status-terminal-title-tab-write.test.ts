@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { useAppStore } from '@/store'
 import { createTestStore } from '@/store/slices/store-test-helpers'
 import { resolveAgentStatusTerminalTitle } from '@/lib/agent-status-terminal-title'
+import { getDefaultSettings } from '../../../../shared/constants'
 import type { AgentStatusIpcPayload } from '../../../../shared/agent-status-types'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
@@ -111,6 +112,70 @@ describe('hook-driven tab title IPC integration', () => {
     vi.doUnmock('../../store')
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('backfills generated and unified titles when settings hydrate after a status snapshot', async () => {
+    const store = createTestStore()
+    const tab = {
+      ...storeWithDivergedTitleSlots({ tabTitle: 'Codex ready', paneSlotTitle: 'Codex ready' })
+        .tabsByWorktree[WORKTREE_ID]![0]!,
+      customTitle: null
+    }
+    store.setState({
+      workspaceSessionReady: true,
+      activeWorktreeId: WORKTREE_ID,
+      settings: null,
+      tabsByWorktree: { [WORKTREE_ID]: [tab] },
+      unifiedTabsByWorktree: {
+        [WORKTREE_ID]: [{ contentType: 'terminal', entityId: TAB_ID, label: 'Codex ready' }]
+      },
+      worktreesByRepo: { repo: [{ id: WORKTREE_ID, repoId: 'repo', path: '/wt' }] }
+    } as never)
+    let onSet: ((payload: AgentStatusSetData) => void) | undefined
+    vi.doMock('../../store', () => ({ useAppStore: store }))
+    vi.stubGlobal(
+      'window',
+      buildWindowApi({
+        onSet: (callback) => {
+          onSet = callback
+          return () => {}
+        }
+      })
+    )
+    const { registerAgentStatusIpcBridge } = await import('./agent-status-ipc-bridge')
+    const bridge = registerAgentStatusIpcBridge([])
+    try {
+      onSet?.({
+        paneKey: PANE_KEY,
+        worktreeId: WORKTREE_ID,
+        state: 'working',
+        agentType: 'codex',
+        prompt: 'Refactor the auth middleware to use JWT tokens',
+        receivedAt: Date.now(),
+        stateStartedAt: Date.now()
+      })
+      await vi.waitFor(() => expect(store.getState().agentStatusByPaneKey[PANE_KEY]).toBeTruthy())
+      expect(store.getState().tabsByWorktree[WORKTREE_ID]![0]!.generatedTitle).toBeUndefined()
+
+      store.setState({
+        settings: { ...getDefaultSettings('/tmp'), tabAutoGenerateTitle: true }
+      })
+      await vi.waitFor(() => {
+        expect(store.getState().tabsByWorktree[WORKTREE_ID]![0]!.generatedTitle).toBe(
+          'Refactor the auth middleware to use JWT'
+        )
+      })
+      expect(store.getState().unifiedTabsByWorktree[WORKTREE_ID]![0]!.generatedLabel).toBe(
+        'Refactor the auth middleware to use JWT'
+      )
+      store.setState({ settings: { ...store.getState().settings! } })
+      expect(store.getState().tabsByWorktree[WORKTREE_ID]![0]!.generatedTitle).toBe(
+        'Refactor the auth middleware to use JWT'
+      )
+    } finally {
+      bridge.disposeAsyncState()
+      bridge.unsubscribeStore()
+    }
   })
 
   it.each([
