@@ -248,6 +248,9 @@ export function createAgentStatusEventApplicator(args: {
           : undefined
     }
     const applyPostCommitNotification = (): void => {
+      if (data.presentationOnly === true) {
+        return
+      }
       if (statusWorktreeId && (options?.replay !== true || resolvedPayload.state === 'working')) {
         const notificationPayload =
           typeof data.stateStartedAt === 'number'

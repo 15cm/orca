@@ -15,6 +15,7 @@ import { shouldSendSyntheticTitleFrame } from '../synthetic-title-visibility'
 import { shouldCopySyntheticTitleFrameToPtyData } from '../synthetic-title-frame-routing'
 import { resolveTuiAgentPermissionMode } from '../../shared/tui-agent-permissions'
 import { mainProcessState as state } from './main-process-state'
+import { hasVisibleMainWindow } from '../window/main-window-registry'
 
 // Why: cursor-agent re-emits its own OSC title on every redraw, overwriting a one-shot frame — so re-assert a working frame on an interval.
 // 80ms matches Pi's cadence (smooth but under the IPC budget). opencode needs only one frame but reuses this for consistent animated UX.
@@ -27,8 +28,7 @@ const syntheticTitleSpinnerByPaneKey = new Map<
 let syntheticTitleSpinnerTimer: ReturnType<typeof setInterval> | null = null
 
 function isSyntheticTitleWindowVisible(): boolean {
-  const window = state.mainWindow
-  return window !== null && !window.isDestroyed() && window.isVisible() && !window.isMinimized()
+  return hasVisibleMainWindow()
 }
 
 function sendSyntheticTitle(ptyId: string, data: string, options: { force?: boolean } = {}): void {

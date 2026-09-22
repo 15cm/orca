@@ -51,6 +51,8 @@ export type TerminalSideEffectBatch = {
   /** True for (re)attach snapshots. Replay batches restore title state only —
    *  attention facts (bell, agent transitions) never replay. */
   replay?: boolean
+  /** Mirror-window delivery: retain title facts only; never run PTY policy. */
+  presentationOnly?: true
   /** Main-known attribution from runtime leaf/PTY records (same resolution as
    *  agent-status events). Absent when main has no binding for the PTY yet. */
   worktreeId?: string

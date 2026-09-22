@@ -25,6 +25,11 @@ import { getMainWindowById } from '../window/main-window-registry'
 import { resolveWindowScopeForWebContents } from '../window/window-view-state-registry'
 import { isArtifactSharingEnabled } from '../../shared/artifact-sharing-gate'
 import {
+  getFocusedOrLastActiveMainWindow,
+  getMainWindows,
+  sendToWindow
+} from '../window/main-window-registry'
+import {
   AgentStatusObservedPaneIdentities,
   recordObservedAgentStatusPaneIdentity
 } from '../runtime/agent-status-observed-pane-identity'
@@ -82,8 +87,23 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     onTerminalAgentStatus: (event) => agentHookServer.ingestTerminalStatus(event),
     // Why: serve can be promoted in place, so wire the listener from startup; runtime enables desktop-only scanners only for a ready renderer.
     onTerminalSideEffects: (batch: TerminalSideEffectBatch) => {
-      if (state.mainWindow && !state.mainWindow.isDestroyed()) {
-        state.mainWindow.webContents.send('pty:sideEffect', batch)
+      const ownerId = runtime.resolveOwnerWindowIdForPtyId(batch.ptyId)
+      const owner =
+        ownerId === null
+          ? getFocusedOrLastActiveMainWindow()
+          : (getMainWindows().find((window) => window.id === ownerId) ?? null)
+      for (const window of getMainWindows()) {
+        const facts =
+          window === owner
+            ? batch
+            : {
+                ...batch,
+                facts: batch.facts.filter((fact) => fact.kind === 'title'),
+                presentationOnly: true as const
+              }
+        if (facts.facts.length > 0) {
+          sendToWindow(window, 'pty:sideEffect', facts)
+        }
       }
     },
     getDesktopWindowStatus,

@@ -184,6 +184,31 @@ describe('registerTerminalSideEffectFactConsumer', () => {
     ])
   })
 
+  it('presentation batches apply titles without lifecycle policy', () => {
+    const { callbacks, events } = createCallbackRecorder()
+    registerTerminalSideEffectFactConsumer({
+      ptyId: PTY_ID,
+      callbacks: {
+        ...callbacks,
+        onTitleChange: (normalized) => events.push(['title', normalized])
+      }
+    })
+
+    _dispatchTerminalSideEffectBatchForTest(
+      batch(
+        [
+          { kind: 'title', normalizedTitle: 'Codex working', rawTitle: 'Codex working' },
+          { kind: 'bell' },
+          { kind: 'agent-idle', title: 'Codex done' },
+          { kind: 'command-finished', exitCode: 0 }
+        ],
+        { presentationOnly: true }
+      )
+    )
+
+    expect(events).toEqual([['title', 'Codex working']])
+  })
+
   it('routes command-finished and pr-link facts to the registered consumer', () => {
     const events: unknown[][] = []
     registerTerminalSideEffectFactConsumer({

@@ -167,6 +167,19 @@ function applyBatchToConsumer(entry: ConsumerEntry, batch: TerminalSideEffectBat
     }
     return
   }
+  if (batch.presentationOnly === true) {
+    for (const fact of batch.facts) {
+      if (fact.kind === 'title') {
+        entry.lastLiveTitleSeq = batch.seq
+        entry.callbacks.onTitleChange?.(
+          fact.normalizedTitle,
+          fact.rawTitle,
+          fact.staleWorkingTitleClear ? { staleWorkingTitleClear: true } : undefined
+        )
+      }
+    }
+    return
+  }
   for (const fact of batch.facts) {
     applyLiveFact(entry, fact, batch.seq)
   }

@@ -13,6 +13,8 @@ import {
   stopAllSyntheticTitleSpinners
 } from './synthetic-title-runtime'
 import { mainProcessState as state } from './main-process-state'
+import { getFocusedOrLastActiveMainWindow, sendToWindow } from '../window/main-window-registry'
+import { getPtyIdForPaneKey } from '../ipc/pty/pane/key-state'
 
 export type MainWindowAgentStatusOptions = {
   window: BrowserWindow
@@ -26,7 +28,42 @@ export type MainWindowAgentStatusOptions = {
   onRecordAgentState: (agentType: string, status: string) => void
 }
 
+const registeredWindows = new Set<BrowserWindow>()
+let listenerOptions: MainWindowAgentStatusOptions | null = null
+
+function liveWindows(): BrowserWindow[] {
+  return [...registeredWindows].filter((window) => !window.isDestroyed())
+}
+
+function resolveOwnerWindow(ptyId?: string): BrowserWindow | null {
+  const ownerId = ptyId ? state.runtime?.resolveOwnerWindowIdForPtyId(ptyId) : null
+  const owner =
+    ownerId === null || ownerId === undefined
+      ? null
+      : (liveWindows().find((window) => window.id === ownerId) ?? null)
+  return owner ?? getFocusedOrLastActiveMainWindow() ?? state.mainWindow
+}
+
+function sendStatusToWindows(
+  payload: Record<string, unknown>,
+  paneKey: string,
+  ptyId?: string
+): void {
+  const owner = resolveOwnerWindow(ptyId ?? getPtyIdForPaneKey(paneKey))
+  for (const window of liveWindows()) {
+    sendToWindow(window, 'agentStatus:set', {
+      ...payload,
+      ...(owner && window !== owner ? { presentationOnly: true as const } : {})
+    })
+  }
+}
+
 export function installMainWindowAgentStatusListeners(options: MainWindowAgentStatusOptions): void {
+  registeredWindows.add(options.window)
+  if (listenerOptions) {
+    return
+  }
+  listenerOptions = options
   agentHookServer.setListener(
     ({
       paneKey,
@@ -46,7 +83,7 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
       isReplay,
       structuredHost
     }) => {
-      if (state.mainWindow?.isDestroyed()) {
+      if (liveWindows().length === 0) {
         return
       }
       // Why: the renderer still derives structured rows from its own feed subscription; forwarding
@@ -56,21 +93,23 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
       }
       if (providerSessionOnly) {
         // Why: session_start just refreshes durable resume identity while Pi is idle; forward it without titles, telemetry, or status UI.
-        state.mainWindow?.webContents.send('agentStatus:set', {
-          ...payload,
-          paneKey,
-          ...(launchToken ? { launchToken } : {}),
-          tabId,
-          worktreeId,
-          connectionId,
-          receivedAt,
-          ...(evidenceObservedAt !== undefined ? { evidenceObservedAt } : {}),
-          stateStartedAt,
-          ...(providerSession ? { providerSession } : {}),
-          ...(observation ? { observation } : {}),
-          ...(isReplay ? { isReplay: true as const } : {}),
-          providerSessionOnly: true
-        })
+        for (const window of liveWindows()) {
+          sendToWindow(window, 'agentStatus:set', {
+            ...payload,
+            paneKey,
+            ...(launchToken ? { launchToken } : {}),
+            tabId,
+            worktreeId,
+            connectionId,
+            receivedAt,
+            ...(evidenceObservedAt !== undefined ? { evidenceObservedAt } : {}),
+            stateStartedAt,
+            ...(providerSession ? { providerSession } : {}),
+            ...(observation ? { observation } : {}),
+            ...(isReplay ? { isReplay: true as const } : {}),
+            providerSessionOnly: true
+          })
+        }
         return
       }
       if (!restoredUnconfirmed) {
@@ -106,11 +145,11 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
         ...(isReplay ? { isReplay: true as const } : {}),
         ...(orchestration ? { orchestration } : {})
       }
-      state.mainWindow?.webContents.send('agentStatus:set', statusEvent)
+      sendStatusToWindows(statusEvent, paneKey)
       if (!suppressSyntheticCodexAutoApprovalTitle || isAskUserQuestionTool(payload.toolName)) {
         getDashboardPopoutWindow()?.webContents.send('agentStatus:set', statusEvent)
       }
-      options.onRecordAgentState(payload.agentType ?? 'unknown', payload.state)
+      listenerOptions?.onRecordAgentState(payload.agentType ?? 'unknown', payload.state)
       // Why: native OSC titles miss some idle/permission frames, so inject hook-derived ones to keep the renderer title tracker in sync.
       const profile = getSyntheticAgentTitleProfile(payload.agentType)
       if (
@@ -123,31 +162,42 @@ export function installMainWindowAgentStatusListeners(options: MainWindowAgentSt
     }
   )
   agentHookServer.setPaneStatusClearListener((clear) => {
-    if (state.mainWindow?.isDestroyed()) {
+    if (liveWindows().length === 0) {
       return
     }
-    state.mainWindow?.webContents.send('agentStatus:clear', clear)
+    for (const window of liveWindows()) {
+      sendToWindow(window, 'agentStatus:clear', clear)
+    }
     getDashboardPopoutWindow()?.webContents.send('agentStatus:clear', clear)
   })
   setMigrationUnsupportedPtyListener((event) => {
-    if (state.mainWindow?.isDestroyed()) {
+    if (liveWindows().length === 0) {
       return
     }
     if (event.type === 'set') {
-      state.mainWindow?.webContents.send('agentStatus:migrationUnsupported', event.entry)
+      for (const window of liveWindows()) {
+        sendToWindow(window, 'agentStatus:migrationUnsupported', event.entry)
+      }
     } else {
-      state.mainWindow?.webContents.send('agentStatus:migrationUnsupportedClear', {
-        ptyId: event.ptyId
-      })
+      for (const window of liveWindows()) {
+        sendToWindow(window, 'agentStatus:migrationUnsupportedClear', { ptyId: event.ptyId })
+      }
     }
   })
 }
 
-export function clearMainWindowAgentStatusListeners(): void {
-  // Why: detach the hook listener on close so the server never fires into destroyed webContents before reopen, and replay runs only on deliberate recreations.
+export function clearMainWindowAgentStatusListeners(window?: BrowserWindow): void {
+  if (window) {
+    registeredWindows.delete(window)
+  } else {
+    registeredWindows.clear()
+  }
+  if (registeredWindows.size > 0) {
+    return
+  }
   agentHookServer.setListener(null)
   agentHookServer.setPaneStatusClearListener(null)
   setMigrationUnsupportedPtyListener(null)
-  // Why: stop the spinner timer here — it would fire into destroyed webContents, and per-pane teardown may never run for restored-but-untorn panes.
+  listenerOptions = null
   stopAllSyntheticTitleSpinners()
 }

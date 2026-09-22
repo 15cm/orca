@@ -509,6 +509,7 @@ test.describe('multi-window agent completion notifications', () => {
     })
     const secondWindow = await secondWindowPromise
     await secondWindow.waitForLoadState('domcontentloaded')
+    await installRendererTitleLog(secondWindow)
     await expect(
       secondWindow.getByRole('treeitem', { name: new RegExp(`Done ${firstPrompt}`) })
     ).toBeVisible({ timeout: 30_000 })
@@ -525,6 +526,25 @@ test.describe('multi-window agent completion notifications', () => {
       state: 'working',
       prompt: freshPrompt
     })
+    await expect
+      .poll(
+        async () => {
+          const [firstStatuses, mirrorStatuses] = await Promise.all([
+            getAgentStatuses(orcaPage),
+            getAgentStatuses(secondWindow)
+          ])
+          return (
+            firstStatuses.some(
+              (status) => status.state === 'working' && status.prompt === freshPrompt
+            ) &&
+            mirrorStatuses.some(
+              (status) => status.state === 'working' && status.prompt === freshPrompt
+            )
+          )
+        },
+        { timeout: 30_000, message: 'Fresh working status did not reach both windows' }
+      )
+      .toBe(true)
     await emitCodexHookStatus(endpoint, {
       paneKey,
       worktreeId,
@@ -534,12 +554,49 @@ test.describe('multi-window agent completion notifications', () => {
     })
     await expect
       .poll(
+        async () => {
+          const [firstStatuses, mirrorStatuses] = await Promise.all([
+            getAgentStatuses(orcaPage),
+            getAgentStatuses(secondWindow)
+          ])
+          return (
+            firstStatuses.some(
+              (status) => status.state === 'done' && status.prompt === freshPrompt
+            ) &&
+            mirrorStatuses.some(
+              (status) => status.state === 'done' && status.prompt === freshPrompt
+            )
+          )
+        },
+        { timeout: 30_000, message: 'Fresh completion status did not reach both windows' }
+      )
+      .toBe(true)
+    await expect
+      .poll(
         async () =>
           (await getNotificationDispatches(electronApp)).some(
             (dispatch) =>
               dispatch.source === 'agent-task-complete' && dispatch.agentPrompt === freshPrompt
           ),
         { timeout: 30_000, message: 'Fresh completion alert was not delivered' }
+      )
+      .toBe(true)
+
+    await secondWindow.close()
+    const survivorPrompt = `multi-window-survivor-${Date.now()}`
+    await emitCodexHookStatus(endpoint, {
+      paneKey,
+      worktreeId,
+      state: 'working',
+      prompt: survivorPrompt
+    })
+    await expect
+      .poll(
+        async () =>
+          (await getAgentStatuses(orcaPage)).some(
+            (status) => status.state === 'working' && status.prompt === survivorPrompt
+          ),
+        { timeout: 30_000, message: 'Surviving window stopped receiving status after close' }
       )
       .toBe(true)
   })

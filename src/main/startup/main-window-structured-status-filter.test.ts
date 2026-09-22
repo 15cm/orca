@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EnrichedAgentHookEventPayload } from '../agent-hooks/server'
 
 const hooks = vi.hoisted(() => ({
-  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null
+  listener: null as ((payload: EnrichedAgentHookEventPayload) => void) | null,
+  setListener: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -17,6 +18,7 @@ vi.mock('electron', () => ({
 vi.mock('../agent-hooks/server', () => ({
   agentHookServer: {
     setListener: (listener: ((payload: EnrichedAgentHookEventPayload) => void) | null) => {
+      hooks.setListener(listener)
       hooks.listener = listener
     },
     setPaneStatusClearListener: vi.fn()
@@ -34,7 +36,10 @@ vi.mock('./synthetic-title-runtime', () => ({
   stopAllSyntheticTitleSpinners: vi.fn()
 }))
 
-import { installMainWindowAgentStatusListeners } from './main-window-agent-status'
+import {
+  clearMainWindowAgentStatusListeners,
+  installMainWindowAgentStatusListeners
+} from './main-window-agent-status'
 import { mainProcessState } from './main-process-state'
 
 const sent: { channel: string; event: { paneKey: string } }[] = []
@@ -54,7 +59,16 @@ function statusPayload(
   } as EnrichedAgentHookEventPayload
 }
 
+function makeWindow(send: (channel: string, event: Record<string, unknown>) => void) {
+  return {
+    isDestroyed: () => false,
+    webContents: { send }
+  } as unknown as typeof mainProcessState.mainWindow
+}
+
 beforeEach(() => {
+  clearMainWindowAgentStatusListeners()
+  hooks.setListener.mockClear()
   sent.length = 0
   hooks.listener = null
   mainProcessState.runtime = null
@@ -86,5 +100,44 @@ describe('the main-window agent-status listener', () => {
     expect(sent.map((entry) => `${entry.channel}:${entry.event.paneKey}`)).toEqual([
       'agentStatus:set:hook-pane'
     ])
+  })
+
+  it('keeps one process listener and fans live rows to owner and mirror', () => {
+    const first = mainProcessState.mainWindow!
+    const mirrorEvents: { channel: string; event: Record<string, unknown> }[] = []
+    const mirror = makeWindow((channel, event) => mirrorEvents.push({ channel, event }))
+    installMainWindowAgentStatusListeners({
+      window: mirror!,
+      maybeAutoRenameBranchOnFirstWork: vi.fn(),
+      onRecordAgentState: vi.fn()
+    })
+    expect(hooks.setListener).toHaveBeenCalledTimes(1)
+
+    mainProcessState.runtime = {
+      resolveOwnerWindowIdForPtyId: () => first!.id,
+      getAgentStatusOrchestrationContextForPaneKey: () => undefined,
+      getAgentStatusTerminalHandleForPaneKey: () => undefined,
+      getAgentStatusLaunchConfigForPaneKey: () => undefined
+    } as never
+    hooks.listener!(statusPayload({ paneKey: 'owner-pane' }))
+
+    expect(sent.at(-1)?.event).not.toHaveProperty('presentationOnly')
+    expect(mirrorEvents.at(-1)?.event).toMatchObject({
+      paneKey: 'owner-pane',
+      presentationOnly: true
+    })
+  })
+
+  it('does not clear the listener until the last window closes', () => {
+    const survivor = makeWindow(() => {})
+    installMainWindowAgentStatusListeners({
+      window: survivor!,
+      maybeAutoRenameBranchOnFirstWork: vi.fn(),
+      onRecordAgentState: vi.fn()
+    })
+    clearMainWindowAgentStatusListeners(mainProcessState.mainWindow!)
+    expect(hooks.listener).not.toBeNull()
+    clearMainWindowAgentStatusListeners(survivor!)
+    expect(hooks.listener).toBeNull()
   })
 })

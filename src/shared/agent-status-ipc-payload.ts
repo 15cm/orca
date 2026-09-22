@@ -55,6 +55,8 @@ export type AgentStatusIpcPayload = ParsedAgentStatusPayload & {
   structuredHost?: StructuredHostStatus
   /** Cached listener replay; renderers hydrate state without live side effects. */
   isReplay?: true
+  /** Mirror-window update: store/title only, never completion or lifecycle policy. */
+  presentationOnly?: true
 } & WithAgentStatusObservation
 
 /** Identity used by UI-only cleanup to evict exactly the status it cleared.
