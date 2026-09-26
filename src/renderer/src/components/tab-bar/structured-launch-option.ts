@@ -1,8 +1,9 @@
 import type { ActiveOption } from './tab-create-entry-active-option'
 import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { StructuredAgentLaunchStatus } from '@/lib/structured-agent-session-launch'
 
-type StructuredLaunchStatuses = Record<'claude' | 'codex', 'pending' | 'ready' | 'failed' | null>
+type StructuredLaunchStatuses = Record<'claude' | 'codex', StructuredAgentLaunchStatus>
 
 export function optionHasPendingStructuredLaunch(
   option: ActiveOption,
