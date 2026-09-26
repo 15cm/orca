@@ -154,9 +154,10 @@ export function useTabBarRuntimeModel({
     () =>
       buildTabAgentLaunchOptions(
         orderTabLaunchAgents(defaultAgent, detectedIds ?? [], disabledTuiAgents),
-        agentCmdOverrides
+        agentCmdOverrides,
+        settings?.agentLaunchVariants ?? []
       ),
-    [agentCmdOverrides, defaultAgent, detectedIds, disabledTuiAgents]
+    [agentCmdOverrides, defaultAgent, detectedIds, disabledTuiAgents, settings?.agentLaunchVariants]
   )
   const isWebClient = (globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ === true
   const windowsTerminalCapabilityOwnerKey = getWindowsTerminalCapabilityOwnerKey(

@@ -87,7 +87,7 @@ export function useTerminalCreateActions(controller: TerminalColdActivationContr
   )
 
   const handleNewAgentTab = useCallback(
-    (agent: TuiAgent) => {
+    (agent: TuiAgent, launchCommandOverride?: string) => {
       if (!activeWorktreeId) {
         return
       }
@@ -99,7 +99,10 @@ export function useTerminalCreateActions(controller: TerminalColdActivationContr
         agent,
         worktreeId: activeWorktreeId,
         groupId: targetGroupId,
-        launchSource: 'shortcut'
+        launchSource: 'shortcut',
+        ...(launchCommandOverride !== undefined
+          ? { launchCommandOverride, agentArgs: '', forceTerminal: true }
+          : {})
       })
       if (!result) {
         toast.error(

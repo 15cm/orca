@@ -12,6 +12,34 @@ function getProjected(overrides: Partial<GlobalSettings>) {
 }
 
 describe('RuntimeClientSettingsController MiniMax projection', () => {
+  it('projects saved launch variants and defaults missing host data to an empty list', () => {
+    const variant = { id: 'fast', name: 'Fast', agent: 'claude' as const, command: 'claude --fast' }
+    expect(getProjected({ agentLaunchVariants: [variant] }).agentLaunchVariants).toEqual([variant])
+
+    const settings = createGlobalSettingsFixture({ workspaceDir: '/w' })
+    delete settings.agentLaunchVariants
+    expect(
+      new RuntimeClientSettingsController({ getSettings: () => settings } as never).get()
+        .agentLaunchVariants
+    ).toEqual([])
+  })
+
+  it('accepts updates from paired clients and returns the saved variants', async () => {
+    const settings = createGlobalSettingsFixture({ workspaceDir: '/w' })
+    const controller = new RuntimeClientSettingsController({
+      getSettings: () => settings,
+      updateSettings: (updates: Partial<GlobalSettings>) => Object.assign(settings, updates)
+    } as never)
+    const variants = [
+      { id: 'fast', name: 'Fast', agent: 'claude' as const, command: 'claude --fast' }
+    ]
+
+    const projected = await controller.update({ agentLaunchVariants: variants })
+
+    expect(projected.agentLaunchVariants).toEqual(variants)
+    expect(settings.agentLaunchVariants).toEqual(variants)
+  })
+
   it('publishes the China endpoint to paired clients', () => {
     expect(getProjected({ minimaxEndpoint: 'cn' }).minimaxEndpoint).toBe('cn')
   })

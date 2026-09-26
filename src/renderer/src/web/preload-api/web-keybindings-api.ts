@@ -139,6 +139,25 @@ export function writeWebKeybindingAction(
   return snapshot
 }
 
+export function removeWebKeybindingAction(actionId: KeybindingActionId): KeybindingFileSnapshot {
+  if (!isKeybindingActionId(actionId)) {
+    throw new Error(`Unknown keybinding action "${String(actionId)}"`)
+  }
+  const document = readWebKeybindingDocument()
+  const common = { ...document.keybindings }
+  delete common[actionId]
+  const platforms = { ...document.platforms }
+  for (const platform of ['darwin', 'linux', 'win32'] as const) {
+    const overrides = { ...platforms[platform] }
+    delete overrides[actionId]
+    platforms[platform] = overrides
+  }
+  writeJson(KEYBINDINGS_STORAGE_KEY, { ...document, keybindings: common, platforms })
+  const snapshot = getWebKeybindingSnapshot()
+  notifyWebKeybindingListeners(snapshot)
+  return snapshot
+}
+
 export function notifyWebKeybindingListeners(snapshot: KeybindingFileSnapshot): void {
   for (const listener of webKeybindingListeners) {
     listener(snapshot)
@@ -150,6 +169,7 @@ export function createWebKeybindingsApi(): WebKeybindingsApi {
     get: () => Promise.resolve(getWebKeybindingSnapshot()),
     ensureFile: () => Promise.resolve(getWebKeybindingSnapshot()),
     setAction: async ({ actionId, bindings }) => writeWebKeybindingAction(actionId, bindings),
+    removeAction: async (actionId) => removeWebKeybindingAction(actionId),
     reload: () => {
       const snapshot = getWebKeybindingSnapshot()
       notifyWebKeybindingListeners(snapshot)

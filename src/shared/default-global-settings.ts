@@ -204,6 +204,7 @@ export function buildDefaultSettings(args: {
     minimaxEndpoint: 'overseas',
     geminiCliOAuthEnabled: false,
     agentCmdOverrides: {},
+    agentLaunchVariants: [],
     agentDefaultArgs: { ...DEFAULT_TUI_AGENT_ARGS },
     agentDefaultEnv: { ...DEFAULT_TUI_AGENT_ENV },
     agentYoloDefaultsMigrated: true,

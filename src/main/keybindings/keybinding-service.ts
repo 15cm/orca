@@ -8,6 +8,7 @@ import {
   ensureKeybindingFile,
   getUserKeybindingsPath,
   migrateLegacyKeybindings,
+  removeKeybindingActionBindings,
   readKeybindingFile,
   seedLegacyTabSwitchBindings,
   writeKeybindingOverride
@@ -86,6 +87,11 @@ export class KeybindingService {
     bindings: string[] | null
   ): KeybindingFileSnapshot {
     this.snapshot = writeKeybindingOverride(this.configPath, this.platform, actionId, bindings)
+    return this.snapshot
+  }
+
+  removeActionBindings(actionId: KeybindingActionId): KeybindingFileSnapshot {
+    this.snapshot = removeKeybindingActionBindings(this.configPath, actionId, this.platform)
     return this.snapshot
   }
 }

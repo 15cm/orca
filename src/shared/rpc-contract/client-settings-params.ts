@@ -10,6 +10,7 @@ import {
 import { normalizePRBotAuthorOverrides } from '../pr-bot-author-overrides'
 import { WorktreeVisibilityDefaultsUpdate } from './worktree-visibility-defaults-params'
 import { isSetupRunPolicy } from '../setup-run-policy'
+import { normalizeAgentLaunchVariants } from '../agent-launch-variants'
 
 export const TaskProviderParam = z.custom<TaskProvider>(isTaskProvider, {
   message: 'Unknown task provider'
@@ -101,6 +102,10 @@ export const SettingsUpdate = z
     agentDefaultEnv: z
       .unknown()
       .transform((value) => normalizeTuiAgentEnvRecord(value))
+      .optional(),
+    agentLaunchVariants: z
+      .unknown()
+      .transform((value) => normalizeAgentLaunchVariants(value))
       .optional(),
     defaultTaskSource: TaskProviderParam.optional(),
     visibleTaskProviders: z.array(TaskProviderParam).optional(),

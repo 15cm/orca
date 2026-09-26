@@ -46,6 +46,7 @@ import {
 import { AgentAvailabilityControl, type AgentCatalogRowProps } from './AgentCatalogRow'
 import { AgentDefaultSetting } from './AgentDefaultSetting'
 import { AgentDetectionCatalog } from './AgentDetectionCatalog'
+import { AgentLaunchVariantsSetting } from './AgentLaunchVariantsSetting'
 
 export {
   buildAgentAvailabilitySettingsUpdate,
@@ -245,6 +246,7 @@ export function AgentsPane({
         description={getSettingOwnershipSummary('agentLaunchDefaults').description}
         onSetDefault={(agent) => updateSettings({ defaultTuiAgent: agent })}
       />
+      <AgentLaunchVariantsSetting settings={settings} updateSettings={updateSettings} />
       <AgentRuntimeSetting
         settings={settings}
         updateSettings={updateSettings}

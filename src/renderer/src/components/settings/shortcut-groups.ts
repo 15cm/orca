@@ -6,6 +6,8 @@ import {
 } from '../../../../shared/keybindings'
 import { normalizeDisabledTuiAgents } from '../../../../shared/tui-agent-selection'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import { agentVariantActionId } from '../../../../shared/keybindings'
+import type { AgentLaunchVariant } from '../../../../shared/agent-launch-variants'
 
 export type ShortcutGroup = {
   title: string
@@ -22,7 +24,8 @@ export function disabledAgentTabActionIds(
 
 export function groupDefinitions(
   disabledTuiAgents: readonly TuiAgent[],
-  additionalDefinitions: readonly KeybindingDefinition[] = []
+  additionalDefinitions: readonly KeybindingDefinition[] = [],
+  variants: readonly AgentLaunchVariant[] = []
 ): ShortcutGroup[] {
   // Why: per-agent launch rows only make sense for agents the user keeps
   // enabled in Settings → Agents; hiding disabled ones keeps the Agents group
@@ -31,7 +34,21 @@ export function groupDefinitions(
     disabledAgentTabActionIds(disabledTuiAgents)
   )
   const groups = new Map<string, KeybindingDefinition[]>()
-  for (const definition of [...KEYBINDING_DEFINITIONS, ...additionalDefinitions]) {
+  const variantDefinitions: KeybindingDefinition[] = variants
+    .filter((variant) => !disabledTuiAgents.includes(variant.agent))
+    .map((variant) => ({
+      id: agentVariantActionId(variant.id),
+      title: `New ${variant.name} tab`,
+      group: 'Agents',
+      scope: 'tabs',
+      searchKeywords: ['agent', 'variant', 'tab', variant.name, variant.agent],
+      defaultBindings: { darwin: [], linux: [], win32: [] }
+    }))
+  for (const definition of [
+    ...KEYBINDING_DEFINITIONS,
+    ...additionalDefinitions,
+    ...variantDefinitions
+  ]) {
     if (hiddenAgentActionIds.has(definition.id)) {
       continue
     }

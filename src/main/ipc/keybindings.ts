@@ -39,6 +39,13 @@ export function registerKeybindingHandlers(
     }
   )
 
+  ipcMain.handle('keybindings:removeAction', (_event, actionId: KeybindingActionId) => {
+    const snapshot = service.removeActionBindings(actionId)
+    broadcastKeybindingsChanged(snapshot)
+    onChanged?.()
+    return snapshot
+  })
+
   ipcMain.handle('keybindings:reload', () => {
     const snapshot = service.reload()
     broadcastKeybindingsChanged(snapshot)

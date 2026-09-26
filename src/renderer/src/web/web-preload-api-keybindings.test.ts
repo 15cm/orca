@@ -59,6 +59,33 @@ describe('web keybindings preload API', () => {
     expect(snapshot.overrides['worktree.quickOpen']).toBeUndefined()
   })
 
+  it('removes a deleted variant binding from common and all platform sections', async () => {
+    const { api, storage } = await installApi('Linux')
+    storage.setItem(
+      'orca.web.keybindings.v1',
+      JSON.stringify({
+        version: 1,
+        keybindings: { 'tab.newAgentVariant.fast': ['Mod+Shift+F'] },
+        platforms: {
+          darwin: { 'tab.newAgentVariant.fast': ['Mod+Alt+F'] },
+          linux: { 'tab.newAgentVariant.fast': ['Ctrl+Alt+F'] },
+          win32: { 'tab.newAgentVariant.fast': ['Ctrl+F'] }
+        }
+      })
+    )
+
+    const snapshot = await api.keybindings.removeAction('tab.newAgentVariant.fast')
+    const document = JSON.parse(storage.getItem('orca.web.keybindings.v1') ?? '{}') as {
+      keybindings: Record<string, unknown>
+      platforms: Record<string, Record<string, unknown>>
+    }
+    expect(snapshot.overrides['tab.newAgentVariant.fast']).toBeUndefined()
+    expect(document.keybindings['tab.newAgentVariant.fast']).toBeUndefined()
+    expect(
+      Object.values(document.platforms).every((items) => !('tab.newAgentVariant.fast' in items))
+    ).toBe(true)
+  })
+
   it('notifies listeners when web keybindings change', async () => {
     const { api } = await installApi('Linux')
     const listener = vi.fn()

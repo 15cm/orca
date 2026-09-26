@@ -23,6 +23,7 @@ import {
 import { normalizeDisabledTuiAgents } from '../../../../shared/tui-agent-selection'
 import { normalizeUiLanguage } from '../../../../shared/ui-language'
 import { normalizeUsagePercentageDisplay } from '../../../../shared/usage-percentage-display'
+import { normalizeAgentLaunchVariants } from '../../../../shared/agent-launch-variants'
 import { mergeWorkspaceCleanupUIState } from '../../../../shared/workspace-cleanup-ui-state'
 
 export function mergeWebUIState(
@@ -153,6 +154,9 @@ export function mergeSettings(
       updates.agentDefaultArgs ?? base.agentDefaultArgs
     ),
     agentDefaultEnv: normalizeTuiAgentEnvRecord(updates.agentDefaultEnv ?? base.agentDefaultEnv),
+    agentLaunchVariants: normalizeAgentLaunchVariants(
+      updates.agentLaunchVariants ?? base.agentLaunchVariants
+    ),
     voice: {
       ...(base.voice ?? defaults.voice),
       ...updates.voice

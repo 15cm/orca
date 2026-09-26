@@ -9,6 +9,8 @@ export const keybindingsApi = {
     actionId: KeybindingActionId
     bindings: string[] | null
   }): Promise<KeybindingFileSnapshot> => ipcRenderer.invoke('keybindings:setAction', args),
+  removeAction: (actionId: KeybindingActionId): Promise<KeybindingFileSnapshot> =>
+    ipcRenderer.invoke('keybindings:removeAction', actionId),
   reload: (): Promise<KeybindingFileSnapshot> => ipcRenderer.invoke('keybindings:reload'),
   openFile: (): Promise<KeybindingFileSnapshot> => ipcRenderer.invoke('keybindings:openFile'),
   revealFile: (): Promise<KeybindingFileSnapshot> => ipcRenderer.invoke('keybindings:revealFile'),

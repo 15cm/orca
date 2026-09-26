@@ -15,6 +15,7 @@ export type KeybindingsSlice = {
   setKeybindingSnapshot: (snapshot: KeybindingFileSnapshot) => void
   ensureKeybindingsFile: () => Promise<KeybindingFileSnapshot | null>
   setKeybindingOverride: (actionId: KeybindingActionId, bindings: string[]) => Promise<void>
+  removeKeybindingAction: (actionId: KeybindingActionId) => Promise<void>
   resetKeybindingOverride: (actionId: KeybindingActionId) => Promise<void>
   disableKeybindingAction: (actionId: KeybindingActionId) => Promise<void>
   reloadKeybindings: () => Promise<void>
@@ -69,6 +70,16 @@ export const createKeybindingsSlice: StateCreator<AppState, [], [], KeybindingsS
       set(applySnapshot(snapshot))
     } catch (error) {
       console.error('Failed to update keybinding:', error)
+      throw error
+    }
+  },
+
+  removeKeybindingAction: async (actionId) => {
+    try {
+      const snapshot = await window.api.keybindings.removeAction(actionId)
+      set(applySnapshot(snapshot))
+    } catch (error) {
+      console.error('Failed to remove keybinding:', error)
       throw error
     }
   },

@@ -2,11 +2,14 @@ import { getAgentCatalog } from '@/lib/agent-catalog'
 import { filterEnabledTuiAgents } from '../../../../shared/tui-agent-selection'
 import { normalizeMatchQuery, tokenizeMatchValue } from './query-token-match'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { AgentLaunchVariant } from '../../../../shared/agent-launch-variants'
 
 export type TabAgentLaunchOption = {
   agent: TuiAgent
   aliases: readonly string[]
   label: string
+  variantId?: string
+  command?: string
 }
 
 function normalizeAgentAlias(value: string): string {
@@ -38,9 +41,10 @@ export function orderTabLaunchAgents(
 
 export function buildTabAgentLaunchOptions(
   agents: readonly TuiAgent[],
-  commandOverrides: Partial<Record<TuiAgent, string>> = {}
+  commandOverrides: Partial<Record<TuiAgent, string>> = {},
+  variants: readonly AgentLaunchVariant[] = []
 ): TabAgentLaunchOption[] {
-  return agents.map((agent) => {
+  const base = agents.map((agent) => {
     const entry = getCatalogEntry(agent)
     const label = entry?.label ?? agent
     const aliases = new Set<string>([
@@ -60,6 +64,30 @@ export function buildTabAgentLaunchOptions(
     }
     return { agent, aliases: [...aliases], label }
   })
+  const enabled = new Set(agents)
+  return [
+    ...base,
+    ...variants
+      .filter((variant) => enabled.has(variant.agent))
+      .map((variant) => {
+        const baseLabel = getCatalogEntry(variant.agent)?.label ?? variant.agent
+        const aliases = new Set([
+          normalizeAgentAlias(variant.name),
+          compactAgentAlias(variant.name),
+          normalizeAgentAlias(variant.agent),
+          compactAgentAlias(variant.agent),
+          normalizeAgentAlias(variant.command),
+          compactAgentAlias(variant.command)
+        ])
+        return {
+          agent: variant.agent,
+          aliases: [...aliases],
+          label: `${baseLabel}: ${variant.name}`,
+          variantId: variant.id,
+          command: variant.command
+        }
+      })
+  ]
 }
 
 // Scores how well a query matches an agent. Exact alias equality is the

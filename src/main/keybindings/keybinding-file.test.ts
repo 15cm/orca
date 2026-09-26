@@ -7,6 +7,7 @@ import {
   getUserKeybindingsPath,
   migrateLegacyKeybindings,
   readKeybindingFile,
+  removeKeybindingActionBindings,
   seedLegacyTabSwitchBindings,
   writeKeybindingOverride
 } from './keybinding-file'
@@ -71,6 +72,35 @@ describe('keybinding-file', () => {
       },
       diagnostics: []
     })
+  })
+
+  it('removes one action from legacy, common, and every platform section', () => {
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        'tab.newAgentVariant.fast': ['Ctrl+Shift+F'],
+        keybindings: { 'tab.newAgentVariant.fast': ['Mod+Shift+F'], 'tab.close': ['Mod+W'] },
+        platforms: {
+          darwin: { 'tab.newAgentVariant.fast': ['Mod+Alt+F'] },
+          linux: { 'tab.newAgentVariant.fast': ['Ctrl+Alt+F'] },
+          win32: { 'tab.newAgentVariant.fast': ['Ctrl+F'] }
+        }
+      }),
+      'utf8'
+    )
+
+    const snapshot = removeKeybindingActionBindings(filePath, 'tab.newAgentVariant.fast', 'linux')
+    const document = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>
+    expect(snapshot.overrides['tab.newAgentVariant.fast']).toBeUndefined()
+    expect(document).not.toHaveProperty('tab.newAgentVariant.fast')
+    expect(document.keybindings).not.toHaveProperty('tab.newAgentVariant.fast')
+    expect(document.platforms).toEqual({
+      darwin: {},
+      linux: {},
+      win32: {}
+    })
+    expect((document.keybindings as Record<string, unknown>)['tab.close']).toEqual(['Mod+W'])
   })
 
   it('accepts bare keys for actions that explicitly opt in', () => {

@@ -1,6 +1,7 @@
 import { ALL_TUI_AGENTS, TUI_AGENT_DISPLAY_NAMES } from '../tui-agent-display-names'
 import type {
   AgentTabActionId,
+  AgentVariantActionId,
   KeybindingActionId,
   KeybindingDefinition,
   PluginKeybindingActionId
@@ -13,6 +14,14 @@ import { KEYBINDING_DEFINITION_CORE_4 } from './definitions-core-4'
 
 export function agentTabActionId(agent: TuiAgent): AgentTabActionId {
   return `tab.newAgent.${agent}`
+}
+
+export function agentVariantActionId(id: string): AgentVariantActionId {
+  return `tab.newAgentVariant.${id}`
+}
+
+export function isAgentVariantActionId(value: string): value is AgentVariantActionId {
+  return /^tab\.newAgentVariant\.[a-zA-Z0-9-]{1,80}$/.test(value)
 }
 
 function buildAgentTabKeybindingDefinitions(): KeybindingDefinition[] {
@@ -71,7 +80,11 @@ export function isDigitIndexActionId(actionId: KeybindingActionId): boolean {
 }
 
 export function isKeybindingActionId(value: string): value is KeybindingActionId {
-  return DEFINITION_IDS.has(value as KeybindingActionId) || isPluginKeybindingActionId(value)
+  return (
+    DEFINITION_IDS.has(value as KeybindingActionId) ||
+    isPluginKeybindingActionId(value) ||
+    isAgentVariantActionId(value)
+  )
 }
 
 export function isPluginKeybindingActionId(value: string): value is PluginKeybindingActionId {
@@ -84,7 +97,19 @@ export function isPluginKeybindingActionId(value: string): value is PluginKeybin
 }
 
 export function getKeybindingDefinition(actionId: KeybindingActionId): KeybindingDefinition | null {
-  return DEFINITIONS_BY_ID.get(actionId) ?? null
+  return (
+    DEFINITIONS_BY_ID.get(actionId) ??
+    (isAgentVariantActionId(actionId)
+      ? {
+          id: actionId,
+          title: 'New agent variant tab',
+          group: 'Agents',
+          scope: 'tabs',
+          searchKeywords: ['agent', 'variant', 'tab'],
+          defaultBindings: { darwin: [], linux: [], win32: [] }
+        }
+      : null)
+  )
 }
 
 export function getKeybindingPlatform(platform: NodeJS.Platform): 'darwin' | 'linux' | 'win32' {

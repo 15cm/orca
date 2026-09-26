@@ -55,6 +55,29 @@ describe('tab agent launch options', () => {
     )
   })
 
+  it('surfaces saved variants only when their base agent is detected and searches their names', () => {
+    const variants = [
+      {
+        id: 'fast',
+        name: 'Fast Claude',
+        agent: 'claude' as const,
+        command: 'claude --profile fastmode'
+      }
+    ]
+    const options = buildTabAgentLaunchOptions(['claude'], {}, variants)
+    expect(findMatchingTabAgentLaunchOptions('fast', options)).toEqual([
+      expect.objectContaining({
+        agent: 'claude',
+        variantId: 'fast',
+        command: 'claude --profile fastmode'
+      })
+    ])
+    expect(findMatchingTabAgentLaunchOptions('fastmode', options)[0]?.variantId).toBe('fast')
+    expect(
+      buildTabAgentLaunchOptions(['codex'], {}, variants).some((option) => option.variantId)
+    ).toBe(false)
+  })
+
   it('matches agents on a partial prefix so the launcher actually searches', () => {
     const options = buildTabAgentLaunchOptions(['claude', 'codex', 'gemini', 'antigravity'])
 

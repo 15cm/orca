@@ -42,6 +42,9 @@ export type LaunchAgentInNewTabArgs = {
   prompt?: string
   /** Optional CLI arguments appended to the selected agent command. */
   agentArgs?: string | null
+  /** Full command supplied by a saved launch variant. */
+  launchCommandOverride?: string
+  forceTerminal?: boolean
   initialCwd?: string | null
   /** How to deliver the prompt: `draft` leaves it editable, `submit-after-ready` sends it once the TUI is ready. */
   promptDelivery?: 'auto-submit' | 'draft' | 'submit-after-ready'
@@ -93,6 +96,8 @@ function launchAgentInNewTabInternal(
     groupId,
     prompt,
     agentArgs,
+    launchCommandOverride,
+    forceTerminal = false,
     initialCwd,
     promptDelivery = 'auto-submit',
     launchSource,
@@ -125,7 +130,10 @@ function launchAgentInNewTabInternal(
     isRemote,
     terminalWindowsShell: store.settings?.terminalWindowsShell
   })
-  const cmdOverrides = store.settings?.agentCmdOverrides ?? {}
+  const cmdOverrides =
+    launchCommandOverride === undefined
+      ? (store.settings?.agentCmdOverrides ?? {})
+      : { ...store.settings?.agentCmdOverrides, [agent]: launchCommandOverride }
   const effectiveAgentArgs =
     agentArgs !== undefined
       ? agentArgs
@@ -153,7 +161,10 @@ function launchAgentInNewTabInternal(
     isRemote,
     agentArgs: effectiveAgentArgs,
     agentEnv,
-    sessionOptions: resolveInitialNativeChatSessionOptions(store.settings, initialViewModeOptions)
+    sessionOptions:
+      launchCommandOverride === undefined
+        ? resolveInitialNativeChatSessionOptions(store.settings, initialViewModeOptions)
+        : undefined
   }
   const { startupPlan, pasteDraftAfterLaunch, submitPastedPrompt } = planLaunchAgentStartupPrompt({
     base: startupPlanBase,
@@ -183,7 +194,7 @@ function launchAgentInNewTabInternal(
       agentArgs,
       // Why: omission means terminal locally, but would let a paired host apply
       // its own default; send the client's resolved terminal choice explicitly.
-      viewMode: initialViewModeProps.viewMode ?? 'terminal',
+      viewMode: forceTerminal ? 'terminal' : (initialViewModeProps.viewMode ?? 'terminal'),
       onPromptDelivered
     })
     return {
@@ -197,17 +208,18 @@ function launchAgentInNewTabInternal(
   }
 
   // Why: the legacy re-entry is the plan's own fallback; deciding a route again would loop.
-  const plan = forceLegacy
-    ? null
-    : planAgentSessionLaunch(store, {
-        agent,
-        workspace: { kind: workspaceKindForWorktreeId(worktreeId), worktreeId },
-        prompt: trimmedPrompt,
-        promptDelivery: viewModePromptDelivery,
-        tuiCustomization: { cwd: initialCwd, agentArgs },
-        initialSessionOptions: startupPlan.sessionOptions,
-        onPromptDelivered
-      })
+  const plan =
+    forceLegacy || forceTerminal || launchCommandOverride !== undefined
+      ? null
+      : planAgentSessionLaunch(store, {
+          agent,
+          workspace: { kind: workspaceKindForWorktreeId(worktreeId), worktreeId },
+          prompt: trimmedPrompt,
+          promptDelivery: viewModePromptDelivery,
+          tuiCustomization: { cwd: initialCwd, agentArgs },
+          initialSessionOptions: startupPlan.sessionOptions,
+          onPromptDelivered
+        })
   if (plan?.route === 'structured-native-chat') {
     const structured = launchAgentInStructuredNewTab({
       plan,
@@ -230,7 +242,8 @@ function launchAgentInNewTabInternal(
   const tab = store.createTab(worktreeId, groupId, undefined, {
     launchAgent: agent,
     quickCommandLabel,
-    ...initialViewModeProps
+    ...initialViewModeProps,
+    ...(forceTerminal ? { viewMode: 'terminal' as const } : {})
   })
   seedNativeChatAppliedSessionOptions(tab.id, agent, startupPlan.sessionOptions)
   if (initialCwd?.trim()) {

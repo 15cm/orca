@@ -1,4 +1,3 @@
-import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { TabCreateEntryArgs } from './tab-create-entry-action'
 import type { TabAgentLaunchOption } from './tab-agent-launch-options'
 import type { TabCreateMenuOption } from './tab-create-menu-options'
@@ -9,7 +8,7 @@ export type TabBarCreateEntryProps = {
   menuOpen: boolean
   menuOptions?: readonly TabCreateMenuOption[]
   onDidOpenEntry?: () => void
-  onLaunchAgent?: (agent: TuiAgent) => void
+  onLaunchAgent?: (option: TabAgentLaunchOption) => void
   onOpenDefaultTerminal?: () => void
   onOpenEntry?: (args: TabCreateEntryArgs) => Promise<void>
   onQueryChange?: (query: string) => void

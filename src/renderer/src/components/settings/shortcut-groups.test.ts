@@ -29,6 +29,21 @@ describe('shortcut groups', () => {
     )
   })
 
+  it('adds shortcuts for enabled launch variants and omits disabled agents', () => {
+    const variants = [
+      { id: 'fast', name: 'Fast mode', agent: 'claude' as const, command: 'claude --fast' },
+      { id: 'quiet', name: 'Quiet mode', agent: 'codex' as const, command: 'codex -q' }
+    ]
+    const groups = groupDefinitions(['codex'], [], variants)
+    const agents = groups.find((group) => group.title === 'Agents')?.items ?? []
+    expect(agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'tab.newAgentVariant.fast', title: 'New Fast mode tab' })
+      ])
+    )
+    expect(agents.some((item) => item.id === 'tab.newAgentVariant.quiet')).toBe(false)
+  })
+
   it('exposes the agent dashboard toggle as a customizable Global row', () => {
     const global = groupDefinitions([]).find((group) => group.title === 'Global')
 

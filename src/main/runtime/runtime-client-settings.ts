@@ -26,6 +26,7 @@ export type RuntimeClientSettings = Pick<
   | 'agentCmdOverrides'
   | 'agentDefaultArgs'
   | 'agentDefaultEnv'
+  | 'agentLaunchVariants'
   | 'agentStatusHooksEnabled'
   | 'defaultTaskSource'
   | 'defaultTaskViewPreset'
@@ -47,6 +48,7 @@ export type RuntimeClientSettings = Pick<
   | 'agentSkillSharingEnabled'
   | 'defaultSetupRunPolicy'
 > & {
+  agentLaunchVariants: NonNullable<GlobalSettings['agentLaunchVariants']>
   hostSettingOverrides: RuntimeHostDisplayLabelOverrides
 }
 
@@ -62,6 +64,7 @@ export type RuntimeClientSettingsUpdate = Pick<
   | 'disabledTuiAgents'
   | 'agentDefaultArgs'
   | 'agentDefaultEnv'
+  | 'agentLaunchVariants'
   | 'defaultTaskSource'
   | 'defaultTaskViewPreset'
   | 'visibleTaskProviders'
@@ -99,6 +102,7 @@ export class RuntimeClientSettingsController {
       agentCmdOverrides: settings.agentCmdOverrides ?? {},
       agentDefaultArgs: settings.agentDefaultArgs ?? {},
       agentDefaultEnv: settings.agentDefaultEnv ?? {},
+      agentLaunchVariants: settings.agentLaunchVariants ?? [],
       agentStatusHooksEnabled: settings.agentStatusHooksEnabled !== false,
       defaultTaskSource: settings.defaultTaskSource ?? 'github',
       defaultTaskViewPreset: settings.defaultTaskViewPreset ?? 'issues',

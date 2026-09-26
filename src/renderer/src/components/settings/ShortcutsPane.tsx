@@ -47,6 +47,9 @@ const platform: NodeJS.Platform = isMac
   : navigator.userAgent.includes('Windows')
     ? 'win32'
     : 'linux'
+const EMPTY_AGENT_LAUNCH_VARIANTS: NonNullable<
+  ReturnType<typeof useAppStore.getState>['settings']
+>['agentLaunchVariants'] = []
 
 export function ShortcutsPane(): React.JSX.Element {
   useTranslation()
@@ -59,6 +62,9 @@ export function ShortcutsPane(): React.JSX.Element {
   const keybindingSnapshot = useAppStore((state) => state.keybindingSnapshot)
   const disabledTuiAgents = useAppStore(
     (state) => state.settings?.disabledTuiAgents ?? EMPTY_DISABLED_TUI_AGENTS
+  )
+  const agentLaunchVariants = useAppStore(
+    (state) => state.settings?.agentLaunchVariants ?? EMPTY_AGENT_LAUNCH_VARIANTS
   )
   const setKeybindingOverride = useAppStore((state) => state.setKeybindingOverride)
   const resetKeybindingOverride = useAppStore((state) => state.resetKeybindingOverride)
@@ -108,13 +114,15 @@ export function ShortcutsPane(): React.JSX.Element {
           keybindings,
           platform,
           macCapturedDigitChords,
-          missionControlConflictMessage
+          missionControlConflictMessage,
+          agentLaunchVariants
         }),
       [
         disabledTuiAgents,
         keybindings,
         macCapturedDigitChords,
         missionControlConflictMessage,
+        agentLaunchVariants,
         pluginCommands
       ]
     )

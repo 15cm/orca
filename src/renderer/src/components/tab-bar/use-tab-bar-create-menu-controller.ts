@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import type { TuiAgent } from '../../../../shared/tui-agent'
 import { translate } from '@/i18n/i18n'
 import { focusTerminalTabSurface } from '@/lib/focus-terminal-tab-surface'
 import {
@@ -8,8 +7,8 @@ import {
   shouldQueueTerminalFocusAfterMenuClose
 } from '@/lib/launch-agent-in-new-tab'
 import type { WindowsTerminalCapabilities } from '@/lib/windows-terminal-capabilities'
-import { useAppStore } from '../../store'
 import type { TabAgentLaunchOption } from './tab-agent-launch-options'
+import { useAppStore } from '../../store'
 import { buildTabCreateMenuOptions, type TabCreateMenuOption } from './tab-create-menu-options'
 import { resolveWindowsShellLaunchTarget } from './windows-shell-launch'
 import {
@@ -31,7 +30,7 @@ export type TabBarCreateMenuController = {
   createMenuOptions: TabCreateMenuOption[]
   windowsShellEntries: WindowsShellMenuEntry[] | undefined
   handleSelectCreateMenuOption: (option: TabCreateMenuOption) => void
-  launchAgentFromNewTabEntry: (agent: TuiAgent) => void
+  launchAgentFromNewTabEntry: (option: TabAgentLaunchOption) => void
   runPendingNewTabMenuFocusAfterClose: () => void
   clearPendingNewTabMenuFocusOnUnmount: (node: HTMLDivElement | null) => void
   queueNewActiveTerminalFocusAfterNewTabMenuClose: () => void
@@ -53,7 +52,6 @@ export function useTabBarCreateMenuController({
   defaultWindowsShell,
   defaultWindowsPowerShellImplementation,
   windowsTerminalCapabilities,
-  agentLaunchOptions,
   onNewTerminalTab,
   onNewTerminalWithShell,
   onNewBrowserTab,
@@ -75,7 +73,6 @@ export function useTabBarCreateMenuController({
     typeof resolveWindowsPowerShellImplementationSetting
   >
   windowsTerminalCapabilities: WindowsTerminalCapabilities
-  agentLaunchOptions: TabAgentLaunchOption[]
   onNewTerminalTab: () => void
   onNewTerminalWithShell?: (shell: string) => void
   onNewBrowserTab: () => void
@@ -220,13 +217,16 @@ export function useTabBarCreateMenuController({
         break
     }
   }
-  const launchAgentFromNewTabEntry = (agent: TuiAgent): void => {
-    const option = agentLaunchOptions.find((candidate) => candidate.agent === agent)
+  const launchAgentFromNewTabEntry = (option: TabAgentLaunchOption): void => {
+    const agent = option.agent
     const result = launchAgentInNewTab({
       agent,
       worktreeId,
       groupId: resolvedGroupId,
-      launchSource: 'tab_bar_quick_launch'
+      launchSource: 'tab_bar_quick_launch',
+      ...(option.variantId
+        ? { launchCommandOverride: option.command, agentArgs: '', forceTerminal: true }
+        : {})
     })
     if (!result) {
       toast.error(

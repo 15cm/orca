@@ -442,6 +442,7 @@ describe('AgentsPane', () => {
     expect(matchesSettingsSearch('GitHub Copilot', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('open claude', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('command-code', getAgentsPaneSearchEntries())).toBe(true)
+    expect(matchesSettingsSearch('launch variants', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('command code', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('agy', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('cursor-agent', getAgentsPaneSearchEntries())).toBe(true)

@@ -28,6 +28,7 @@ export type KeybindingsApi = {
     actionId: KeybindingActionId
     bindings: string[] | null
   }) => Promise<KeybindingFileSnapshot>
+  removeAction: (actionId: KeybindingActionId) => Promise<KeybindingFileSnapshot>
   reload: () => Promise<KeybindingFileSnapshot>
   openFile: () => Promise<KeybindingFileSnapshot>
   revealFile: () => Promise<KeybindingFileSnapshot>

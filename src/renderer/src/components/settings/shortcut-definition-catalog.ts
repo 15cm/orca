@@ -11,6 +11,7 @@ import {
 } from '../../../../shared/macos-symbolic-hotkeys'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import type { ActivePluginCommand } from '@/store/plugin-panels'
+import type { AgentLaunchVariant } from '../../../../shared/agent-launch-variants'
 import { buildPluginCommandKeybindingDefinitions } from '@/lib/plugin-command-keybindings'
 import { disabledAgentTabActionIds, groupDefinitions, type ShortcutGroup } from './shortcut-groups'
 
@@ -29,9 +30,14 @@ export function buildShortcutDefinitionCatalog(options: {
   platform: NodeJS.Platform
   macCapturedDigitChords?: readonly MacCapturedDigitChord[]
   missionControlConflictMessage: string
+  agentLaunchVariants?: readonly AgentLaunchVariant[]
 }): ShortcutDefinitionCatalog {
   const pluginDefinitions = buildPluginCommandKeybindingDefinitions(options.pluginCommands)
-  const groups = groupDefinitions(options.disabledTuiAgents, pluginDefinitions)
+  const groups = groupDefinitions(
+    options.disabledTuiAgents,
+    pluginDefinitions,
+    options.agentLaunchVariants
+  )
   const definitions = groups.flatMap((group) => group.items)
   const definitionsByAction = new Map(definitions.map((definition) => [definition.id, definition]))
   const ignoredConflictActionIds = disabledAgentTabActionIds(options.disabledTuiAgents)

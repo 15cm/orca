@@ -22,6 +22,7 @@ export type KeybindingMatchOptions = {
 }
 
 export type AgentTabActionId = `tab.newAgent.${TuiAgent}`
+export type AgentVariantActionId = `tab.newAgentVariant.${string}`
 export type PluginKeybindingActionId = `plugin:${string}`
 
 export type KeybindingActionId =
@@ -60,6 +61,7 @@ export type KeybindingActionId =
   | 'tab.newTerminal'
   | 'tab.newAgent'
   | AgentTabActionId
+  | AgentVariantActionId
   | 'tab.newBrowser'
   | 'tab.newSimulator'
   | 'tab.newMarkdown'

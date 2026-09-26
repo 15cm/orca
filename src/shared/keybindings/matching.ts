@@ -5,7 +5,12 @@ import type {
   KeybindingMatchOptions,
   ParsedKeybinding
 } from './types'
-import { DEFINITIONS_BY_ID, DIGIT_INDEX_KEY_PATTERN, isDigitIndexActionId } from './definitions'
+import {
+  DEFINITIONS_BY_ID,
+  DIGIT_INDEX_KEY_PATTERN,
+  isDigitIndexActionId,
+  getKeybindingDefinition
+} from './definitions'
 import { canonicalizeParsedKeybinding, parseKeybinding } from './parser'
 import {
   platformModifiers,
@@ -88,7 +93,7 @@ export function keybindingMatchesAction(
   overrides?: KeybindingOverrides,
   options: KeybindingMatchOptions = {}
 ): boolean {
-  const definition = DEFINITIONS_BY_ID.get(actionId)
+  const definition = getKeybindingDefinition(actionId)
   if (!definition) {
     return false
   }

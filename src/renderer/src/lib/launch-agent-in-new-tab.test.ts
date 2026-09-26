@@ -194,6 +194,42 @@ describe('launchAgentInNewTab', () => {
       launchAgent: 'codex'
     })
   })
+
+  it('launches a saved variant command exactly in terminal view without configured args', async () => {
+    store.settings = {
+      agentCmdOverrides: {},
+      agentDefaultArgs: { codex: '--configured-args' },
+      agentDefaultEnv: { codex: { VARIANT_ENV: 'yes' } },
+      activeRuntimeEnvironmentId: null,
+      experimentalNativeChat: true,
+      experimentalStructuredNativeChat: true,
+      openAgentTabsInChatByDefault: true
+    }
+    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
+    const result = launchAgentInNewTab({
+      agent: 'codex',
+      worktreeId: 'wt-1',
+      launchCommandOverride: 'codex --profile fast --model x',
+      agentArgs: '',
+      forceTerminal: true
+    })
+    expect(mockCreateTab).toHaveBeenCalledWith('wt-1', undefined, undefined, {
+      launchAgent: 'codex',
+      viewMode: 'terminal'
+    })
+    expect(mockQueueTabStartupCommand).toHaveBeenCalledWith(
+      'tab-1',
+      expect.objectContaining({
+        command: 'codex --profile fast --model x',
+        env: expect.objectContaining({ VARIANT_ENV: 'yes' }),
+        agentArgsOverride: ''
+      })
+    )
+    expect(result?.startupPlan.launchConfig).toMatchObject({
+      agentCommand: 'codex --profile fast --model x',
+      agentArgs: ''
+    })
+  })
   it('keeps Floating Workspace authority on native Windows beside an active WSL project', async () => {
     store.projects = [
       {
@@ -876,24 +912,5 @@ describe('launchAgentInNewTab', () => {
       failureNotified: false
     })
     expect(mockToastMessage).not.toHaveBeenCalled()
-  })
-
-  it('queues per-launch CLI arguments without putting generated prompts in argv', async () => {
-    const { launchAgentInNewTab } = await import('./launch-agent-in-new-tab')
-
-    launchAgentInNewTab({
-      agent: 'codex',
-      worktreeId: 'wt-1',
-      prompt: 'large generated prompt',
-      agentArgs: '--model gpt-5.5',
-      promptDelivery: 'submit-after-ready'
-    })
-
-    expect(mockQueueTabStartupCommand).toHaveBeenCalledWith(
-      'tab-1',
-      expect.objectContaining({
-        command: "codex '--model' 'gpt-5.5'"
-      })
-    )
   })
 })

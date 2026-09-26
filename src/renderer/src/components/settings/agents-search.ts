@@ -24,6 +24,11 @@ function buildAgentSettingsKeywords(): string[] {
     { key: 'auto.components.settings.agents.search.96ba2373b6', fallback: 'agent' },
     { key: 'auto.components.settings.agents.search.d8f3a8b8a0', fallback: 'default' },
     { key: 'auto.components.settings.agents.search.167daeb5e9', fallback: 'command' },
+    { key: 'auto.components.settings.agents.search.launchVariants', fallback: 'launch variants' },
+    {
+      key: 'auto.components.settings.agents.search.customCommand',
+      fallback: 'custom launch command'
+    },
     { key: 'auto.components.settings.agents.search.be59907510', fallback: 'override' },
     { key: 'auto.components.settings.agents.search.a6d594c17d', fallback: 'install' },
     { key: 'auto.components.settings.agents.search.f2932bf22b', fallback: 'detected' },

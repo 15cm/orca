@@ -250,3 +250,39 @@ export function writeKeybindingOverride(
     }
   )
 }
+
+export function removeKeybindingActionBindings(
+  path: string,
+  actionId: string,
+  platform: NodeJS.Platform = process.platform
+): KeybindingFileSnapshot {
+  if (!isKeybindingActionId(actionId)) {
+    throw new Error(`Unknown keybinding action "${actionId}".`)
+  }
+  ensureKeybindingFile(path)
+  const readResult = readJsonDocument(path)
+  if (!readResult.document) {
+    throw new Error(readResult.error ?? 'Could not read keybindings file.')
+  }
+  const document = { ...readResult.document }
+  delete document[actionId]
+  if (isJsonObject(document.keybindings)) {
+    const common = { ...document.keybindings }
+    delete common[actionId]
+    document.keybindings = common
+  }
+  if (isJsonObject(document.platforms)) {
+    const platforms = { ...document.platforms }
+    for (const platform of ['darwin', 'linux', 'win32'] as const) {
+      if (!isJsonObject(platforms[platform])) {
+        continue
+      }
+      const overrides = { ...(platforms[platform] as JsonObject) }
+      delete overrides[actionId]
+      platforms[platform] = overrides
+    }
+    document.platforms = platforms
+  }
+  writeJsonDocument(path, document)
+  return readKeybindingFile(path, platform)
+}

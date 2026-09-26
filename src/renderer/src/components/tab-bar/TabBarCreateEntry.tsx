@@ -34,8 +34,7 @@ import {
 } from './tab-create-entry-copy'
 import { EMPTY_AGENT_OPTIONS, EMPTY_MENU_OPTIONS } from './tab-create-entry-empty-options'
 import { useStructuredAgentLaunchStatus } from '@/lib/structured-agent-session-launch'
-import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
-import type { TuiAgent } from '../../../../shared/tui-agent'
+import { optionHasPendingStructuredLaunch } from './structured-launch-option'
 import { translate } from '@/i18n/i18n'
 import type { TabEntryActionClassification } from './tab-create-entry-classifier'
 import type { TabBarCreateEntryProps } from './tab-create-entry-props'
@@ -69,8 +68,6 @@ function TabBarCreateEntrySession({
     claude: useStructuredAgentLaunchStatus(worktreeId, 'claude'),
     codex: useStructuredAgentLaunchStatus(worktreeId, 'codex')
   }
-  const isStructuredLaunchPending = (agent: TuiAgent): boolean =>
-    isAgentSessionHandleProvider(agent) && structuredLaunchStatusByAgent[agent] === 'pending'
   // null = follow ranking (deferred tabs can prepend); set on arrow keys only.
   const [pinnedOptionId, setPinnedOptionId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -239,10 +236,10 @@ function TabBarCreateEntrySession({
       return
     }
     if (selectedOption.kind === 'agent') {
-      if (isStructuredLaunchPending(selectedOption.option.agent)) {
+      if (optionHasPendingStructuredLaunch(selectedOption, structuredLaunchStatusByAgent)) {
         return
       }
-      onLaunchAgent?.(selectedOption.option.agent)
+      onLaunchAgent?.(selectedOption.option)
       onDidOpenEntry?.()
       return
     }
@@ -391,7 +388,7 @@ function TabBarCreateEntrySession({
                 option={option}
                 selected={index === activeSelectedIndex}
                 labelOverride={
-                  option.kind === 'agent' && isStructuredLaunchPending(option.option.agent)
+                  optionHasPendingStructuredLaunch(option, structuredLaunchStatusByAgent)
                     ? translate(
                         'components.native-chat.structuredSessionLaunchPending',
                         'Starting {{value0}} chat…',
@@ -402,11 +399,11 @@ function TabBarCreateEntrySession({
                 disabled={
                   disabled ||
                   pending ||
-                  (option.kind === 'agent' && isStructuredLaunchPending(option.option.agent))
+                  optionHasPendingStructuredLaunch(option, structuredLaunchStatusByAgent)
                 }
                 loading={
                   (pending && index === activeSelectedIndex) ||
-                  (option.kind === 'agent' && isStructuredLaunchPending(option.option.agent))
+                  optionHasPendingStructuredLaunch(option, structuredLaunchStatusByAgent)
                 }
                 onClick={() => {
                   setSelectionGuidance(null)

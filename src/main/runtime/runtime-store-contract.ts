@@ -85,6 +85,7 @@ export type RuntimeStore = {
     agentCmdOverrides?: GlobalSettings['agentCmdOverrides']
     agentDefaultArgs?: GlobalSettings['agentDefaultArgs']
     agentDefaultEnv?: GlobalSettings['agentDefaultEnv']
+    agentLaunchVariants?: GlobalSettings['agentLaunchVariants']
     terminalWindowsShell?: GlobalSettings['terminalWindowsShell']
     floatingTerminalEnabled?: GlobalSettings['floatingTerminalEnabled']
     agentStatusHooksEnabled?: GlobalSettings['agentStatusHooksEnabled']

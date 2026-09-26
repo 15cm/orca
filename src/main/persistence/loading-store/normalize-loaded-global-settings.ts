@@ -1,6 +1,7 @@
 import { getDefaultVoiceSettings } from '../../../shared/constants'
 import { normalizePRBotAuthorOverrides } from '../../../shared/pr-bot-author-overrides'
 import { normalizeTerminalQuickCommands } from '../../../shared/terminal-quick-commands'
+import { normalizeAgentLaunchVariants } from '../../../shared/agent-launch-variants'
 import { normalizeOpenInApplications } from '../../../shared/open-in-applications'
 import { normalizeTerminalShortcutPolicy } from '../../../shared/keybindings'
 import { normalizeAppIconId } from '../../../shared/app-icon'
@@ -106,6 +107,7 @@ export function normalizeLoadedGlobalSettings(
     floatingTerminalCwdMigratedToAppWorkspace: true,
     terminalScrollbackRows: migratedTerminalScrollback.rows,
     terminalQuickCommands: normalizeTerminalQuickCommands(parsed.settings?.terminalQuickCommands),
+    agentLaunchVariants: normalizeAgentLaunchVariants(parsed.settings?.agentLaunchVariants),
     terminalCustomThemes: normalizeTerminalCustomThemes(parsed.settings?.terminalCustomThemes),
     appIcon: normalizeAppIconId(parsed.settings?.appIcon),
     mobilePairingCustomAddress,

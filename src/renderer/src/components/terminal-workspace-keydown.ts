@@ -82,7 +82,7 @@ export function handleTerminalWorkspaceKeyDown(
       event.preventDefault()
       notifyTerminalCapture(agentShortcut.actionId)
       if (agentShortcut.agent) {
-        handleNewAgentTab(agentShortcut.agent)
+        handleNewAgentTab(agentShortcut.agent, agentShortcut.command)
       } else {
         toast.message(
           translate(
