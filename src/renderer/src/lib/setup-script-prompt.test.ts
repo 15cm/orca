@@ -9,7 +9,8 @@ import {
   getSetupScriptPromptDismissalKey,
   ignoresSharedSetupScripts,
   inspectSetupScriptPromptState,
-  isSetupScriptPromptDismissed
+  isSetupScriptPromptDismissed,
+  shouldSuppressSetupScriptPrompt
 } from './setup-script-prompt'
 import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-client'
 
@@ -25,6 +26,37 @@ function makeRepo(overrides: Partial<Repo> = {}): Repo {
 }
 
 describe('setup script prompt inspection', () => {
+  it('suppresses prompts when an unconfigured repo inherits global skip', () => {
+    expect(
+      shouldSuppressSetupScriptPrompt(makeRepo(), {
+        defaultSetupRunPolicy: 'skip-by-default'
+      })
+    ).toBe(true)
+  })
+
+  it.each(['ask', 'run-by-default'] as const)(
+    'preserves explicit repository %s policy over global skip',
+    (setupRunPolicy) => {
+      expect(
+        shouldSuppressSetupScriptPrompt(
+          makeRepo({ hookSettings: { setupRunPolicy } as Repo['hookSettings'] }),
+          { defaultSetupRunPolicy: 'skip-by-default' }
+        )
+      ).toBe(false)
+    }
+  )
+
+  it('suppresses prompts for explicit repository skip', () => {
+    expect(
+      shouldSuppressSetupScriptPrompt(
+        makeRepo({
+          hookSettings: { setupRunPolicy: 'skip-by-default' } as Repo['hookSettings']
+        }),
+        { defaultSetupRunPolicy: 'run-by-default' }
+      )
+    ).toBe(true)
+  })
+
   it('returns ok with an import candidate when no setup script is effective', async () => {
     const candidate: SetupScriptImportCandidate = {
       provider: 'codex',

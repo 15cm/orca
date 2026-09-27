@@ -5,10 +5,15 @@ import type { GlobalSettings } from '../../../shared/global-settings-types'
 import type { OrcaHooks, RepoHookSettings } from '../../../shared/orca-yaml-hook-types'
 import type { SetupDecision } from '../../../shared/worktree/create-types'
 import type { GitHubPrStartPoint } from '../../../shared/worktree/types'
+import { resolveSetupRunPolicy } from '../../../shared/setup-run-policy'
 
 // Why: preflight routes by the repo's owner host, which `getSettingsForRepoRuntimeOwner`
 // hands back as a narrow runtime-scope pick rather than the full GlobalSettings.
-type PreflightSettings = Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> | null | undefined
+type PreflightSettings =
+  | (Pick<GlobalSettings, 'activeRuntimeEnvironmentId'> &
+      Partial<Pick<GlobalSettings, 'defaultSetupRunPolicy'>>)
+  | null
+  | undefined
 
 export async function resolveDirectPrStartPoint(
   repoId: string,
@@ -51,7 +56,7 @@ export async function resolveDirectSetupDecision(
     // that omit a setup decision entirely.
     return { kind: 'decided', decision: 'inherit' }
   }
-  const policy = repo.hookSettings?.setupRunPolicy ?? 'run-by-default'
+  const policy = resolveSetupRunPolicy(repo, settings)
   if (policy === 'ask') {
     return { kind: 'needs-modal' }
   }

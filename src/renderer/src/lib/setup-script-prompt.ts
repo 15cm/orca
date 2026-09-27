@@ -3,6 +3,8 @@ import { resolveHookCommandSourcePolicy } from '../../../shared/hook-command-sou
 import type { SetupScriptImportCandidate } from '../../../shared/setup-script-imports'
 import type { RepoHookSettings } from '../../../shared/orca-yaml-hook-types'
 import type { Repo } from '../../../shared/repo-types'
+import type { GlobalSettings } from '../../../shared/global-settings-types'
+import { resolveSetupRunPolicy } from '../../../shared/setup-run-policy'
 import type { HookCheckResult } from '@/runtime/runtime-hooks-client'
 import { isRuntimeScopeForbiddenError } from '@/runtime/runtime-rpc-client'
 import { hasEffectiveSetupCommand } from './setup-script-status'
@@ -69,6 +71,13 @@ export async function inspectSetupScriptPromptState({
     console.warn('[setup-script-prompt] Failed to inspect setup scripts:', error)
     return { status: 'error', repoId: repo.id }
   }
+}
+
+export function shouldSuppressSetupScriptPrompt(
+  repo: Pick<Repo, 'hookSettings'>,
+  settings?: Pick<GlobalSettings, 'defaultSetupRunPolicy'> | null
+): boolean {
+  return resolveSetupRunPolicy(repo, settings) === 'skip-by-default'
 }
 
 export function ignoresSharedSetupScripts(repo: Pick<Repo, 'hookSettings'>): boolean {

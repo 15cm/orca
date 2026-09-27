@@ -74,7 +74,10 @@ export async function launchWorkItemDirect(args: LaunchWorkItemDirectArgs): Prom
   const settings = store.settings
   // Why: preflight (PR base + hooks probe) must run on the repo's owner host so it
   // matches the owner-routed createWorktree below, not the focused runtime.
-  const repoOwnerSettings = getSettingsForRepoRuntimeOwner(store, repoId)
+  const repoOwnerSettings = {
+    ...getSettingsForRepoRuntimeOwner(store, repoId),
+    defaultSetupRunPolicy: settings?.defaultSetupRunPolicy
+  }
   const promptDelivery = args.promptDelivery ?? 'draft'
   const repoConnectionId = repo.connectionId?.trim() || null
   const githubIdentity =

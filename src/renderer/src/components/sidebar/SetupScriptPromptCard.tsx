@@ -1,32 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { track } from '@/lib/telemetry'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import {
-  buildImportedHookSettings,
   formatCandidateProvenance,
   formatCandidateSource,
   isSetupScriptPromptDismissed,
   ignoresSharedSetupScripts,
-  inspectSetupScriptPromptState
+  inspectSetupScriptPromptState,
+  shouldSuppressSetupScriptPrompt
 } from '@/lib/setup-script-prompt'
 import { checkRuntimeHooks, inspectRuntimeSetupScriptImports } from '@/runtime/runtime-hooks-client'
 import { isGitRepoKind } from '../../../../shared/repo-kind'
-import type { SetupScriptImportCandidate } from '../../../../shared/setup-script-imports'
 import { buildSetupScriptPromptActionTelemetry } from '../../../../shared/setup-script-telemetry'
 import { SetupScriptPromptCardShell } from './SetupScriptPromptCardShell'
-import { showSavedInProjectSettingsToast } from './SetupScriptPromptToast'
 import { openSetupScriptSettings } from './open-setup-script-settings'
 import { trackSetupScriptPromptExposure } from './setup-script-prompt-exposure-telemetry'
 import {
   findSetupScriptPromptRepo,
-  markSetupScriptPromptSaved,
   type SetupScriptPromptState
 } from './setup-script-prompt-render-state'
 import { useSetupScriptPromptRevalidation } from './useSetupScriptPromptRevalidation'
 import { useRenderedSetupScriptPromptState } from './useRenderedSetupScriptPromptState'
-import { translate } from '@/i18n/i18n'
+import { useSetupScriptPromptActions } from './useSetupScriptPromptActions'
 import { getRepoHostIdentity } from '@/store/slices/repo-host-identity'
 import { getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { useWorktreeById } from '@/store/selectors'
@@ -59,9 +55,18 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
   const isDismissed = activeRepoHostIdentity
     ? isSetupScriptPromptDismissed(activeRepoHostIdentity, dismissedRepoIds)
     : false
+  const setupPromptSuppressed = activeRepo
+    ? shouldSuppressSetupScriptPrompt(activeRepo, settings)
+    : false
 
   useEffect(() => {
-    if (!sidebarOpen || !activeRepo || !isGitRepoKind(activeRepo) || isDismissed) {
+    if (
+      !sidebarOpen ||
+      !activeRepo ||
+      !isGitRepoKind(activeRepo) ||
+      isDismissed ||
+      setupPromptSuppressed
+    ) {
       setPromptState(null)
       setDetectedSetupDraft('')
       return
@@ -97,7 +102,7 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [activeRepo, inspectionRetryKey, isDismissed, settings, sidebarOpen])
+  }, [activeRepo, inspectionRetryKey, isDismissed, settings, setupPromptSuppressed, sidebarOpen])
 
   const openLocalCommandSettings = useCallback(
     (repoId: string, hostId: ReturnType<typeof getRepoExecutionHostId>) =>
@@ -117,7 +122,7 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
 
   useSetupScriptPromptRevalidation({
     activeRepo,
-    isDismissed,
+    isDismissed: isDismissed || setupPromptSuppressed,
     sidebarOpen,
     promptState,
     requestRevalidation: handleRetryInspection
@@ -129,6 +134,7 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
       !activeRepo ||
       !isGitRepoKind(activeRepo) ||
       isDismissed ||
+      setupPromptSuppressed ||
       promptState?.repoId !== activeRepo.id ||
       promptState.repoHostIdentity !== activeRepoHostIdentity ||
       promptState.status !== 'ok' ||
@@ -143,7 +149,14 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
       promptState,
       trackedPromptKeys: trackedPromptKeysRef.current
     })
-  }, [activeRepo, activeRepoHostIdentity, isDismissed, promptState, sidebarOpen])
+  }, [
+    activeRepo,
+    activeRepoHostIdentity,
+    isDismissed,
+    promptState,
+    setupPromptSuppressed,
+    sidebarOpen
+  ])
 
   const handleConfigure = useCallback(() => {
     if (!activeRepo) {
@@ -188,170 +201,24 @@ function SetupScriptPromptCard(): React.JSX.Element | null {
     }
   }, [activeRepo, activeRepoHostIdentity, dismissSetupScriptPrompt, promptState])
 
-  const saveSetupCandidate = useCallback(
-    async (input: {
-      candidate: SetupScriptImportCandidate
-      hasSharedHooks: boolean
-      actionPrefix: 'save_detected_setup' | 'import'
-      editedBeforeSave?: boolean
-    }) => {
-      const { candidate, hasSharedHooks, actionPrefix, editedBeforeSave } = input
-      if (!activeRepo) {
-        return
-      }
-      const importedRepoHostIdentity = getRepoHostIdentity(activeRepo)
-      const importedHostId = getRepoExecutionHostId(activeRepo)
-      setImportingRepoHostIdentity(importedRepoHostIdentity)
-      try {
-        const importedRepoId = activeRepo.id
-        const nextSettings = buildImportedHookSettings(activeRepo, candidate, hasSharedHooks)
-        const didUpdate = await updateRepo(
-          activeRepo.id,
-          { hookSettings: nextSettings },
-          { hostId: importedHostId }
-        )
-        if (!didUpdate) {
-          track(
-            'setup_script_prompt_action',
-            buildSetupScriptPromptActionTelemetry({
-              action:
-                actionPrefix === 'save_detected_setup'
-                  ? 'save_detected_setup_failed'
-                  : 'import_failed',
-              candidate,
-              hasSharedHooks,
-              editedBeforeSave
-            })
-          )
-          if (mountedRef.current) {
-            toast.error(
-              translate(
-                'auto.components.sidebar.SetupScriptPromptCard.888b83bf78',
-                'Failed to save setup script'
-              )
-            )
-          }
-          return
-        }
-        track(
-          'setup_script_prompt_action',
-          buildSetupScriptPromptActionTelemetry({
-            action:
-              actionPrefix === 'save_detected_setup'
-                ? 'save_detected_setup_completed'
-                : 'import_completed',
-            candidate,
-            hasSharedHooks,
-            editedBeforeSave
-          })
-        )
-        if (actionPrefix === 'save_detected_setup') {
-          if (mountedRef.current) {
-            setPromptState((current) =>
-              markSetupScriptPromptSaved(current, importedRepoHostIdentity)
-            )
-            showSavedInProjectSettingsToast({
-              onOpenSettings: () => openLocalCommandSettings(importedRepoId, importedHostId),
-              description: translate(
-                'auto.components.sidebar.SetupScriptPromptCard.a49196d538',
-                'Runs when Orca creates a new worktree.'
-              )
-            })
-          }
-          return
-        }
-        if (mountedRef.current) {
-          setPromptState((current) => markSetupScriptPromptSaved(current, importedRepoHostIdentity))
-          const skippedCount = candidate.unsupportedFields?.length ?? 0
-          showSavedInProjectSettingsToast({
-            onOpenSettings: () => openLocalCommandSettings(importedRepoId, importedHostId),
-            description:
-              skippedCount > 0
-                ? `${skippedCount} unsupported field${skippedCount === 1 ? '' : 's'} skipped. Saved the setup command.`
-                : 'Saved the setup command.'
-          })
-        }
-      } catch (error) {
-        track(
-          'setup_script_prompt_action',
-          buildSetupScriptPromptActionTelemetry({
-            action:
-              actionPrefix === 'save_detected_setup'
-                ? 'save_detected_setup_failed'
-                : 'import_failed',
-            candidate,
-            hasSharedHooks,
-            editedBeforeSave
-          })
-        )
-        console.warn('[setup-script-prompt] Failed to save setup script:', error)
-        if (mountedRef.current) {
-          toast.error(
-            translate(
-              'auto.components.sidebar.SetupScriptPromptCard.888b83bf78',
-              'Failed to save setup script'
-            )
-          )
-        }
-      } finally {
-        if (mountedRef.current) {
-          setImportingRepoHostIdentity((current) =>
-            current === importedRepoHostIdentity ? null : current
-          )
-        }
-      }
-    },
-    [activeRepo, mountedRef, openLocalCommandSettings, updateRepo]
-  )
-
-  const handleImport = useCallback(async () => {
-    if (!activeRepo || promptState?.status !== 'ok' || !promptState.candidate) {
-      return
-    }
-    const isPackageManagerCandidate = promptState.candidate.provider === 'package-manager'
-    const actionPrefix = isPackageManagerCandidate ? 'save_detected_setup' : 'import'
-    const editedBeforeSave =
-      isPackageManagerCandidate && detectedSetupDraft.trim() !== promptState.candidate.setup.trim()
-    const candidate = isPackageManagerCandidate
-      ? {
-          ...promptState.candidate,
-          setup: detectedSetupDraft.trim()
-        }
-      : promptState.candidate
-    if (!candidate.setup) {
-      toast.error(
-        translate(
-          'auto.components.sidebar.SetupScriptPromptCard.70715947fb',
-          'Setup script cannot be empty'
-        )
-      )
-      return
-    }
-    if (actionPrefix === 'save_detected_setup') {
-      track(
-        'setup_script_prompt_action',
-        buildSetupScriptPromptActionTelemetry({
-          action: 'save_detected_setup_clicked',
-          candidate,
-          hasSharedHooks: promptState.hasSharedHooks,
-          editedBeforeSave
-        })
-      )
-    }
-    await saveSetupCandidate({
-      candidate,
-      hasSharedHooks: promptState.hasSharedHooks,
-      actionPrefix,
-      editedBeforeSave: isPackageManagerCandidate ? editedBeforeSave : undefined
-    })
-  }, [activeRepo, detectedSetupDraft, promptState, saveSetupCandidate])
+  const { handleImport } = useSetupScriptPromptActions({
+    activeRepo,
+    detectedSetupDraft,
+    mountedRef,
+    openLocalCommandSettings,
+    promptState,
+    setImportingRepoHostIdentity,
+    setPromptState,
+    updateRepo
+  })
 
   const promptTargetHidden =
     !sidebarOpen ||
     !activeRepo ||
     !activeRepoHostIdentity ||
     !isGitRepoKind(activeRepo) ||
-    isDismissed
+    isDismissed ||
+    setupPromptSuppressed
   const renderedPromptState = useRenderedSetupScriptPromptState({
     promptState,
     activeRepoId: activeRepo?.id ?? null,
