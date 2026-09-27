@@ -388,6 +388,7 @@ function TabBarCreateEntrySession({
                 option={option}
                 selected={index === activeSelectedIndex}
                 labelOverride={
+                  option.kind === 'agent' &&
                   optionHasPendingStructuredLaunch(option, structuredLaunchStatusByAgent)
                     ? translate(
                         'components.native-chat.structuredSessionLaunchPending',
