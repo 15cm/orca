@@ -95,6 +95,28 @@ printf '%s' "$TEXT" | ORCA computer set-value --app <app> --element-index <index
 - Some actions work in background apps, but this is app-dependent. If success does not change the UI, refresh state and choose a more semantic action or restore/focus the window.
 - Coordinates are window-local; use coordinates from the latest screenshot/state for the same target window.
 
+## Wayland Keyboard Fallback
+
+On Linux Wayland, AT-SPI may report a synthetic keyboard action as successful even when the compositor does not deliver it to the focused app. If a `hotkey` call is unsupported or has no visible effect, use the compositor's window tools to identify and focus the exact target, then use `wtype` when installed. `wtype` sends keys through Wayland's virtual-keyboard protocol; it does not provide screenshots or mouse input.
+
+For Niri, inspect the window list and focus the target window by its current ID:
+
+```text
+niri msg windows
+niri msg action focus-window --id <window-id>
+niri msg windows
+```
+
+Confirm the target is marked focused before sending input. If it remains unfocused because it is on another monitor, inspect `niri msg workspaces`, focus the target monitor with `niri msg action focus-monitor-left` or `focus-monitor-right`, then focus the window again and recheck. For example, open a Firefox tab with:
+
+```text
+wtype -M ctrl -k t
+```
+
+Use `wtype <text>` for ordinary text entry. Avoid putting secrets in command arguments; use `wtype -` with text piped from a protected source when needed. After input, verify the visible result with the compositor window list or a fresh screenshot (for example, `grim -o <output> /tmp/<task>-screen.png` on wlroots compositors). Treat `wtype`'s exit status alone as unverified input. Do not guess window IDs or send input if the intended window is not focused.
+
+This fallback is for Wayland keyboard input when the Orca provider cannot target or reliably deliver input to a visible app. Resume `orca computer` for semantic accessibility actions whenever it can target the app reliably.
+
 ## Screenshots
 
 `get-app-state` and actions request screenshots by default unless `--no-screenshot` is
