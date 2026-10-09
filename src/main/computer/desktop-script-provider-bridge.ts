@@ -181,7 +181,7 @@ export function mapBridgeError(message: string): RuntimeClientError {
     return new RuntimeClientError('app_blocked', text)
   }
   if (
-    /unsupported capability|hotkey.*require|paste_text requires|modified clicks require xdotool|GDK is required for non-character key synthesis/i.test(
+    /unsupported capability|missing command|hotkey.*require|paste_text requires|modified clicks require xdotool|GDK is required for non-character key synthesis|Niri|ydotoold|wtype|grim/i.test(
       text
     )
   ) {

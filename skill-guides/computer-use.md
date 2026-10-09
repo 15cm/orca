@@ -29,9 +29,7 @@ ORCA computer get-app-state --app com.spotify.client --json
 ORCA computer click --app com.spotify.client --element-index 42 --json
 ```
 
-Use the fresh state returned by each action for the next element index. Element indexes are the numeric labels shown in the tree; they may be sparse when noisy sections are omitted, so never infer valid indexes from `elementCount` or "Visible elements." Element indexes are short-lived and go stale after delays, navigation, focus changes, scrolling, window changes, or app re-rendering.
-
-In `--json` output, read the accessibility tree and action indexes from `result.snapshot.treeText`; `elementCount` is only a count and must not be used to infer indexes.
+Linux Niri snapshots contain window metadata and screenshots; they expose no semantic element indexes. Use window-local coordinates and the latest screenshot on Linux. macOS and Windows continue to expose semantic element indexes.
 
 ## App Selectors
 
@@ -95,27 +93,21 @@ printf '%s' "$TEXT" | ORCA computer set-value --app <app> --element-index <index
 - Some actions work in background apps, but this is app-dependent. If success does not change the UI, refresh state and choose a more semantic action or restore/focus the window.
 - Coordinates are window-local; use coordinates from the latest screenshot/state for the same target window.
 
-## Wayland Keyboard Fallback
+## Linux Niri backend
 
-On Linux Wayland, AT-SPI may report a synthetic keyboard action as successful even when the compositor does not deliver it to the focused app. If a `hotkey` call is unsupported or has no visible effect, use the compositor's window tools to identify and focus the exact target, then use `wtype` when installed. `wtype` sends keys through Wayland's virtual-keyboard protocol; it does not provide screenshots or mouse input.
+Linux computer use requires an active Niri Wayland session. Orca discovers windows through `niri msg -j windows`, focuses them with Niri IPC, types with `wtype`, clicks and drags with `ydotool`, and captures window screenshots with `grim`.
 
-For Niri, inspect the window list and focus the target window by its current ID:
-
-```text
-niri msg windows
-niri msg action focus-window --id <window-id>
-niri msg windows
-```
-
-Confirm the target is marked focused before sending input. If it remains unfocused because it is on another monitor, inspect `niri msg workspaces`, focus the target monitor with `niri msg action focus-monitor-left` or `focus-monitor-right`, then focus the window again and recheck. For example, open a Firefox tab with:
+Use Niri window IDs for stable targeting:
 
 ```text
-wtype -M ctrl -k t
+ORCA computer list-windows --app Firefox --json
+ORCA computer get-app-state --app Firefox --window-id <niri-window-id> --restore-window --json
+ORCA computer hotkey --app Firefox --window-id <niri-window-id> --key CmdOrCtrl+T --json
 ```
 
-Use `wtype <text>` for ordinary text entry. Avoid putting secrets in command arguments; use `wtype -` with text piped from a protected source when needed. After input, verify the visible result with the compositor window list or a fresh screenshot (for example, `grim -o <output> /tmp/<task>-screen.png` on wlroots compositors). Treat `wtype`'s exit status alone as unverified input. Do not guess window IDs or send input if the intended window is not focused.
+Linux snapshots have `elementCount: 0`; element-index clicks, `set-value`, secondary actions, and clipboard paste return `unsupported_capability`. Use coordinate click, scroll, and drag commands. `ydotoold` and uinput access must be configured by the host.
 
-This fallback is for Wayland keyboard input when the Orca provider cannot target or reliably deliver input to a visible app. Resume `orca computer` for semantic accessibility actions whenever it can target the app reliably.
+Treat keyboard and pointer actions as unverified until a fresh snapshot confirms the visible result. Keep secrets out of command arguments; use stdin text input where supported.
 
 ## Screenshots
 

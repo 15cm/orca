@@ -602,11 +602,10 @@ module.exports = {
     depends: [
       ...debElectronRuntimeDependencies,
       'python3',
-      'python3-gi',
-      'gir1.2-atspi-2.0',
-      'at-spi2-core',
-      'xdotool',
-      'xclip',
+      'niri',
+      'grim',
+      'wtype',
+      'ydotool',
       'xvfb'
     ],
     // Why: symlink the bundled CLI onto PATH at install time so `orca-ide serve`
@@ -624,9 +623,10 @@ module.exports = {
     depends: [
       ...rpmElectronRuntimeDependencies,
       'python3',
-      'python3-gobject',
-      'xdotool',
-      'xclip',
+      'niri',
+      'grim',
+      'wtype',
+      'ydotool',
       'xorg-x11-server-Xvfb'
     ],
     // Why: same headless CLI-on-PATH registration as deb; rpm runs these via fpm.

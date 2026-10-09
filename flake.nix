@@ -28,8 +28,6 @@
           linuxRuntimeLibraries = with pkgs; [
             alsa-lib
             atk
-            at-spi2-atk
-            at-spi2-core
             cairo
             cups
             dbus
@@ -48,6 +46,10 @@
             nss
             pango
             wayland
+            niri
+            grim
+            wtype
+            ydotool
             libx11
             libxcomposite
             libxcursor
