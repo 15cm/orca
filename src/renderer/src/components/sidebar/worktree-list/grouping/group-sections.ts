@@ -190,7 +190,8 @@ export function appendOrderedGroups(
           }
         }
       }
-      const items = groupBy === 'repo' ? orderMainWorktreeFirst(group.items) : group.items
+      const items =
+        groupBy === 'repo' ? orderMainWorktreeFirst(group.items, projectIndex) : group.items
       const hostContextLabelByRepoId =
         groupBy === 'repo'
           ? getMixedHostContextLabels(group, repoMap, projectIndex, hostLabelById)

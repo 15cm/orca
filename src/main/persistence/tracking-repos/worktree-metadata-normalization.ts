@@ -21,6 +21,7 @@ import {
 } from '../loading-store/worktree-identity-metadata'
 import type { WorktreeMeta } from '../../../shared/worktree/meta-types'
 import { fillDefaultWorktreeMetaFields } from '../../../shared/worktree/meta-persisted-defaults'
+import { worktreeIdsEqual } from '../../../shared/worktree/id'
 
 // Why: worktrees deleted outside Orca orphan their worktreeMeta, so the map grew monotonically (63% dead on a heavy install).
 // GC stays narrow: local-host entries only (a local existsSync would falsely condemn SSH/WSL remote paths) and only after a 30-day idle grace.
@@ -49,6 +50,18 @@ export function gcStaleWorktreeMeta(state: PersistedState): number {
     const ownerId = key.slice(0, separator)
     const worktreePath = key.slice(separator + 2)
     const meta = state.worktreeMeta[key]
+    if (
+      (state.projects ?? []).some((project) => {
+        const primary = project.primaryWorkspace
+        return Boolean(
+          primary?.worktreeId &&
+          (!primary.hostId || primary.hostId === LOCAL_EXECUTION_HOST_ID) &&
+          worktreeIdsEqual(primary.worktreeId, key)
+        )
+      })
+    ) {
+      continue
+    }
     const repo = repoById.get(ownerId)
     if (repo) {
       if (repo.connectionId || getRepoExecutionHostId(repo) !== LOCAL_EXECUTION_HOST_ID) {

@@ -148,7 +148,8 @@ export const gitRepoModuleMock = () => ({
   }
 })
 
-export const githubClientModuleMock = () => ({
+export const githubClientModuleMock = (): Record<string, unknown> => ({
+  createGitHubPullRequest: vi.fn(),
   getPRForBranch: getPRForBranchMock,
   getWorkItem: getWorkItemMock,
   getPullRequestPushTarget: getPullRequestPushTargetMock

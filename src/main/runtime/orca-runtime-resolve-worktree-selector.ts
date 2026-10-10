@@ -1,8 +1,9 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
 import { OrcaRuntimeWithResolveBrowserNetworkExecutionHostForWorktree } from './orca-runtime-resolve-browser-network-execution-host-for-worktree'
 import type { ResolvedWorktree } from './runtime-worktree-path-identity'
-import { splitWorktreeIdForFilesystem, worktreeIdComparisonKey } from '../../shared/worktree/id'
-import { branchSelectorMatches, runtimePathsEqual } from './runtime-worktree-path-identity'
+import { splitWorktreeIdForFilesystem } from '../../shared/worktree/id'
+import { runtimePathsEqual } from './runtime-worktree-path-identity'
+import { matchWorktreeSelectorCandidates } from './runtime-worktree-selector-candidates'
 import { getRepoExecutionHostId, getWorktreeExecutionHostId } from '../../shared/execution-host'
 import type {
   WorktreeLineageInput,
@@ -29,24 +30,13 @@ export class OrcaRuntimeWithResolveWorktreeSelector extends OrcaRuntimeWithResol
       }
     }
     const worktrees = await this.listResolvedWorktrees()
-    let candidates: ResolvedWorktree[]
+    const candidates = matchWorktreeSelectorCandidates(selector, worktrees, {
+      getHostId: (worktree) =>
+        getWorktreeExecutionHostId(worktree, this.store?.getRepo(worktree.repoId))
+    })
 
-    if (selector === 'active') {
-      throw new Error('selector_not_found')
-    }
-
-    if (selector.startsWith('identity:')) {
-      const identityKey = selector.slice('identity:'.length)
-      candidates = worktrees.filter((worktree) => worktree.identity?.key === identityKey)
-    } else if (selector.startsWith('id:')) {
+    if (candidates.length === 0 && selector.startsWith('id:')) {
       const worktreeId = explicitWorktreeId ?? selector.slice(3)
-      candidates = worktrees.filter((worktree) => worktree.id === worktreeId)
-      if (candidates.length === 0) {
-        const comparisonKey = worktreeIdComparisonKey(worktreeId)
-        candidates = comparisonKey
-          ? worktrees.filter((worktree) => worktreeIdComparisonKey(worktree.id) === comparisonKey)
-          : candidates
-      }
       if (candidates.length === 0) {
         const parsed = splitWorktreeIdForFilesystem(worktreeId)
         const repo = parsed ? this.store?.getRepo(parsed.repoId) : null
@@ -55,47 +45,10 @@ export class OrcaRuntimeWithResolveWorktreeSelector extends OrcaRuntimeWithResol
             ? this.buildResolvedWorktreeFromId(worktreeId)
             : null
         if (fallback !== null) {
-          candidates = [fallback]
+          candidates.push(fallback)
         }
       }
-    } else if (selector.startsWith('path:')) {
-      candidates = worktrees.filter((worktree) =>
-        runtimePathsEqual(worktree.path, selector.slice(5))
-      )
-      if (candidates.length > 1) {
-        const hostIds = new Set(
-          candidates.map((worktree) => {
-            const repo = this.store?.getRepo(worktree.repoId)
-            return getWorktreeExecutionHostId(worktree, repo)
-          })
-        )
-        // Why: duplicate registrations on one host describe one path; identical paths on different hosts do not.
-        if (hostIds.size === 1) {
-          candidates = [candidates[0]]
-        }
-      }
-    } else if (selector.startsWith('branch:')) {
-      const branchSelector = selector.slice(7)
-      candidates = worktrees.filter((worktree) =>
-        branchSelectorMatches(worktree.branch, branchSelector)
-      )
-    } else if (selector.startsWith('name:')) {
-      // Keep display-name matching exact so duplicate names hit the same ambiguity path as other selectors.
-      candidates = worktrees.filter((worktree) => worktree.displayName === selector.slice(5))
-    } else if (selector.startsWith('issue:')) {
-      candidates = worktrees.filter(
-        (worktree) =>
-          worktree.linkedIssue !== null && String(worktree.linkedIssue) === selector.slice(6)
-      )
-    } else {
-      candidates = worktrees.filter(
-        (worktree) =>
-          worktree.id === selector ||
-          runtimePathsEqual(worktree.path, selector) ||
-          branchSelectorMatches(worktree.branch, selector)
-      )
     }
-
     if (candidates.length === 1) {
       return candidates[0]
     }

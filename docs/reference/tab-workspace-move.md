@@ -13,14 +13,14 @@ to clear the board. The agent keeps running and its scrollback survives.
 `buildTabWorkspaceMove` (`src/renderer/src/store/slices/tab-workspace-move.ts`)
 produces one atomic patch:
 
-| State                     | Change                                                            |
-| ------------------------- | ----------------------------------------------------------------- |
+| State                     | Change                                                             |
+| ------------------------- | ------------------------------------------------------------------ |
 | `unifiedTabsByWorktree`   | tab leaves the source array, joins the target with a new `groupId` |
 | `groupsByWorktree`        | source order/MRU loses the tab, destination group appends it       |
 | `layoutByWorktree`        | source split collapses if the group emptied; destination ensured   |
-| `activeGroupIdByWorktree` | recomputed for both workspaces                                    |
+| `activeGroupIdByWorktree` | recomputed for both workspaces                                     |
 | content record            | `TerminalTab`, `OpenFile` or `BrowserWorkspace` (see below)        |
-| `tabBarOrderByWorktree`   | legacy mixed order follows the tab                                |
+| `tabBarOrderByWorktree`   | legacy mixed order follows the tab                                 |
 | remembered surfaces       | `activeTabId/FileId/BrowserTabId/TabType` re-derived per workspace |
 
 Everything keyed by **tab id** is deliberately left alone — `terminalLayoutsByTabId`
@@ -84,7 +84,7 @@ whenever a PTY exists, and the remount reattaches through
 Session writes stay renderer-owned (one writer). `buildWorkspaceSessionPayload`
 projects the moved store state, so the tab is persisted under the destination
 workspace ~150 ms after the move and comes back there on restart. Nothing in the
-session is keyed by workspace *and* tab except `tabsByWorktree` / `unifiedTabs` /
+session is keyed by workspace _and_ tab except `tabsByWorktree` / `unifiedTabs` /
 `tabGroups`, all of which the projection rebuilds from scratch.
 
 ## Destination rules

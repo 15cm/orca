@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../../persistence'
+import type { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import type { Repo } from '../../../shared/repo-types'
 import type {
   ProjectHostSetupCreateArgs,
@@ -77,7 +78,11 @@ function alignRepoWithRequestedProject(
   return buildProjectHostSetupResult(store, repo)
 }
 
-export function registerProjectHostSetupHandlers(mainWindow: BrowserWindow, store: Store): void {
+export function registerProjectHostSetupHandlers(
+  mainWindow: BrowserWindow,
+  store: Store,
+  runtime?: OrcaRuntimeService
+): void {
   ipcMain.handle(
     'projectHostSetups:create',
     (_event, rawArgs: ProjectHostSetupCreateArgs): ProjectHostSetupCreateResult => {
@@ -118,17 +123,19 @@ export function registerProjectHostSetupHandlers(mainWindow: BrowserWindow, stor
 
   ipcMain.handle(
     'projectHostSetups:delete',
-    (_event, rawArgs: ProjectHostSetupDeleteArgs): ProjectHostSetupDeleteResult => {
+    async (_event, rawArgs: ProjectHostSetupDeleteArgs): Promise<ProjectHostSetupDeleteResult> => {
       const args = parseProjectGroupIpcArgs(
         ProjectHostSetupDeleteIpcArgs,
         rawArgs,
         'project_host_setup_delete_invalid_args'
       )
-      const result = store.deleteProjectHostSetup(args)
+      if (!runtime?.deleteProjectHostSetup) {
+        throw new Error('runtime_unavailable')
+      }
+      const result = await runtime.deleteProjectHostSetup(args)
       if (!result) {
         throw new Error(`Project host setup not found: ${args.setupId}`)
       }
-      notifyReposChanged(mainWindow)
       return result
     }
   )

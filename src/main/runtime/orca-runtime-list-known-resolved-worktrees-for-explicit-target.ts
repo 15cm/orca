@@ -17,12 +17,42 @@ import type { RepoWorktreeRowDeps } from './repo-worktree-row-resolution'
 import { listRuntimeFolderWorkspaces } from './runtime-worktree-filesystem'
 import type { ExecutionHostId } from '../../shared/execution-host'
 import type { Repo } from '../../shared/repo-types'
+import type { Worktree } from '../../shared/worktree/types'
 import type { ProjectExecutionRuntimeResolution } from '../../shared/project-execution-runtime'
 import type { RuntimeWorktreeScanResult } from './repo-worktree-resolution-scan'
 import { getSshGitProviderGeneration } from '../providers/ssh-git-dispatch'
-import { getRepoExecutionHostId, getRepoSshConnectionId } from '../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  getRepoSshConnectionId,
+  parseExecutionHostId
+} from '../../shared/execution-host'
 import type { RuntimeWorktreeScanCache } from './orca-runtime-core'
 import { resolveWorktreeScanCacheTtlMs } from './runtime-worktree-scan-cache'
+import { isFolderRepo } from '../../shared/repo-kind'
+import { decideProjectPrimaryWorkspaceLifecycle } from './project-primary-workspace-lifecycle'
+import type { PrimaryLifecycleWorktree } from './project-primary-workspace-lifecycle'
+import type { PrimaryWorkspaceTarget } from '../../shared/project-primary-removal'
+import { inspectFolderRootPresence } from './project-primary-owner-verification'
+import { notifyProjectPrimaryAuthorityChanged } from './project-primary-authority-notifier'
+import { fenceObservedMissingPrimaryWorktree } from './project-primary-workspace-disappearance'
+import {
+  hasSavedPrimaryWorkspace,
+  resolveProjectPrimaryWorkspace
+} from '../../shared/project-primary-workspace'
+import type { Store } from '../persistence'
+
+type PrimaryLifecycleScanMetadata = {
+  authoritativeRepoIds: ReadonlySet<string>
+  ownPeerFingerprint: string | null
+  allowLegacySeed: boolean
+  missingFolderRepoIds: ReadonlySet<string>
+}
+
+const primaryLifecycleMetadataByWorktrees = new WeakMap<
+  PrimaryLifecycleWorktree[],
+  PrimaryLifecycleScanMetadata
+>()
+const scheduledPrimaryLifecycleWorktrees = new WeakSet<PrimaryLifecycleWorktree[]>()
 
 export class OrcaRuntimeWithListKnownResolvedWorktreesForExplicitTarget extends OrcaRuntimeWithResolveWorktreeSelector {
   protected listKnownResolvedWorktreesForExplicitTarget(
@@ -77,11 +107,97 @@ export class OrcaRuntimeWithListKnownResolvedWorktreesForExplicitTarget extends 
     if (!this.store) {
       return { worktrees: [], platformByRepoId: new Map() }
     }
-    return this.resolvedWorktrees.getSnapshot(
+    const snapshot = await this.resolvedWorktrees.getSnapshot(
       () => this.computeResolvedWorktrees(),
       RESOLVED_WORKTREE_CACHE_TTL_MS,
       getWorktreeScanMutationRevision()
     )
+    const metadata = primaryLifecycleMetadataByWorktrees.get(snapshot.worktrees)
+    if (metadata) {
+      await this.fenceMissingPrimaryWorkspaces(snapshot.worktrees, metadata)
+      this.schedulePrimaryWorkspaceLifecycle(snapshot.worktrees, metadata)
+    }
+    return snapshot
+  }
+
+  /** Schedule primary seed/locator refresh after native IPC published an authoritative scan. */
+  async schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog(
+    worktrees: readonly Worktree[],
+    authoritativeRepoIds: readonly string[],
+    allowLegacySeed = false
+  ): Promise<void> {
+    const ownPeerFingerprint = this.getOwnPeerFingerprintFn()
+    if (!ownPeerFingerprint) {
+      return
+    }
+    const verifiedRepoIds = new Set(authoritativeRepoIds)
+    const repos = this.store?.getRepos() ?? []
+    for (const repo of repos) {
+      if (!verifiedRepoIds.has(repo.id)) {
+        continue
+      }
+      if (!isFolderRepo(repo)) {
+        fenceObservedMissingPrimaryWorktree(
+          this.requireStore() as unknown as Store,
+          repo,
+          worktrees.filter((worktree) => worktree.repoId === repo.id),
+          ownPeerFingerprint
+        )
+        continue
+      }
+      const presence = await inspectFolderRootPresence(
+        repo,
+        this.requireStore() as unknown as Store
+      )
+      if (presence === 'missing') {
+        fenceObservedMissingPrimaryWorktree(
+          this.requireStore() as unknown as Store,
+          repo,
+          [],
+          ownPeerFingerprint
+        )
+        verifiedRepoIds.delete(repo.id)
+      } else if (presence !== 'present') {
+        verifiedRepoIds.delete(repo.id)
+      }
+    }
+    if (!this.isDesktopPrimaryAuthorityFn()) {
+      return
+    }
+    const nativeCatalog = worktrees.filter((worktree) => {
+      const hostId = worktree.ownerHostId ?? worktree.hostId
+      const parsedOwner = hostId ? parseExecutionHostId(hostId) : null
+      const parsedProjection = worktree.hostId ? parseExecutionHostId(worktree.hostId) : null
+      return Boolean(
+        worktree.peerFingerprint === ownPeerFingerprint &&
+        parsedOwner &&
+        (parsedOwner.kind === 'local' || parsedOwner.kind === 'ssh') &&
+        parsedProjection?.id === parsedOwner.id
+      )
+    })
+    this.schedulePrimaryWorkspaceLifecycle(nativeCatalog, {
+      authoritativeRepoIds: verifiedRepoIds,
+      ownPeerFingerprint,
+      allowLegacySeed
+    })
+  }
+
+  private schedulePrimaryWorkspaceLifecycle(
+    worktrees: PrimaryLifecycleWorktree[],
+    metadata: PrimaryLifecycleScanMetadata
+  ): void {
+    if (scheduledPrimaryLifecycleWorktrees.has(worktrees)) {
+      return
+    }
+    scheduledPrimaryLifecycleWorktrees.add(worktrees)
+    void this.reconcilePrimaryWorkspaceCatalog(
+      worktrees,
+      metadata.authoritativeRepoIds,
+      metadata.ownPeerFingerprint,
+      metadata.allowLegacySeed
+    )
+      .catch(() => undefined)
+      .finally(() => scheduledPrimaryLifecycleWorktrees.delete(worktrees))
   }
 
   protected async computeResolvedWorktrees(): Promise<ResolvedWorktreeSnapshot> {
@@ -97,17 +213,222 @@ export class OrcaRuntimeWithListKnownResolvedWorktreesForExplicitTarget extends 
         getAgentLaunchPlatformForRepo(repo, projectRuntimeByRepoId.get(repo.id))
       ])
     )
+    const authoritativeRepoIds = new Set<string>()
+    const missingFolderRepoIds = new Set<string>()
     const deps = this.repoWorktreeRowDeps()
+    const scanRepo = deps.scanRepo
+    deps.scanRepo = async (repo, projectRuntimeByRepoId) => {
+      const scan = await scanRepo(repo, projectRuntimeByRepoId)
+      if (scan.ok) {
+        authoritativeRepoIds.add(repo.id)
+      }
+      return scan
+    }
     const perRepoWorktrees = await Promise.all(
-      repos.map(
-        async (repo) => await resolveRepoWorktreeRows(deps, repo, metaById, projectRuntimeByRepoId)
-      )
+      repos.map(async (repo) => {
+        return await resolveRepoWorktreeRows(deps, repo, metaById, projectRuntimeByRepoId)
+      })
     )
+    for (const repo of repos) {
+      if (!isFolderRepo(repo)) {
+        continue
+      }
+      const presence = await inspectFolderRootPresence(
+        repo,
+        this.requireStore() as unknown as Store
+      )
+      if (presence === 'present') {
+        authoritativeRepoIds.add(repo.id)
+      } else if (presence === 'missing') {
+        missingFolderRepoIds.add(repo.id)
+      }
+    }
     const lineageById = this.store?.getAllWorktreeLineage?.() ?? {}
     const worktrees = perRepoWorktrees.flatMap((rows) =>
       projectResolvedWorktreeLineage(rows, lineageById)
     )
+    const ownPeerFingerprint = this.getOwnPeerFingerprintFn()
+    if (ownPeerFingerprint) {
+      for (const worktree of worktrees) {
+        if (!authoritativeRepoIds.has(worktree.repoId)) {
+          continue
+        }
+        const hostId = worktree.ownerHostId ?? worktree.hostId
+        const parsedRowHost = worktree.hostId ? parseExecutionHostId(worktree.hostId) : null
+        const parsedOwnerHost = worktree.ownerHostId
+          ? parseExecutionHostId(worktree.ownerHostId)
+          : null
+        const parsedHost = hostId ? parseExecutionHostId(hostId) : null
+        if (
+          parsedRowHost?.kind === 'runtime' ||
+          parsedHost?.kind === 'runtime' ||
+          (parsedRowHost && parsedOwnerHost && parsedRowHost.id !== parsedOwnerHost.id)
+        ) {
+          continue
+        }
+        if (parsedHost && (parsedHost.kind === 'local' || parsedHost.kind === 'ssh')) {
+          if (worktree.peerFingerprint && worktree.peerFingerprint !== ownPeerFingerprint) {
+            continue
+          }
+          worktree.peerFingerprint = ownPeerFingerprint
+          worktree.ownerHostId = parsedHost.id
+        }
+      }
+    }
+    primaryLifecycleMetadataByWorktrees.set(worktrees, {
+      authoritativeRepoIds,
+      ownPeerFingerprint,
+      allowLegacySeed: true,
+      missingFolderRepoIds
+    })
     return { worktrees, platformByRepoId }
+  }
+
+  private async fenceMissingPrimaryWorkspaces(
+    worktrees: readonly PrimaryLifecycleWorktree[],
+    metadata: PrimaryLifecycleScanMetadata
+  ): Promise<void> {
+    const store = this.store
+    const ownPeerFingerprint = metadata.ownPeerFingerprint
+    if (!store || !ownPeerFingerprint) {
+      return
+    }
+    const repos = store.getRepos()
+    for (const repoId of metadata.authoritativeRepoIds) {
+      const repo = repos.find((entry) => entry.id === repoId)
+      if (!repo || isFolderRepo(repo)) {
+        continue
+      }
+      fenceObservedMissingPrimaryWorktree(
+        store as unknown as Store,
+        repo,
+        worktrees.filter((worktree) => worktree.repoId === repo.id),
+        ownPeerFingerprint
+      )
+    }
+    for (const repoId of metadata.missingFolderRepoIds) {
+      const repo = repos.find((entry) => entry.id === repoId)
+      if (!repo) {
+        continue
+      }
+      const presence = await inspectFolderRootPresence(repo, store as unknown as Store)
+      if (presence === 'missing') {
+        fenceObservedMissingPrimaryWorktree(store as unknown as Store, repo, [], ownPeerFingerprint)
+      }
+    }
+  }
+
+  private async reconcilePrimaryWorkspaceCatalog(
+    worktrees: readonly PrimaryLifecycleWorktree[],
+    authoritativeRepoIds: ReadonlySet<string>,
+    ownPeerFingerprint: string | null,
+    allowLegacySeed: boolean
+  ): Promise<void> {
+    const store = this.store
+    if (
+      !store ||
+      !ownPeerFingerprint ||
+      !this.isDesktopPrimaryAuthorityFn() ||
+      !store.setPrimaryWorkspaceDurably ||
+      store.isPrimaryWorkspaceMutationAvailable === false
+    ) {
+      return
+    }
+    const setups = store.getProjectHostSetups?.() ?? []
+    for (const project of store.getProjects?.() ?? []) {
+      if (!allowLegacySeed && !project.primaryWorkspace) {
+        continue
+      }
+      const decision = decideProjectPrimaryWorkspaceLifecycle(project, setups, worktrees, {
+        ownPeerFingerprint,
+        authorityFingerprint: ownPeerFingerprint,
+        authoritativeRepoIds,
+        isDesktopAuthority: true
+      })
+      if (decision.kind === 'write') {
+        const target: PrimaryWorkspaceTarget = {
+          peerFingerprint: decision.primary.peerFingerprint,
+          hostId: decision.primary.hostId,
+          instanceId: decision.primary.instanceId,
+          path: decision.primary.path
+        }
+        try {
+          await this.runPrimaryWorkspaceMutation(project.id, target, async () => {
+            let currentProject = (store.getProjects?.() ?? []).find(
+              (entry) => entry.id === project.id
+            )
+            if (!currentProject) {
+              return
+            }
+            const binding = currentProject.primaryAuthorityFingerprint
+            if (binding === undefined) {
+              const savedPrimary = currentProject.primaryWorkspace
+              if (
+                hasSavedPrimaryWorkspace(currentProject) &&
+                (!savedPrimary ||
+                  savedPrimary.authorityFingerprint !== ownPeerFingerprint ||
+                  !resolveProjectPrimaryWorkspace(currentProject, worktrees))
+              ) {
+                return
+              }
+              const bind = store.bindPrimaryAuthorityFingerprintDurably
+              if (!bind) {
+                return
+              }
+              const boundProject = await bind.call(store, project.id, ownPeerFingerprint)
+              if (!boundProject) {
+                return
+              }
+              currentProject = boundProject
+            } else if (
+              typeof binding !== 'string' ||
+              binding.trim().length === 0 ||
+              binding !== ownPeerFingerprint
+            ) {
+              return
+            }
+            const currentDecision = decideProjectPrimaryWorkspaceLifecycle(
+              currentProject,
+              store.getProjectHostSetups?.() ?? setups,
+              worktrees,
+              {
+                ownPeerFingerprint,
+                authorityFingerprint: ownPeerFingerprint,
+                authoritativeRepoIds,
+                isDesktopAuthority: true
+              }
+            )
+            if (currentDecision.kind !== 'write') {
+              return
+            }
+            const currentTarget: PrimaryWorkspaceTarget = {
+              peerFingerprint: currentDecision.primary.peerFingerprint,
+              hostId: currentDecision.primary.hostId,
+              instanceId: currentDecision.primary.instanceId,
+              path: currentDecision.primary.path
+            }
+            // Why: a selection changed while this scan waited; retry on the next catalog pass under its own removal fence.
+            if (
+              currentTarget.peerFingerprint !== target.peerFingerprint ||
+              currentTarget.hostId !== target.hostId ||
+              currentTarget.instanceId !== target.instanceId
+            ) {
+              return
+            }
+            const updated = await store.setPrimaryWorkspaceDurably!(
+              project.id,
+              currentDecision.primary
+            )
+            if (updated) {
+              this.notifyReposChanged()
+              notifyProjectPrimaryAuthorityChanged(updated)
+            }
+          })
+        } catch {
+          // A failed save remains eligible for a later authoritative catalog pass.
+        }
+      }
+    }
   }
 
   /** Bind the runtime-owned scan cache and folder-workspace stamping into the row resolver. */

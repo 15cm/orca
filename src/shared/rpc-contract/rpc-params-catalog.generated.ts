@@ -19,6 +19,10 @@ import {
 } from '../mobile-relay-credential-contract'
 import { pluginConsentRequestSchema } from '../plugins/plugin-consent-request'
 import {
+  ProjectPrimaryAuthorityAttachParams,
+  ProjectPrimaryAuthorityResultOrSnapshotParams
+} from '../project-primary-authority-protocol'
+import {
   AccountsUnsubscribeParams,
   AddClaudeFromConfigDirParams,
   AddCodexFromHomeParams,
@@ -406,6 +410,8 @@ import {
   ProjectHostSetupDelete,
   ProjectHostSetupExistingFolder,
   ProjectHostSetupUpdate,
+  ProjectPrimaryGet,
+  ProjectPrimarySet,
   ProjectUpdate
 } from './project-runtime-params'
 import {
@@ -999,6 +1005,10 @@ export const RPC_PARAMS_BY_METHOD = {
     PreflightDetectRemoteWindowsTerminalCapabilities,
   'preflight.refreshAgents': null,
   'project.list': null,
+  'project.primary.authority.attach': ProjectPrimaryAuthorityAttachParams,
+  'project.primary.authority.requestResult': ProjectPrimaryAuthorityResultOrSnapshotParams,
+  'project.primary.get': ProjectPrimaryGet,
+  'project.primary.set': ProjectPrimarySet,
   'project.update': ProjectUpdate,
   'projectGroup.create': ProjectGroupCreate,
   'projectGroup.delete': ProjectGroupSelector,

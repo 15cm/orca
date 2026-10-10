@@ -24,6 +24,7 @@ import {
   requireLocalWorktreeMetadataPrune
 } from '../../../local-worktree-metadata-prune-gate'
 import { pruneMetadataMissingFromAuthoritativeLocalScan } from './authoritative-local-worktree-metadata-pruning'
+import { fenceObservedMissingPrimaryWorktree } from '../../../runtime/project-primary-workspace-disappearance'
 
 // Why: absorb renderer polling bursts while bounding external worktree-change lag to one short refresh window.
 export const DETECTED_WORKTREE_SCAN_CACHE_TTL_MS = 5_000
@@ -200,9 +201,16 @@ export async function applyFreshDetectedWorktreeScanSideEffects(
     signal?: AbortSignal
     /** Undefined means the caller owns no cadence (non-local providers); it keeps the eager behavior. */
     hygieneDue?: boolean
+    ownPeerFingerprint?: string | null
   } = {}
 ): Promise<boolean> {
-  const { isCurrent = () => true, sideEffectToken, signal, hygieneDue = true } = options
+  const {
+    isCurrent = () => true,
+    sideEffectToken,
+    signal,
+    hygieneDue = true,
+    ownPeerFingerprint = null
+  } = options
   const generationCurrent = () =>
     sideEffectToken === undefined ||
     isLocalWorktreeScanGenerationCurrent(repo.id, sideEffectToken.generation)
@@ -237,6 +245,9 @@ export async function applyFreshDetectedWorktreeScanSideEffects(
     getRegisteredWorktreeRootsRevision(repo.id) !== sideEffectToken.authorizedRootsRevision
   ) {
     return false
+  }
+  if (isCurrent() && generationCurrent()) {
+    fenceObservedMissingPrimaryWorktree(store, repo, gitWorktrees, ownPeerFingerprint)
   }
   rememberLocalWorktreeRoots(store, repo, gitWorktrees)
   // Why: lineage retention is decided against the metadata rows the prune preserved, so running it

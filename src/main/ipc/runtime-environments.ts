@@ -25,6 +25,7 @@ import { RUNTIME_ENVIRONMENT_HANDLER_CHANNELS } from './runtime-environment-hand
 import { retirePairedRuntimeBrowserClientHostEnvironment } from '../browser/paired-runtime-browser-client-host-runtime'
 import { registerRuntimeEnvironmentBrowserClientHostHandler } from './runtime-environment-browser-client-host-handler'
 import { advanceRuntimeEnvironmentCapabilityIncarnation } from './runtime-environment-capability-evidence'
+import { startProjectPrimaryAuthoritySubscriptions } from './project-primary-authority-subscriptions'
 
 type RetainedRemoteRuntimeSubscription = RemoteRuntimeSubscription & {
   environmentId: string
@@ -90,7 +91,12 @@ export function registerRuntimeEnvironmentHandlers(store: Store): void {
   registerRuntimeEnvironmentConnectivityHandlers({
     store,
     getUserDataPath,
-    invalidateTransport: invalidateRuntimeEnvironmentTransport
+    invalidateTransport: invalidateRuntimeEnvironmentTransport,
+    refreshPrimaryAuthoritySubscriptions: () => {
+      void startProjectPrimaryAuthoritySubscriptions(store, getUserDataPath()).catch((error) => {
+        console.warn('[project-primary-authority] subscription refresh failed:', error)
+      })
+    }
   })
   registerRuntimeEnvironmentBrowserClientHostHandler({
     getUserDataPath,
@@ -98,6 +104,9 @@ export function registerRuntimeEnvironmentHandlers(store: Store): void {
   })
   registerRuntimeEnvironmentRecoveryHandler()
   registerRuntimeEnvironmentPassiveHandlers(getUserDataPath)
+  void startProjectPrimaryAuthoritySubscriptions(store, getUserDataPath()).catch((error) => {
+    console.warn('[project-primary-authority] startup failed:', error)
+  })
   for (const environment of listEnvironments(getUserDataPath())) {
     if (!isRuntimeEnvironmentManuallyDisconnected(environment.id)) {
       getRuntimeEnvironmentStatusOwner(getUserDataPath(), environment.id).activate()

@@ -8,9 +8,11 @@ import {
   REMOTE_RUNTIME_SHARED_CONTROL_CAPABILITY
 } from '../../shared/protocol-version'
 import * as environmentStore from '../../shared/runtime-environment-store'
+import { updateEnvironmentFromPairingCode } from '../../shared/runtime-environment-store'
 import { RemoteRuntimeClientError } from '../../shared/remote-runtime-client-error'
 import { RuntimeRpcCallQueueOverloadError } from '../../shared/runtime-rpc-call-queue'
 import type { RuntimeRpcResponse } from '../../shared/runtime-rpc-envelope'
+import { encodePairingOffer } from '../../shared/pairing'
 
 const {
   handleMock,
@@ -158,6 +160,130 @@ describe('registerRuntimeEnvironmentHandlers', () => {
       ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
     )
     expect(sendRemoteRuntimeConnectionRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects catalog response when pairing key changes without revision change', async () => {
+    registerRuntimeEnvironmentHandlers(store as never)
+    let release!: (value: unknown) => void
+    const add = handler<{ name: string; pairingCode: string }, unknown>(
+      'runtimeEnvironments:addFromPairingCode'
+    )
+    await add(null, { name: 'desk', pairingCode: pairingCode() })
+    sendRemoteRuntimeRequestMock.mockImplementation(async (_pairing, method) =>
+      method === 'status.get'
+        ? { id: method, ok: true, result: { capabilities: [] }, _meta: { runtimeId: 'r' } }
+        : new Promise((resolve) => {
+            release = resolve
+          })
+    )
+    const call = handler<
+      { selector: string; method: string },
+      { ok: boolean; error?: { code: string } }
+    >('runtimeEnvironments:call')
+    const pending = call(null, { selector: 'desk', method: 'worktree.list' })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const original = environmentStore.resolveEnvironment(userDataPath, 'desk')
+    updateEnvironmentFromPairingCode(userDataPath, 'desk', {
+      pairingCode: encodePairingOffer({
+        v: 2,
+        endpoint: 'ws://127.0.0.1:6769',
+        deviceToken: 'device-token',
+        publicKeyB64: Buffer.from(new Uint8Array(32).fill(2)).toString('base64')
+      })
+    })
+    const resolveEnvironment = environmentStore.resolveEnvironment
+    const resolveSpy = vi.spyOn(environmentStore, 'resolveEnvironment')
+    resolveSpy.mockImplementation((path, selector) => {
+      const current = resolveEnvironment(path, selector)
+      return { ...current, pairingRevision: original.pairingRevision }
+    })
+    release({
+      id: 'worktree.list',
+      ok: true,
+      result: { worktrees: [{ hostId: 'local' }] },
+      _meta: { runtimeId: 'r' }
+    })
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'runtime_environment_changed' }
+    })
+  })
+
+  it('does not apply catalog pairing rejection to a pending noncatalog response', async () => {
+    registerRuntimeEnvironmentHandlers(store as never)
+    const add = handler<{ name: string; pairingCode: string }, unknown>(
+      'runtimeEnvironments:addFromPairingCode'
+    )
+    await add(null, { name: 'desk', pairingCode: pairingCode() })
+    let release!: (value: RuntimeRpcResponse<unknown>) => void
+    sendRemoteRuntimeRequestMock.mockImplementation(async (_pairing, method) =>
+      method === 'status.get'
+        ? { id: method, ok: true, result: { capabilities: [] }, _meta: { runtimeId: 'r' } }
+        : new Promise((resolve) => {
+            release = resolve
+          })
+    )
+    const call = handler<{ selector: string; method: string }, RuntimeRpcResponse<unknown>>(
+      'runtimeEnvironments:call'
+    )
+    const pending = call(null, { selector: 'desk', method: 'repo.list' })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    updateEnvironmentFromPairingCode(userDataPath, 'desk', {
+      pairingCode: encodePairingOffer({
+        v: 2,
+        endpoint: 'ws://127.0.0.1:6772',
+        deviceToken: 'device-token',
+        publicKeyB64: Buffer.from(new Uint8Array(32).fill(3)).toString('base64')
+      })
+    })
+    release({ id: 'repo.list', ok: true, result: { repos: [] }, _meta: { runtimeId: 'r' } })
+    await expect(pending).resolves.toMatchObject({ ok: true, result: { repos: [] } })
+  })
+
+  it('defers shared-control catalog usage marking until pairing validation', async () => {
+    registerRuntimeEnvironmentHandlers(store as never)
+    const add = handler<{ name: string; pairingCode: string }, unknown>(
+      'runtimeEnvironments:addFromPairingCode'
+    )
+    await add(null, { name: 'shared', pairingCode: pairingCode() })
+    sendRemoteRuntimeRequestMock.mockResolvedValue({
+      id: 'status.get',
+      ok: true,
+      result: { capabilities: [REMOTE_RUNTIME_SHARED_CONTROL_CAPABILITY] },
+      _meta: { runtimeId: 'r' }
+    })
+    let release!: (value: RuntimeRpcResponse<unknown>) => void
+    sendRemoteRuntimeSharedControlRequestMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    )
+    const call = handler<{ selector: string; method: string }, RuntimeRpcResponse<unknown>>(
+      'runtimeEnvironments:call'
+    )
+    const pending = call(null, { selector: 'shared', method: 'worktree.list' })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const before = environmentStore.resolveEnvironment(userDataPath, 'shared').lastUsedAt
+    updateEnvironmentFromPairingCode(userDataPath, 'shared', {
+      pairingCode: encodePairingOffer({
+        v: 2,
+        endpoint: 'ws://127.0.0.1:6773',
+        deviceToken: 'device-token',
+        publicKeyB64: Buffer.from(new Uint8Array(32).fill(4)).toString('base64')
+      })
+    })
+    release({
+      id: 'worktree.list',
+      ok: true,
+      result: { worktrees: [{ hostId: 'local' }] },
+      _meta: { runtimeId: 'r' }
+    })
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'runtime_environment_changed' }
+    })
+    expect(environmentStore.resolveEnvironment(userDataPath, 'shared').lastUsedAt).toBe(before)
   })
 
   it('falls back to one-shot RPC when the saved runtime lacks shared-control support', async () => {

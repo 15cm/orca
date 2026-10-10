@@ -16,6 +16,7 @@ import { createRepoRemovalActions } from '../repos/repo-removal'
 import { createProjectUpdateActions } from '../projects/project-update'
 import { createRepoUpdateActions } from '../repos/repo-update'
 import { createRepoOrderingActions } from '../repos/repo-ordering'
+import { createProjectPrimaryWorkspaceActions } from '../projects/project-primary-workspace'
 
 export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, get) => {
   const repoCatalogActions = createRepoCatalogActions(set, get)
@@ -33,6 +34,7 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
   const projectUpdate = createProjectUpdateActions(set, get)
   const repoUpdate = createRepoUpdateActions(set, get)
   const repoOrdering = createRepoOrderingActions(set, get)
+  const projectPrimaryWorkspace = createProjectPrimaryWorkspaceActions(set, get)
   return {
     repos: [],
     projects: [],
@@ -79,6 +81,7 @@ export const createRepoSlice: StateCreator<AppState, [], [], RepoSlice> = (set, 
     addNonGitFolder: repoAddActions.addNonGitFolder,
     removeProject: repoRemoval.removeProject,
     updateProject: projectUpdate.updateProject,
+    setProjectPrimaryWorkspace: projectPrimaryWorkspace.setProjectPrimaryWorkspace,
     updateRepo: repoUpdate.updateRepo,
     setActiveRepo: repoOrdering.setActiveRepo,
     reorderRepos: repoOrdering.reorderRepos

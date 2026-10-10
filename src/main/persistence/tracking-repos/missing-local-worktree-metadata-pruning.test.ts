@@ -67,6 +67,33 @@ function pruneCaptured(
 }
 
 describe('pruneSessionlessMissingLocalWorktreeMetadataForRepo', () => {
+  it('rechecks a newly selected primary at the synchronous prune boundary', () => {
+    const state = makeState()
+    state.worktreeMeta[LIVE_ID] = makeMeta(LIVE_ID)
+    const scan = capture(state)
+    state.projects = [
+      {
+        id: 'project-1',
+        displayName: 'project',
+        badgeColor: '#000',
+        sourceRepoIds: [REPO_ID],
+        createdAt: 1,
+        updatedAt: 1,
+        primaryWorkspace: {
+          worktreeId: LIVE_ID,
+          instanceId: state.worktreeMeta[LIVE_ID]!.instanceId!,
+          path: '/workspace/live',
+          hostId: 'local',
+          peerFingerprint: 'peer-a',
+          authorityFingerprint: 'peer-a'
+        }
+      }
+    ]
+
+    expect(pruneCaptured(state, scan, [LIVE_ID])).toEqual([])
+    expect(state.worktreeMeta[LIVE_ID]).toBeDefined()
+  })
+
   it('removes 2,709 sessionless rows in one batch without cloning or changing session state', () => {
     const state = makeState()
     const staleIds = Array.from(

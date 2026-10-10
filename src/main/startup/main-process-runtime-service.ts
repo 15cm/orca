@@ -14,7 +14,9 @@ import type { OrchestrationEnvironmentTransport } from '../runtime/orchestration
 import { resolveEnvironment } from '../../shared/runtime-environment-store'
 import { getPreferredPairingOffer } from '../../shared/runtime-environments'
 import { fingerprintOrchestrationPeer } from '../runtime/orchestration/environment-transport'
+import { fingerprintPeerPublicKey } from '../runtime/peer-fingerprint'
 import { callRuntimeEnvironment } from '../ipc/runtime-environment-transport-routing'
+import { listAuthenticatedProjectPeerWorktrees } from '../ipc/project-primary-authority-peer-catalog'
 import { mainProcessState as state } from './main-process-state'
 import { prepareCodexRuntimeHomeForLaunch } from './codex-launch-preparation'
 import type { RuntimeDesktopWindowStatus } from '../../shared/runtime-types'
@@ -143,6 +145,18 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     // constructed with this runtime and does not exist yet at this point.
     getPairedDeviceName: (pairedDeviceId) =>
       state.runtimeRpc?.getDeviceRegistry()?.getDevice(pairedDeviceId)?.name ?? null,
+    getOwnPeerFingerprint: () => {
+      const publicKey = state.runtimeRpc?.getE2EEPublicKey()
+      return publicKey ? fingerprintPeerPublicKey(publicKey) : null
+    },
+    isDesktopPrimaryAuthority: () => !state.isServeMode,
+    listAuthenticatedRuntimeWorktrees: (projectId, environmentId) =>
+      listAuthenticatedProjectPeerWorktrees(
+        store,
+        app.getPath('userData'),
+        projectId,
+        environmentId
+      ),
     // Why: source codex-home here (runs in window AND serve) so aiVault.listSessions includes managed-Codex sessions; registerCoreHandlers is window-only.
     getAdditionalAiVaultCodexHomePaths: () =>
       state.codexRuntimeHome?.getHostCodexHomePathsForSessionDiscovery() ?? [],

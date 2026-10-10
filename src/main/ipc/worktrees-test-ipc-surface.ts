@@ -8,6 +8,7 @@ type StoreMock = Mock<(...args: unknown[]) => unknown>
 type KeyedStoreMock = Mock<(id: string, ...rest: unknown[]) => unknown>
 /** Store writers tests re-implement by merging the patch they receive. */
 type KeyedStoreWriteMock = Mock<(id: string, patch: object) => unknown>
+type HostWorktreeStoreWriteMock = Mock<(id: string, hostId: string, patch: object) => unknown>
 
 export type TestMainWindow = {
   isDestroyed: () => boolean
@@ -22,11 +23,11 @@ export type TestStore = {
   getSparsePresets: StoreMock
   getSettings: StoreMock
   getWorktreeMeta: KeyedStoreMock
-  getWorktreeMetaForHost: StoreMock
+  getWorktreeMetaForHost: KeyedStoreMock
   getAllWorktreeMeta: StoreMock
   captureNativeLocalWorktreeMetadataScanExpectation: StoreMock
   setWorktreeMeta: KeyedStoreWriteMock
-  setWorktreeMetaForHost: StoreMock
+  setWorktreeMetaForHost: HostWorktreeStoreWriteMock
   getProjectHostSetups: StoreMock
   removeWorktreeMeta: KeyedStoreMock
   pruneSessionlessMissingLocalWorktreeMetadataForRepo: StoreMock
@@ -39,6 +40,12 @@ export type TestStore = {
   addRetiredWorktreeName: StoreMock
   getRetiredWorktreeNameRegistry: StoreMock
   mergeRetiredWorktreeNames: StoreMock
+  isPrimaryWorkspaceMutationAvailable: boolean
+  getPrimaryRemovalReservations: StoreMock
+  bindPrimaryAuthorityFingerprintDurably: KeyedStoreMock
+  savePrimaryRemovalReservation: StoreMock
+  removePrimaryRemovalReservation: StoreMock
+  setPrimaryWorkspaceDurably: KeyedStoreMock
 }
 
 /** Channel handlers captured from the mocked ipcMain.handle during registration. */
@@ -74,5 +81,11 @@ export const store: TestStore = {
   getProjectGroups: vi.fn(),
   addRetiredWorktreeName: vi.fn(),
   getRetiredWorktreeNameRegistry: vi.fn(),
-  mergeRetiredWorktreeNames: vi.fn()
+  mergeRetiredWorktreeNames: vi.fn(),
+  isPrimaryWorkspaceMutationAvailable: false,
+  getPrimaryRemovalReservations: vi.fn(),
+  bindPrimaryAuthorityFingerprintDurably: vi.fn(),
+  savePrimaryRemovalReservation: vi.fn(),
+  removePrimaryRemovalReservation: vi.fn(),
+  setPrimaryWorkspaceDurably: vi.fn()
 }

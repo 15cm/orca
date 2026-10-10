@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto'
 import type {
   RuntimeOrchestrationEnvelope,
   RuntimeRpcResponse
 } from '../../../shared/runtime-rpc-envelope'
+import { fingerprintPeerPublicKey } from '../peer-fingerprint'
 
 export type OrchestrationWorkerServer = {
   environmentId: string
@@ -30,5 +30,5 @@ export type OrchestrationEnvironmentTransport = {
 }
 
 export function fingerprintOrchestrationPeer(publicKeyB64: string): string {
-  return createHash('sha256').update(Buffer.from(publicKeyB64, 'base64')).digest('base64url')
+  return fingerprintPeerPublicKey(publicKeyB64)
 }

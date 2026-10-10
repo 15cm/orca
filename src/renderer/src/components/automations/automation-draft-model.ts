@@ -2,11 +2,34 @@ import { getAgentCatalog } from '@/lib/agent-catalog'
 import type { AutomationPrecheck } from '../../../../shared/automations-types'
 import { buildAutomationCronSchedule } from '../../../../shared/automation-schedule-occurrences'
 import type { Worktree } from '../../../../shared/worktree/types'
+import type { Project } from '../../../../shared/project-types'
+import {
+  hasSavedPrimaryWorkspace,
+  resolveProjectPrimaryWorkspace
+} from '../../../../shared/project-primary-workspace'
 import type { AutomationDraft } from './AutomationEditorDialog'
 
 export const AUTOMATION_DEFAULT_TIME = '09:00'
 
-export function getDefaultWorktree(worktrees: readonly Worktree[]): Worktree | null {
+export function getDefaultWorktree(
+  worktrees: readonly Worktree[],
+  projects: readonly Project[] = []
+): Worktree | null {
+  const projectIds = new Set(
+    worktrees.flatMap((worktree) => (worktree.projectId ? [worktree.projectId] : []))
+  )
+  for (const project of projects) {
+    if (!projectIds.has(project.id)) {
+      continue
+    }
+    if (hasSavedPrimaryWorkspace(project)) {
+      return resolveProjectPrimaryWorkspace(project, worktrees) ?? null
+    }
+    const primary = resolveProjectPrimaryWorkspace(project, worktrees)
+    if (primary) {
+      return primary
+    }
+  }
   return worktrees.find((worktree) => worktree.isMainWorktree) ?? worktrees[0] ?? null
 }
 

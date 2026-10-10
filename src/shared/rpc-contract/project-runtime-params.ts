@@ -62,6 +62,13 @@ export const ProjectUpdate = z.object({
   })
 })
 
+export const ProjectPrimaryGet = z.object({ projectId: requiredString('Missing project ID') })
+export const ProjectPrimarySet = z.object({
+  projectId: requiredString('Missing project ID'),
+  worktree: requiredString('Missing worktree selector'),
+  hostId: RequestedHostId.optional()
+})
+
 export const ProjectHostSetupCreate = z.object({
   projectId: requiredString('Missing project ID'),
   hostId: RequestedHostId,

@@ -28,6 +28,7 @@ import {
   resolveHostFlagTarget
 } from '../execution-host-flag'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
+import { getRequiredWorktreeSelector } from '../selectors'
 import { resolveRepoPathArgument } from '../repo-path-arguments'
 import { RuntimeClientError, type RuntimeRpcSuccess } from '../runtime-client'
 
@@ -94,6 +95,29 @@ export const PROJECT_HANDLERS: Record<string, CommandHandler> = {
   'project list': async ({ client, json }) => {
     const result = await client.call<{ projects: Project[] }>('project.list')
     printResult(result, json, formatProjectList)
+  },
+  'project set-primary': async ({ flags, client, json, cwd }) => {
+    const projectId = getRequiredStringFlag(flags, 'project')
+    const worktreeId = await getRequiredWorktreeSelector(flags, 'worktree', cwd, client)
+    const host = getOptionalStringFlag(flags, 'host')
+    const hostId = host === undefined ? undefined : await getResolvedHostId(flags, client)
+    let result
+    try {
+      result = await client.call<{
+        project: Project
+        primaryWorkspace: Project['primaryWorkspace']
+        revision: number
+      }>('project.primary.set', { projectId, worktree: worktreeId, ...(hostId ? { hostId } : {}) })
+    } catch (error) {
+      if (error instanceof RuntimeClientError && error.code === 'method_not_found') {
+        throw new RuntimeClientError(
+          'incompatible_runtime',
+          'This Orca server does not support primary workspaces yet. Update Orca on the server and try again.'
+        )
+      }
+      throw error
+    }
+    printResult(result, json, (value) => JSON.stringify(value, null, 2))
   },
   'project setups': async ({ flags, client, json }) => {
     const projectFilter = getOptionalStringFlag(flags, 'project')

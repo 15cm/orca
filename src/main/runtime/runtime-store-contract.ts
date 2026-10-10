@@ -1,4 +1,5 @@
 import type { Store } from '../persistence'
+import type { PrimaryRemovalReservation } from '../../shared/project-primary-removal'
 import type { GlobalSettings } from '../../shared/global-settings-types'
 import type { VoiceSettings } from '../../shared/speech-types'
 
@@ -13,6 +14,14 @@ export type RuntimeStore = {
   getRetiredWorktreeNameRegistryForNamespace?: Store['getRetiredWorktreeNameRegistryForNamespace']
   getProjects?: Store['getProjects']
   updateProject?: Store['updateProject']
+  setPrimaryWorkspace?: Store['setPrimaryWorkspace']
+  setPrimaryWorkspaceDurably?: Store['setPrimaryWorkspaceDurably']
+  bindPrimaryAuthorityFingerprintDurably?: Store['bindPrimaryAuthorityFingerprintDurably']
+  applyPrimaryAuthoritySnapshotDurably?: Store['applyPrimaryAuthoritySnapshotDurably']
+  isPrimaryWorkspaceMutationAvailable?: Store['isPrimaryWorkspaceMutationAvailable']
+  getPrimaryRemovalReservations?: () => readonly PrimaryRemovalReservation[]
+  savePrimaryRemovalReservation?: (reservation: PrimaryRemovalReservation) => Promise<void>
+  removePrimaryRemovalReservation?: (token: string) => Promise<void>
   getProjectHostSetups?: Store['getProjectHostSetups']
   createProjectHostSetup?: Store['createProjectHostSetup']
   updateProjectHostSetup?: Store['updateProjectHostSetup']

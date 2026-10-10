@@ -23,14 +23,34 @@ export type Project = {
   gitRemoteIdentity?: GitRemoteIdentity
   /** Local Windows projects inherit the global runtime default unless this override is set. */
   localWindowsRuntimePreference?: LocalWindowsRuntimePreference
+  /** Primary selection: worktreeId is a path based locator; instanceId identifies the durable occupant. */
+  primaryWorkspace?: ProjectPrimaryWorkspace
+  primaryWorkspaceRevision?: number
+  /** Authenticated desktop peer allowed to choose this project's primary workspace. */
+  primaryAuthorityFingerprint?: string
   sourceRepoIds: string[]
   createdAt: number
   updatedAt: number
 }
 
+export type ProjectPrimaryWorkspace = {
+  worktreeId: string
+  instanceId: string
+  hostId: ExecutionHostId
+  path: string
+  peerFingerprint?: string
+  authorityFingerprint?: string
+}
+
 export type ProjectUpdateArgs = {
   projectId: string
   updates: Partial<Pick<Project, 'localWindowsRuntimePreference'>>
+}
+
+export type ProjectPrimarySelector = {
+  projectId: string
+  worktree: string
+  hostId?: ExecutionHostId
 }
 
 export type ProjectHostSetupState = 'ready' | 'not-set-up' | 'setting-up' | 'error' | 'unsupported'
@@ -56,6 +76,8 @@ export type ProjectHostSetup = {
   executionHostId?: ExecutionHostId | null
   /** Renderer projection of the paired runtime that owns this setup's transport. */
   runtimeOwnerEnvironmentId?: string
+  runtimeOwnerFingerprint?: string
+  runtimeOwnerHostId?: ExecutionHostId
   worktreeBasePath?: string
   hookSettings?: RepoHookSettings
   gitUsername?: string

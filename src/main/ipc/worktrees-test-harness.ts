@@ -4,6 +4,7 @@ import {
   invalidateAuthorizedRootsCache
 } from './registered-worktree-roots-cache'
 import { registerWorktreeHandlers } from './worktrees'
+import type { OrcaRuntimeService } from '../runtime/orca-runtime'
 import { __resetDetectedWorktreeScanCacheForTests } from './worktrees/listing/detected-worktree-scan-cache'
 import { clearConfiguredWorktreeSharedDirectoriesCacheForTests } from '../git/worktree-shared-directories'
 import { resetRetirementCollisionKeyCacheForTests } from '../worktree-name-retirement'
@@ -86,7 +87,7 @@ export const harnessRepo = {
 }
 
 /** Registers worktree IPC handlers against freshly reset shared mocks and returns the runtime stub. */
-export function setupWorktreeHandlers(): WorktreeRuntimeStub {
+export function setupWorktreeHandlers(runtimeOverride?: OrcaRuntimeService): WorktreeRuntimeStub {
   delete (store as typeof store & { getAllWorktreeMetaForHost?: (...args: unknown[]) => unknown })
     .getAllWorktreeMetaForHost
   setPlatform(ORIGINAL_PLATFORM)
@@ -305,6 +306,10 @@ export function setupWorktreeHandlers(): WorktreeRuntimeStub {
   describeCreatedWorktreeMock.mockResolvedValue(undefined)
   forceDeleteLocalBranchMock.mockResolvedValue(undefined)
   const runtimeStub = createWorktreeRuntimeStub()
-  registerWorktreeHandlers(mainWindow as never, store as never, runtimeStub as never)
+  registerWorktreeHandlers(
+    mainWindow as never,
+    store as never,
+    (runtimeOverride ?? runtimeStub) as never
+  )
   return runtimeStub
 }

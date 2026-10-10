@@ -50,6 +50,7 @@ export function useAutomationsPageDestinationState({
 }) {
   const {
     repos,
+    projects,
     worktreesByRepo,
     activeWorktreeId,
     repoMap,
@@ -196,13 +197,15 @@ export function useAutomationsPageDestinationState({
     const fallbackRepo = eligibleActiveRepo ?? editorProjects[0] ?? null
     const fallbackWorktrees = fallbackRepo ? (worktreesByRepo[fallbackRepo.id] ?? []) : []
     const targetWorktree =
-      getDefaultWorktree(fallbackWorktrees) ??
+      (activeWorktree && activeWorktree.repoId === fallbackRepo?.id
+        ? activeWorktree
+        : getDefaultWorktree(fallbackWorktrees, projects)) ??
       (activeWorktree && activeWorktree.repoId === fallbackRepo?.id ? activeWorktree : null)
     return {
       projectId: fallbackRepo?.id ?? targetWorktree?.repoId ?? '',
       workspaceId: targetWorktree?.id ?? ''
     }
-  }, [activeWorktreeId, editorProjects, repoMap, worktreeMap, worktreesByRepo])
+  }, [activeWorktreeId, editorProjects, projects, repoMap, worktreeMap, worktreesByRepo])
 
   return {
     automationHostTarget,

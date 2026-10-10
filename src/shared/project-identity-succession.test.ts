@@ -174,4 +174,65 @@ describe('carryProjectStateThroughIdentityChange', () => {
       first.localWindowsRuntimePreference
     )
   })
+
+  it('carries primary selection and revision through identity promotion', () => {
+    const primary = {
+      worktreeId: 'repo-1::/work',
+      instanceId: 'instance-1',
+      hostId: 'local' as const,
+      path: '/work'
+    }
+    const result = carryProjectStateThroughIdentityChange(
+      [makeProject({ id: 'github:acme/app', sourceRepoIds: ['r1'] })],
+      [
+        makeProject({
+          id: 'repo:r1',
+          sourceRepoIds: ['r1'],
+          primaryWorkspace: primary,
+          primaryWorkspaceRevision: 4
+        })
+      ]
+    )
+    expect(result.projects[0]).toMatchObject({
+      primaryWorkspace: primary,
+      primaryWorkspaceRevision: 4
+    })
+  })
+
+  it('preserves malformed saved selections and authority state during identity promotion', () => {
+    const malformed = { worktreeId: 'x', path: '/x', hostId: 'local' }
+    const result = carryProjectStateThroughIdentityChange(
+      [makeProject({ id: 'same', sourceRepoIds: ['r1'] })],
+      [
+        makeProject({
+          id: 'old',
+          sourceRepoIds: ['r1'],
+          primaryWorkspace: malformed as never,
+          primaryWorkspaceRevision: 9,
+          primaryAuthorityFingerprint: 'authority'
+        })
+      ]
+    )
+    expect(result.projects[0]).toMatchObject({
+      primaryWorkspace: malformed,
+      primaryWorkspaceRevision: 9,
+      primaryAuthorityFingerprint: 'authority'
+    })
+  })
+
+  it('preserves explicit null primary as saved unavailable state', () => {
+    const result = carryProjectStateThroughIdentityChange(
+      [makeProject({ id: 'new', sourceRepoIds: ['r1'] })],
+      [
+        makeProject({
+          id: 'old',
+          sourceRepoIds: ['r1'],
+          primaryWorkspace: null as never,
+          primaryWorkspaceRevision: 3
+        })
+      ]
+    )
+    expect(result.projects[0]).toHaveProperty('primaryWorkspace', null)
+    expect(result.projects[0]?.primaryWorkspaceRevision).toBe(3)
+  })
 })

@@ -118,3 +118,187 @@ describe('RuntimeProjectHostSetupController host routing', () => {
     expect(cloneRepo).not.toHaveBeenCalled()
   })
 })
+
+describe('RuntimeProjectHostSetupController primary selection', () => {
+  it('persists the resolved occupant instance and rejects archived rows', async () => {
+    const projectId = getProjectHostSetupForRepo([], remoteRepo).projectId
+    const project = {
+      id: projectId,
+      displayName: 'app',
+      badgeColor: 'blue',
+      sourceRepoIds: [remoteRepo.id],
+      createdAt: 1,
+      updatedAt: 1
+    }
+    const setPrimaryWorkspace = vi.fn((_id, primary) => ({
+      ...project,
+      primaryWorkspace: primary,
+      primaryWorkspaceRevision: 1
+    }))
+    const controller = new RuntimeProjectHostSetupController({
+      getStore: () =>
+        ({
+          getProjects: () => [project],
+          getProjectHostSetups: () => [
+            {
+              id: 'setup-1',
+              projectId,
+              repoId: remoteRepo.id,
+              hostId: 'local',
+              setupState: 'ready'
+            }
+          ],
+          bindPrimaryAuthorityFingerprintDurably: async (_id: string) => project,
+          setPrimaryWorkspaceDurably: async (_id: string, primary: unknown) =>
+            setPrimaryWorkspace(_id, primary)
+        }) as never,
+      listRepos: () => [remoteRepo],
+      addRepo: vi.fn(),
+      addRemoteRepo: vi.fn(),
+      cloneRepo: vi.fn(),
+      invalidateResolvedWorktrees: vi.fn(),
+      invalidateWorktreeScan: vi.fn(),
+      notifyReposChanged: vi.fn(),
+      listResolvedWorktrees: async () => [
+        {
+          id: `${remoteRepo.id}::${REMOTE_PATH}`,
+          instanceId: 'occupant-1',
+          repoId: remoteRepo.id,
+          hostId: 'local',
+          path: REMOTE_PATH,
+          isArchived: false,
+          git: { isBare: false, prunable: false, branch: 'main' }
+        } as never
+      ],
+      getOwnPeerFingerprint: () => 'test-peer',
+      verifyAuthoritativeWorktree: async () => true,
+      flushPrimaryPersistence: async () => {},
+      runPrimaryMutation: (_projectId, _target, operation) => operation()
+    })
+    await controller.setPrimaryWorkspace({
+      projectId,
+      worktree: `id:${remoteRepo.id}::${REMOTE_PATH}`
+    })
+    expect(setPrimaryWorkspace).toHaveBeenCalledWith(
+      projectId,
+      expect.objectContaining({ instanceId: 'occupant-1', path: REMOTE_PATH })
+    )
+  })
+
+  it('rejects selection when own fingerprint is unavailable', async () => {
+    const { projectId } = makeController()
+    const controller = new RuntimeProjectHostSetupController({
+      getStore: () =>
+        ({
+          getProjects: () => [{ id: projectId, sourceRepoIds: [remoteRepo.id] }],
+          getProjectHostSetups: () => [
+            {
+              id: 'setup-1',
+              projectId,
+              repoId: remoteRepo.id,
+              hostId: 'local',
+              setupState: 'ready'
+            }
+          ],
+          setPrimaryWorkspaceDurably: vi.fn()
+        }) as never,
+      listRepos: () => [remoteRepo],
+      addRepo: vi.fn(),
+      addRemoteRepo: vi.fn(),
+      cloneRepo: vi.fn(),
+      invalidateResolvedWorktrees: vi.fn(),
+      invalidateWorktreeScan: vi.fn(),
+      notifyReposChanged: vi.fn(),
+      listResolvedWorktrees: async () => [
+        {
+          id: `${remoteRepo.id}::${REMOTE_PATH}`,
+          instanceId: 'occupant-1',
+          repoId: remoteRepo.id,
+          hostId: 'local',
+          path: REMOTE_PATH,
+          isArchived: false,
+          git: { isBare: false, prunable: false, branch: 'main' }
+        } as never
+      ],
+      getOwnPeerFingerprint: () => null
+    })
+    await expect(
+      controller.setPrimaryWorkspace({ projectId, worktree: `id:${remoteRepo.id}::${REMOTE_PATH}` })
+    ).rejects.toThrow('identity_unavailable')
+  })
+
+  it('resolves a runtime owner from a fresh authenticated peer catalog', async () => {
+    const projectId = 'project-runtime'
+    const setup = {
+      id: 'setup-runtime',
+      projectId,
+      repoId: 'repo-runtime',
+      hostId: 'runtime:peer-a',
+      setupState: 'ready'
+    }
+    const saved: unknown[] = []
+    const listAuthenticatedRuntimeWorktrees = vi.fn(async () => [
+      {
+        id: 'repo-runtime::/peer/worktree',
+        instanceId: 'peer-instance-1',
+        repoId: 'repo-runtime',
+        hostId: 'runtime:peer-a',
+        ownerHostId: 'local',
+        runtimeOwnerEnvironmentId: 'peer-a',
+        peerFingerprint: 'peer-fingerprint',
+        path: '/peer/worktree',
+        branch: 'main',
+        isArchived: false,
+        git: { path: '/peer/worktree', head: 'head', branch: 'main', isBare: false, isMainWorktree: false }
+      } as never
+    ])
+    const controller = new RuntimeProjectHostSetupController({
+      getStore: () =>
+        ({
+          getProjects: () => [
+            {
+              id: projectId,
+              displayName: 'Remote project',
+              badgeColor: 'blue',
+              sourceRepoIds: [],
+              createdAt: 1,
+              updatedAt: 1
+            }
+          ],
+          getProjectHostSetups: () => [setup],
+          bindPrimaryAuthorityFingerprintDurably: async () => undefined,
+          setPrimaryWorkspaceDurably: async (_id: string, primary: unknown) => {
+            saved.push(primary)
+            return { id: projectId, primaryWorkspace: primary }
+          }
+        }) as never,
+      listRepos: () => [],
+      addRepo: vi.fn(),
+      addRemoteRepo: vi.fn(),
+      cloneRepo: vi.fn(),
+      invalidateResolvedWorktrees: vi.fn(),
+      invalidateWorktreeScan: vi.fn(),
+      notifyReposChanged: vi.fn(),
+      listResolvedWorktrees: async () => [],
+      listAuthenticatedRuntimeWorktrees,
+      getOwnPeerFingerprint: () => 'desktop-authority',
+      verifyAuthoritativeWorktree: async () => true,
+      runPrimaryMutation: (_projectId, _target, operation) => operation()
+    })
+
+    await controller.setPrimaryWorkspace({
+      projectId,
+      worktree: 'branch:main',
+      hostId: 'runtime:peer-a'
+    })
+
+    expect(listAuthenticatedRuntimeWorktrees).toHaveBeenCalledTimes(2)
+    expect(saved[0]).toMatchObject({
+      worktreeId: 'repo-runtime::/peer/worktree',
+      instanceId: 'peer-instance-1',
+      hostId: 'local',
+      peerFingerprint: 'peer-fingerprint',
+      authorityFingerprint: 'desktop-authority'
+    })
+  })
+})

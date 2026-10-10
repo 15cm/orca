@@ -75,7 +75,6 @@ export function WorktreeCardHeader({
     setRenamingWorktreeId,
     titleRenaming,
     handleOpenRenameErrorDialog,
-    isFolder,
     handleWorkspaceQuickAction
   } = card
   const {
@@ -86,6 +85,7 @@ export function WorktreeCardHeader({
     showDeleteQuickAction,
     showTitleRowIndicators,
     titleRowIndicators,
+    isPrimaryWorkspace,
     titleWrapper
   } = presentation
 
@@ -214,7 +214,7 @@ export function WorktreeCardHeader({
             </TooltipContent>
           </Tooltip>
         ) : null}
-        {!compactCards && worktree.isMainWorktree && !isFolder && (
+        {!compactCards && isPrimaryWorkspace && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Badge

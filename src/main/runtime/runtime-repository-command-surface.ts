@@ -34,6 +34,11 @@ type GitHubRepositoryQueryCommandName =
 export type RuntimeRepositoryCommandSurface = {
   listProjects: RuntimeProjectHostSetupController['listProjects']
   updateProject: RuntimeProjectHostSetupController['updateProject']
+  setPrimaryWorkspace: RuntimeProjectHostSetupController['setPrimaryWorkspace']
+  setPrimaryWorkspaceForPeer: RuntimeProjectHostSetupController['setPrimaryWorkspaceForPeer']
+  bindPrimaryAuthorityFingerprint: RuntimeProjectHostSetupController['bindPrimaryAuthorityFingerprint']
+  applyPrimaryAuthoritySnapshot: RuntimeProjectHostSetupController['applyPrimaryAuthoritySnapshot']
+  runPrimaryWorkspaceMutation: RuntimeProjectHostSetupController['runPrimaryWorkspaceMutation']
   listProjectHostSetups: RuntimeProjectHostSetupController['listSetups']
   createProjectHostSetup: RuntimeProjectHostSetupController['createSetup']
   setupProjectExistingFolder: RuntimeProjectHostSetupController['setupExistingFolder']
@@ -63,6 +68,7 @@ export type RuntimeRepositoryCommandSurface = {
   setRepoBaseRef: RuntimeRepositorySettingsController['setBaseRef']
   updateRepo: RuntimeRepositorySettingsController['update']
   removeProject: RuntimeRepositorySettingsController['remove']
+  guardPrimaryProjectRemoval: RuntimeRepositorySettingsController['guardPrimaryProjectRemoval']
   reorderRepos: RuntimeRepositorySettingsController['reorder']
   getRepoBaseRefDefault: RuntimeRepositoryRefQueries['getDefault']
   getRepoHooks: RuntimeRepositoryHooksCommands['getRepoHooks']
@@ -109,6 +115,11 @@ export function installRuntimeRepositoryCommandSurface(
   Object.assign(target, {
     listProjects: host.listProjects.bind(host),
     updateProject: host.updateProject.bind(host),
+    setPrimaryWorkspace: host.setPrimaryWorkspace.bind(host),
+    setPrimaryWorkspaceForPeer: host.setPrimaryWorkspaceForPeer.bind(host),
+    bindPrimaryAuthorityFingerprint: host.bindPrimaryAuthorityFingerprint.bind(host),
+    applyPrimaryAuthoritySnapshot: host.applyPrimaryAuthoritySnapshot.bind(host),
+    runPrimaryWorkspaceMutation: host.runPrimaryWorkspaceMutation.bind(host),
     listProjectHostSetups: host.listSetups.bind(host),
     createProjectHostSetup: host.createSetup.bind(host),
     setupProjectExistingFolder: host.setupExistingFolder.bind(host),
@@ -138,6 +149,7 @@ export function installRuntimeRepositoryCommandSurface(
     setRepoBaseRef: settings.setBaseRef.bind(settings),
     updateRepo: settings.update.bind(settings),
     removeProject: settings.remove.bind(settings),
+    guardPrimaryProjectRemoval: settings.guardPrimaryProjectRemoval.bind(settings),
     reorderRepos: settings.reorder.bind(settings),
     getRepoBaseRefDefault: refs.getDefault.bind(refs),
     getRepoSlug: reviews.getRepoSlug.bind(reviews),

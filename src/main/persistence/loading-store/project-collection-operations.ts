@@ -67,8 +67,22 @@ export class ProjectCollectionOperations {
     return getProjectHostOperations(this).getProjects()
   }
 
+  registerRemoteProjectAuthorityCompatibility(input: {
+    remoteProject: Project
+    hostId: ProjectHostSetup['hostId']
+    setups: readonly ProjectHostSetup[]
+    authorityFingerprint: string
+    runtimeOwnerFingerprint?: string
+  }): Project {
+    return getProjectHostOperations(this).registerRemoteProjectAuthorityCompatibility(input)
+  }
+
   updateProject(id: string, updates: ProjectUpdateArgs['updates']): Project | null {
     return getProjectHostOperations(this).updateProject(id, updates)
+  }
+
+  setPrimaryWorkspace(id: string, primary: Project['primaryWorkspace']): Project | null {
+    return getProjectHostOperations(this).setPrimaryWorkspace(id, primary)
   }
 
   getProjectHostSetups(): ProjectHostSetup[] {

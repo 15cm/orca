@@ -16,6 +16,7 @@ const AGENTS = getAgentCatalog().map((agent) => agent.id)
 /** Store-backed values shared by the page's state and action hooks. */
 export function useAutomationsPageStoreState() {
   const repos = useAppStore((s) => s.repos)
+  const projects = useAppStore((s) => s.projects)
   const projectHostSetups = useAppStore((s) => s.projectHostSetups)
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
   const unifiedTabsByWorktree = useAppStore((s) => s.unifiedTabsByWorktree)
@@ -65,6 +66,7 @@ export function useAutomationsPageStoreState() {
 
   return {
     repos,
+    projects,
     projectHostSetups,
     worktreesByRepo,
     unifiedTabsByWorktree,

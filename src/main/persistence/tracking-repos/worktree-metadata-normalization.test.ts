@@ -148,6 +148,41 @@ describe('normalizeWorktreeLinkedItemMetadata', () => {
 })
 
 describe('gcStaleWorktreeMeta', () => {
+  it('keeps metadata for a selected primary even when it is older than the GC grace', () => {
+    const worktreeId = 'r1::/definitely/missing/orca/primary'
+    const meta = {
+      hostId: 'local',
+      instanceId: 'primary-instance',
+      displayName: 'primary',
+      lastActivityAt: Date.now() - WORKTREE_META_GC_GRACE_MS - 1
+    } as unknown as WorktreeMeta
+    const state = makeState({
+      repos: [{ id: 'r1', path: '/repo', displayName: 'repo', badgeColor: '#000', addedAt: 0 }],
+      projects: [
+        {
+          id: 'project-1',
+          displayName: 'project',
+          badgeColor: '#000',
+          sourceRepoIds: ['r1'],
+          createdAt: 1,
+          updatedAt: 1,
+          primaryWorkspace: {
+            worktreeId,
+            instanceId: 'primary-instance',
+            path: '/definitely/missing/orca/primary',
+            hostId: 'local',
+            peerFingerprint: 'peer-a',
+            authorityFingerprint: 'peer-a'
+          }
+        }
+      ],
+      worktreeMeta: { [worktreeId]: meta }
+    })
+
+    expect(gcStaleWorktreeMeta(state)).toBe(0)
+    expect(state.worktreeMeta[worktreeId]).toBeDefined()
+  })
+
   it('reclaims the identity rows of a collected worktree', () => {
     const worktreeId = 'r1::/definitely/missing/orca/path'
     const identityKey = 'wt2:local:dead'

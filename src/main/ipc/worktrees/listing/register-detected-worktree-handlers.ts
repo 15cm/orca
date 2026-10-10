@@ -25,6 +25,31 @@ export const DETECTED_WORKTREE_PROVIDER_TIMEOUT_MS = 30_000
 
 export function registerDetectedWorktreeHandlers(context: WorktreeIpcContext): void {
   const { store, detectedWorktreeCancellations } = context
+  const stamp = <T extends DetectedWorktreeListResult>(result: T, hostId: string): T => {
+    const fingerprint = context.runtime.getOwnPeerFingerprint()
+    const parsedHost = parseExecutionHostId(hostId)
+    if (!fingerprint || !result.authoritative || !parsedHost || parsedHost.kind === 'runtime') {
+      return result
+    }
+    return {
+      ...result,
+      worktrees: result.worktrees.map((worktree) => {
+        const rowHostId = worktree.ownerHostId ?? worktree.hostId ?? hostId
+        const parsedRowHost = parseExecutionHostId(rowHostId)
+        if (
+          rowHostId !== hostId ||
+          !parsedRowHost ||
+          parsedRowHost.kind === 'runtime' ||
+          parseExecutionHostId(worktree.hostId ?? '')?.kind === 'runtime' ||
+          worktree.runtimeOwnerEnvironmentId ||
+          (worktree.peerFingerprint && worktree.peerFingerprint !== fingerprint)
+        ) {
+          return worktree
+        }
+        return { ...worktree, hostId, ownerHostId: hostId, peerFingerprint: fingerprint }
+      })
+    }
+  }
 
   ipcMain.handle(
     'worktrees:listDetected',
@@ -76,11 +101,23 @@ export function registerDetectedWorktreeHandlers(context: WorktreeIpcContext): v
                   signal: controller.signal,
                   status: () => (timedOut ? 'timed-out' : 'canceled')
                 }
-              : undefined
+              : undefined,
+            context.runtime.getOwnPeerFingerprint()
           )
-          return abortedResult
+          const result = abortedResult
             ? await Promise.race([providerResult, abortedResult])
             : await providerResult
+          if ('result' in result && result.status === 'complete') {
+            const stamped = stamp(result.result, result.authority.executionHostId)
+            if (stamped.authoritative) {
+              context.runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog(
+                stamped.worktrees,
+                [stamped.repoId]
+              )
+            }
+            return { ...result, result: stamped }
+          }
+          return result
         } finally {
           if (timeout) {
             clearTimeout(timeout)
@@ -112,16 +149,29 @@ export function registerDetectedWorktreeHandlers(context: WorktreeIpcContext): v
             (getSshGitProvider(repo.connectionId) === provider &&
               authority !== undefined &&
               isCurrentSshProviderAuthority(authority))),
-        provider
+        provider,
+        undefined,
+        context.runtime.getOwnPeerFingerprint()
       )
-      return result && !('providerAbortStatus' in result)
-        ? result
-        : {
-            repoId: repo.id,
-            authoritative: false,
-            source: 'metadata-fallback',
-            worktrees: []
-          }
+      if (result && !('providerAbortStatus' in result)) {
+        const stamped = stamp(
+          result,
+          repo.executionHostId ?? (repo.connectionId ? `ssh:${repo.connectionId}` : 'local')
+        )
+        if (stamped.authoritative) {
+          context.runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog(
+            stamped.worktrees,
+            [stamped.repoId]
+          )
+        }
+        return stamped
+      }
+      return {
+        repoId: repo.id,
+        authoritative: false,
+        source: 'metadata-fallback',
+        worktrees: []
+      }
     }
   )
 

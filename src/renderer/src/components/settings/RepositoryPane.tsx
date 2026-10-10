@@ -30,6 +30,7 @@ import { matchesRepositoryIdentitySearch } from './repository-identity-search'
 import { RepositoryWorktreeDefaultsSection } from './RepositoryWorktreeDefaultsSection'
 import { getProjectRuntimeSessionSummary } from './repository-runtime-session-summary'
 import { getRepoOwnerWorktreeVisibilityDefaults } from '../../store/worktree-visibility-defaults-by-host'
+import { ProjectPrimaryWorkspacePicker } from './ProjectPrimaryWorkspacePicker'
 export { getRepositoryPaneSearchEntries }
 export { matchesRepositoryIdentitySearch } from './repository-identity-search'
 
@@ -359,6 +360,8 @@ export function RepositoryPane({
               searchQuery={searchQuery}
               searchEntries={projectRuntimeEntries}
             />
+
+            {project ? <ProjectPrimaryWorkspacePicker projectId={project.id} /> : null}
 
             <RepositoryForkSyncSection
               repo={repo}

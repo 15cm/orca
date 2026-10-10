@@ -23,6 +23,7 @@ import type { RetiredNameRegistry } from './worktree/retired-name-registry'
 import type { WorkspaceLineage, WorktreeLineage } from './worktree/lineage-types'
 import type { WorktreeMeta } from './worktree/meta-types'
 import type { WorkspaceSessionState } from './workspace-session-state-types'
+import type { PrimaryRemovalReservation } from './project-primary-removal'
 
 export type LegacyPaneKeyAliasEntry = {
   ptyId: string
@@ -52,6 +53,7 @@ export type PersistedState = {
   repos: Repo[]
   projects: Project[]
   projectHostSetups: ProjectHostSetup[]
+  primaryRemovalReservations?: PrimaryRemovalReservation[]
   projectGroups: ProjectGroup[]
   folderWorkspaces: FolderWorkspace[]
   /** Folder-workspace review notes, keyed by FolderWorkspace.id. Top-level, NOT nested in

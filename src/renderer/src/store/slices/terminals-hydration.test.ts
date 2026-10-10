@@ -114,6 +114,26 @@ describe('hydrateWorkspaceSession', () => {
     vi.clearAllMocks()
   })
 
+  it('preserves current workspace when hydrated session has no active workspace', () => {
+    const store = createTestStore()
+    const currentWorktreeId = 'repo1::/current'
+    seedStore(store, {
+      worktreesByRepo: {
+        repo1: [makeWorktree({ id: currentWorktreeId, repoId: 'repo1', path: '/current' })]
+      },
+      activeRepoId: 'repo1',
+      activeWorktreeId: currentWorktreeId
+    })
+
+    store.getState().hydrateWorkspaceSession({
+      ...getDefaultWorkspaceSession(),
+      activeRepoId: 'repo1',
+      activeWorktreeId: null
+    })
+
+    expect(store.getState().activeWorktreeId).toBe(currentWorktreeId)
+  })
+
   it('preserves ptyIdsByLeafId so reconnect can reattach each split-pane leaf', () => {
     const store = createTestStore()
     const worktreeId = 'repo1::/wt-1'

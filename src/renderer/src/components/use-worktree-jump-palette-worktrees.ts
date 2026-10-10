@@ -22,6 +22,11 @@ import {
 } from '@/components/sidebar/workspace-creator-visibility'
 import type { Worktree } from '../../../shared/worktree/types'
 import {
+  hasSavedPrimaryWorkspace,
+  resolveProjectPrimaryWorkspace
+} from '../../../shared/project-primary-workspace'
+import { getPrimaryWorktreeIdentity } from './sidebar/visible-worktree-options'
+import {
   collectPaletteTabIndexWorkspaces,
   excludePaletteFolderWorkspaces
 } from './cmd-j/palette-folder-workspace-tab-index'
@@ -44,6 +49,7 @@ export function useWorktreeJumpPaletteWorktrees({
   paletteSearchQuery,
   paletteSearchContext,
   repos,
+  projects,
   worktreesByRepo,
   agentStatusByPaneKey,
   tabsByWorktree,
@@ -95,6 +101,23 @@ export function useWorktreeJumpPaletteWorktrees({
         : EMPTY_PAIRED_DEVICE_IDS_BY_ENVIRONMENT,
     [hideWorkspacesFromOtherDevices, runtimeEnvironments, runtimeStatusByEnvironmentId]
   )
+  const { primaryWorktreeIdentities, savedPrimaryRepoIds } = useMemo(() => {
+    const catalog = Object.values(worktreesByRepo).flat()
+    const primaryWorktreeIdentities = new Set<string>()
+    const savedPrimaryRepoIds = new Set<string>()
+    for (const project of projects) {
+      if (hasSavedPrimaryWorkspace(project)) {
+        for (const repoId of project.sourceRepoIds) {
+          savedPrimaryRepoIds.add(repoId)
+        }
+      }
+      const primary = resolveProjectPrimaryWorkspace(project, catalog)
+      if (primary) {
+        primaryWorktreeIdentities.add(getPrimaryWorktreeIdentity(primary))
+      }
+    }
+    return { primaryWorktreeIdentities, savedPrimaryRepoIds }
+  }, [projects, worktreesByRepo])
   const emptyQueryVisibleWorktrees = useMemo(
     () =>
       allWorktrees.filter((worktree) => {
@@ -104,7 +127,8 @@ export function useWorktreeJumpPaletteWorktrees({
         if (filterPredicate && !filterPredicate.matchesWorktree(worktree)) {
           return false
         }
-        if (hideDefaultBranchWorkspace && isDefaultBranchWorkspace(worktree)) {
+        const isPrimary = primaryWorktreeIdentities.has(getPrimaryWorktreeIdentity(worktree))
+        if (hideDefaultBranchWorkspace && isDefaultBranchWorkspace(worktree) && !isPrimary) {
           return false
         }
         if (hideAutomationGeneratedWorkspaces && isAutomationGeneratedWorkspace(worktree)) {
@@ -124,7 +148,9 @@ export function useWorktreeJumpPaletteWorktrees({
         }
         if (
           !showSleepingWorkspaces &&
-          !isSleepingSweepExemptWorkspace(worktree, alwaysShowDefaultBranchWorkspace) &&
+          !isPrimary &&
+          (savedPrimaryRepoIds.has(worktree.repoId) ||
+            !isSleepingSweepExemptWorkspace(worktree, alwaysShowDefaultBranchWorkspace)) &&
           isInactiveWorkspace(
             worktree.id,
             tabsByWorktree,
@@ -148,8 +174,10 @@ export function useWorktreeJumpPaletteWorktrees({
       hideDetachedHeadWorkspaces,
       hideWorkspacesFromOtherDevices,
       pairedDeviceIdsByEnvironment,
+      primaryWorktreeIdentities,
       ptyIdsByTabId,
       showSleepingWorkspaces,
+      savedPrimaryRepoIds,
       tabsByWorktree,
       worktreeIdsWithLiveAgent
     ]

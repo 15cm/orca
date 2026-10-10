@@ -12,6 +12,11 @@ type RuntimeRepositorySettingsDependencies = {
   invalidateResolvedWorktrees: () => void
   invalidateWorktreeScan: (repoId: string) => void
   notifyReposChanged: () => void
+  guardPrimaryProjectRemoval?: <T>(
+    repoId: string,
+    hostId: string | undefined,
+    operation: () => Promise<T>
+  ) => Promise<T>
 }
 
 type RepositoryUpdates = Partial<
@@ -110,14 +115,17 @@ export class RuntimeRepositorySettingsController {
     const idExistsOnOtherHost = store
       .getRepos()
       .some((entry) => entry.id === repo.id && getRepoExecutionHostId(entry) !== hostId)
-    if (idExistsOnOtherHost) {
-      if (!store.removeProjectForHost) {
-        throw new Error('runtime_unavailable')
+    const remove = async () => {
+      if (idExistsOnOtherHost) {
+        if (!store.removeProjectForHost) {
+          throw new Error('runtime_unavailable')
+        }
+        store.removeProjectForHost(repo.id, hostId)
+      } else {
+        store.removeProject!(repo.id)
       }
-      store.removeProjectForHost(repo.id, hostId)
-    } else {
-      store.removeProject(repo.id)
     }
+    await this.guardPrimaryProjectRemoval(repo.id, hostId, remove)
     this.deps.forgetTerminalTopology(repo.id)
     this.deps.invalidateResolvedWorktrees()
     this.deps.invalidateWorktreeScan(repo.id)
@@ -145,5 +153,16 @@ export class RuntimeRepositorySettingsController {
       throw new Error('runtime_unavailable')
     }
     return store
+  }
+
+  guardPrimaryProjectRemoval<T>(
+    repoId: string,
+    hostId: string | undefined,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    if (!this.deps.guardPrimaryProjectRemoval) {
+      throw new Error('runtime_unavailable')
+    }
+    return this.deps.guardPrimaryProjectRemoval(repoId, hostId, operation)
   }
 }

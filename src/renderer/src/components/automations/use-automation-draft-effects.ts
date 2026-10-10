@@ -26,7 +26,7 @@ export function useAutomationDraftEffects({
   destinationForm: AutomationsPageDestinationFormState
   pageRefresh: AutomationsPageRefresh
 }) {
-  const { repos, worktreesByRepo } = store
+  const { repos, projects, worktreesByRepo } = store
   const {
     draft,
     setDraft,
@@ -64,11 +64,11 @@ export function useAutomationDraftEffects({
     if (!draft.projectId) {
       return
     }
-    const defaultWorktree = getDefaultWorktree(dialogWorktrees)
+    const defaultWorktree = getDefaultWorktree(dialogWorktrees, projects)
     if (!draft.workspaceId && defaultWorktree) {
       setDraft((current) => ({ ...current, workspaceId: defaultWorktree.id }))
     }
-  }, [dialogWorktrees, draft.projectId, draft.workspaceId, setDraft])
+  }, [dialogWorktrees, draft.projectId, draft.workspaceId, projects, setDraft])
   useEffect(() => {
     if (
       !createOpen ||
@@ -157,7 +157,7 @@ export function useAutomationDraftEffects({
           )
         const nextRepo = currentRepoIsLocal ? currentRepo : localRepos[0]
         const nextWorkspace = nextRepo
-          ? getDefaultWorktree(worktreesByRepo[nextRepo.id] ?? [])
+          ? getDefaultWorktree(worktreesByRepo[nextRepo.id] ?? [], projects)
           : null
         return {
           ...current,
@@ -170,7 +170,7 @@ export function useAutomationDraftEffects({
         }
       })
     },
-    [repos, setCreateTarget, setDraft, worktreesByRepo]
+    [projects, repos, setCreateTarget, setDraft, worktreesByRepo]
   )
 
   return { applyTemplateToDraft, handleCreateTargetChange }

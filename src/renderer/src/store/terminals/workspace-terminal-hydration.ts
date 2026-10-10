@@ -24,6 +24,7 @@ import { buildWorkspaceTerminalReconnectPlan } from './workspace-terminal-reconn
 import { buildWorkspaceTerminalLayoutPlan } from './workspace-terminal-layout-plan'
 import { addHydratedSshWorktreePlaceholders } from './workspace-terminal-ssh-placeholders'
 import { retainUnverifiedPtyLossTabIds } from './terminal-unverified-pty-loss'
+import { selectDefaultWorkspaceId } from './default-workspace-selector'
 
 export function createWorkspaceTerminalHydrationActions(
   set: TerminalStoreSet,
@@ -68,19 +69,24 @@ export function createWorkspaceTerminalHydrationActions(
           tabsByWorktree,
           validTabIds
         } = buildWorkspaceTerminalRowPlan(session, validWorktreeIds, options)
+        const activeProject = s.projects.find((project) =>
+          project.sourceRepoIds.includes(session.activeRepoId ?? '')
+        )
         const fallbackActiveWorktreeId =
           !session.activeWorktreeId &&
           session.activeRepoId &&
           knownRepoIds.has(session.activeRepoId)
-            ? (runtimeSessionPlaceholders.worktreesByRepo[session.activeRepoId]?.find(
-                (worktree) => worktree.isMainWorktree
-              )?.id ??
-              runtimeSessionPlaceholders.worktreesByRepo[session.activeRepoId]?.[0]?.id ??
-              null)
+            ? selectDefaultWorkspaceId(
+                activeProject,
+                runtimeSessionPlaceholders.worktreesByRepo[session.activeRepoId] ?? []
+              )
             : null
         const activeWorktreeId = (() => {
           if (session.activeWorktreeId && validWorktreeIds.has(session.activeWorktreeId)) {
             return session.activeWorktreeId
+          }
+          if (s.activeWorktreeId && validWorktreeIds.has(s.activeWorktreeId)) {
+            return s.activeWorktreeId
           }
           // Why: a workspace with no tabs is still valid; fall back from the active repo to avoid a blank landing screen when tabs were pruned or never created.
           return fallbackActiveWorktreeId

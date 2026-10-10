@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeVisibleWorktreeIds } from './visible-worktrees'
+import { getPrimaryWorktreeIdentity } from './visible-worktree-options'
 import { getPairedDeviceIdsByEnvironment } from './workspace-creator-visibility'
 import type { Repo } from '../../../../shared/repo-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
@@ -389,6 +390,20 @@ describe('computeVisibleWorktreeIds', () => {
     expect(result).toEqual([feature.id])
   })
 
+  it('keeps the configured primary workspace visible when default branch rows are hidden', () => {
+    const primary = makeWorktree('primary')
+    const feature = makeWorktree('feature')
+    const result = computeVisibleWorktreeIds(
+      { repo1: [primary, feature] },
+      [primary.id, feature.id],
+      visibleOptions({
+        hideDefaultBranchWorkspace: true,
+        primaryWorktreeIdentities: new Set([`|${primary.id}`])
+      })
+    )
+    expect(result).toEqual([primary.id, feature.id])
+  })
+
   it('keeps folder-mode main worktrees visible when default branch workspaces are hidden', () => {
     const folder = makeWorktree('folder')
     folder.isMainWorktree = true
@@ -654,6 +669,39 @@ describe('computeVisibleWorktreeIds', () => {
         visibleOptions({ ...options, alwaysShowDefaultBranchWorkspace: false })
       )
     ).toEqual([awakeA.id, awakeB.id])
+  })
+
+  it('exempts configured primary only and suppresses old original when saved primary is unavailable', () => {
+    const original = { ...makeWorktree('old'), isMainWorktree: true, peerFingerprint: 'old-peer' }
+    const selected = { ...makeWorktree('selected'), peerFingerprint: 'selected-peer' }
+    const otherPeer = { ...makeWorktree('other'), peerFingerprint: 'other-peer' }
+    const run = (items: (typeof original)[], overrides: Partial<VisibleOptions> = {}): string[] =>
+      computeVisibleWorktreeIds(
+        { repo1: items },
+        items.map((item) => item.id),
+        visibleOptions({
+          showSleepingWorkspaces: false,
+          savedPrimaryRepoIds: new Set(['repo1']),
+          primaryWorktreeIdentities: new Set([getPrimaryWorktreeIdentity(selected)]),
+          injectLineageAncestors: false,
+          ...overrides
+        })
+      )
+
+    expect(run([original, selected, otherPeer])).toEqual([selected.id])
+    expect(
+      run([original], {
+        primaryWorktreeIdentities: new Set(),
+        visibleWorkspaceHostIds: []
+      })
+    ).toEqual([])
+    expect(
+      computeVisibleWorktreeIds(
+        { repo1: [original] },
+        [original.id],
+        visibleOptions({ showSleepingWorkspaces: false })
+      )
+    ).toEqual([original.id])
   })
 
   it('leaves lineage ordering untouched when the exempted main is also a parent', () => {

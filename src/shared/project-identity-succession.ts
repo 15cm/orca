@@ -1,4 +1,5 @@
 import type { Project } from './project-types'
+import { hasSavedPrimaryWorkspace } from './project-primary-workspace'
 
 export type ProjectIdentitySuccession = {
   /** Projected projects with user-set state carried forward from their predecessor row. */
@@ -8,10 +9,22 @@ export type ProjectIdentitySuccession = {
 }
 
 function carryUserState(projected: Project, previous: Project): Project {
-  return previous.localWindowsRuntimePreference
+  const hasPrimaryWorkspace = hasSavedPrimaryWorkspace(previous)
+  const primaryWorkspace = hasPrimaryWorkspace ? previous.primaryWorkspace : undefined
+  const hasPrimaryAuthority = previous.primaryAuthorityFingerprint !== undefined
+  return previous.localWindowsRuntimePreference || hasPrimaryWorkspace || hasPrimaryAuthority
     ? {
         ...projected,
-        localWindowsRuntimePreference: previous.localWindowsRuntimePreference,
+        ...(previous.localWindowsRuntimePreference
+          ? { localWindowsRuntimePreference: previous.localWindowsRuntimePreference }
+          : {}),
+        ...(hasPrimaryWorkspace ? { primaryWorkspace } : {}),
+        ...(previous.primaryWorkspaceRevision !== undefined
+          ? { primaryWorkspaceRevision: previous.primaryWorkspaceRevision }
+          : {}),
+        ...(hasPrimaryAuthority
+          ? { primaryAuthorityFingerprint: previous.primaryAuthorityFingerprint }
+          : {}),
         updatedAt: Math.max(projected.updatedAt, previous.updatedAt)
       }
     : projected

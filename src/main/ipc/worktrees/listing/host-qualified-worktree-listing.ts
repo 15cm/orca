@@ -21,7 +21,8 @@ import {
 export async function listHostQualifiedDetectedWorktrees(
   store: Store,
   args: ListDetectedWorktreesArgs,
-  providerAbort?: { signal: AbortSignal; status: () => 'canceled' | 'timed-out' }
+  providerAbort?: { signal: AbortSignal; status: () => 'canceled' | 'timed-out' },
+  ownPeerFingerprint?: string | null
 ): Promise<HostQualifiedDetectedWorktreeResult> {
   const parsedHost = parseExecutionHostId(args.executionHostId)
   const rejected = (status: 'rejected' | 'stale' | 'ambiguous-owner') => ({
@@ -94,7 +95,8 @@ export async function listHostQualifiedDetectedWorktrees(
     repo,
     isCurrent,
     provider,
-    providerAbort
+    providerAbort,
+    ownPeerFingerprint
   )
   if (!result) {
     return rejected('stale')

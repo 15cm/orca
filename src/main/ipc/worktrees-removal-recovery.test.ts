@@ -461,6 +461,43 @@ describe('registerWorktreeHandlers', () => {
     expect(store.removeWorktreeMeta).not.toHaveBeenCalled()
   })
 
+  it('rejects primary removal before archive hooks, PTY teardown, or Git even with force', async () => {
+    mockKnownFeatureWorktree()
+    getEffectiveHooksMock.mockReturnValue({ scripts: { archive: 'archive-script' } } as never)
+    const runtime = runtimeStub as WorktreeRuntimeStub & {
+      beginPrimaryRemovalForWorktree: ReturnType<typeof vi.fn>
+    }
+    runtime.beginPrimaryRemovalForWorktree = vi
+      .fn()
+      .mockRejectedValue(new Error('primary_selected'))
+    await expect(
+      handlers['worktrees:remove'](null, {
+        worktreeId: 'repo-1::/workspace/feature-wt',
+        force: true
+      })
+    ).rejects.toThrow('primary_selected')
+    expect(runHookMock).not.toHaveBeenCalled()
+    expect(killAllProcessesForWorktreeMock).not.toHaveBeenCalled()
+    expect(removeWorktreeMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects primary forget before PTY teardown and metadata cleanup', async () => {
+    const runtime = runtimeStub as WorktreeRuntimeStub & {
+      beginPrimaryRemovalForWorktree: ReturnType<typeof vi.fn>
+    }
+    runtime.beginPrimaryRemovalForWorktree = vi
+      .fn()
+      .mockRejectedValue(new Error('primary_selected'))
+    await expect(
+      handlers['worktrees:forgetLocal'](null, {
+        worktreeId: 'repo-1::/workspace/feature-wt',
+        hostId: 'local'
+      })
+    ).rejects.toThrow('primary_selected')
+    expect(killAllProcessesForWorktreeMock).not.toHaveBeenCalled()
+    expect(store.removeWorktreeMeta).not.toHaveBeenCalled()
+  })
+
   it('refuses to delete the root workspace for folder-mode repos', async () => {
     store.getRepo.mockReturnValue({
       id: 'repo-folder',

@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../../persistence'
+import type { OrcaRuntimeService } from '../../runtime/orca-runtime'
 import type { Project, ProjectUpdateArgs } from '../../../shared/project-types'
 import type {
   HostRepoCatalogSnapshot,
@@ -14,7 +15,11 @@ import { notifyReposChanged } from './repos-changed-notification'
 import { ProjectUpdateIpcArgs, parseProjectGroupIpcArgs } from './repo-ipc-arg-schemas'
 import { listReposForExecutionHost } from './host-repo-catalog-snapshot'
 
-export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: Store): void {
+export function registerRepoCatalogHandlers(
+  mainWindow: BrowserWindow,
+  store: Store,
+  runtime: OrcaRuntimeService
+): void {
   // Why one shared reference: enrichment dedupes coalesced callers by callback identity, so a fresh
   // closure per list call would stack up (and re-broadcast) for the length of a slow sweep.
   const broadcastReposChanged = (): void => notifyReposChanged(mainWindow)
@@ -86,7 +91,9 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
   )
 
   ipcMain.handle('repos:remove', async (_event, args: { repoId: string }) => {
-    store.removeProject(args.repoId)
+    await runtime.guardPrimaryProjectRemoval(args.repoId, undefined, async () => {
+      store.removeProject(args.repoId)
+    })
     invalidateAuthorizedRootsCache()
     notifyReposChanged(mainWindow)
   })
@@ -99,7 +106,9 @@ export function registerRepoCatalogHandlers(mainWindow: BrowserWindow, store: St
       if (!hostId) {
         throw new Error(`Invalid host ID: ${args.hostId}`)
       }
-      store.removeProjectForHost(args.repoId, hostId)
+      await runtime.guardPrimaryProjectRemoval(args.repoId, hostId, async () => {
+        store.removeProjectForHost(args.repoId, hostId)
+      })
       invalidateAuthorizedRootsCache()
       notifyReposChanged(mainWindow)
     }

@@ -72,6 +72,7 @@ export function executeSupportRoutedCall(args: {
   expectedPairingRevision?: number
   envelope?: RuntimeOrchestrationEnvelope
   signal?: AbortSignal
+  deferMarkUsed?: boolean
 }): Promise<RuntimeRpcResponse<unknown>> {
   return routeRuntimeEnvironmentCallBySupport({
     userDataPath: args.userDataPath,
@@ -80,6 +81,7 @@ export function executeSupportRoutedCall(args: {
     timeoutMs: args.timeoutMs,
     expectedPairingRevision: args.expectedPairingRevision,
     signal: args.signal,
+    deferMarkUsed: args.deferMarkUsed,
     supported: (route) =>
       sendRemoteRuntimeSharedControlRequestAbortable(
         route.environment.id,
@@ -170,6 +172,7 @@ export async function routeRuntimeEnvironmentCallBySupport(args: {
   timeoutMs: number
   expectedPairingRevision?: number
   signal?: AbortSignal
+  deferMarkUsed?: boolean
   supported: (route: SupportRoute) => Promise<RuntimeRpcResponse<unknown>>
   unsupported: (route: SupportRoute) => Promise<RuntimeRpcResponse<unknown>>
   markUsed: (environmentId: string, response: RuntimeRpcResponse<unknown>) => void
@@ -197,7 +200,7 @@ export async function routeRuntimeEnvironmentCallBySupport(args: {
       const response = await (outcome.kind === 'supported'
         ? args.supported(route)
         : args.unsupported(route))
-      if (isRuntimeEnvironmentCapabilityOutcomeCurrent(outcome)) {
+      if (!args.deferMarkUsed && isRuntimeEnvironmentCapabilityOutcomeCurrent(outcome)) {
         args.markUsed(environment.id, response)
       }
       return response

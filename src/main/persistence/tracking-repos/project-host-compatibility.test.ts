@@ -65,4 +65,35 @@ describe('mergeProjectHostSetupCompatibilityState', () => {
       'ssh:other'
     ])
   })
+
+  it('preserves desktop primary when a remote projection omits optional fields', () => {
+    const primary = {
+      worktreeId: 'local-repo::/src/local-repo',
+      instanceId: 'stable',
+      hostId: 'local' as const,
+      path: '/src/local-repo'
+    }
+    const merged = mergeProjectHostSetupCompatibilityState(
+      {
+        projects: [
+          {
+            id: PROJECT_ID,
+            displayName: 'orca',
+            badgeColor: '#000',
+            sourceRepoIds: ['local-repo'],
+            createdAt: 1,
+            updatedAt: 2,
+            primaryWorkspace: primary,
+            primaryWorkspaceRevision: 3
+          }
+        ],
+        projectHostSetups: []
+      },
+      [repo({ id: 'local-repo' })]
+    )
+    expect(merged.projects[0]).toMatchObject({
+      primaryWorkspace: primary,
+      primaryWorkspaceRevision: 3
+    })
+  })
 })

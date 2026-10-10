@@ -15,10 +15,10 @@ axis**, which is what this document describes.
 There is still exactly one stored session. What changes is **who owns which keys**, and main —
 not the renderer — decides:
 
-| Window          | Reads                                            | Writes                          |
-| --------------- | ------------------------------------------------ | ------------------------------- |
-| project (scoped)| the keys of its project group, subgroups included | those keys, rebased onto the rest |
-| free (shared)   | every key no project window is serving            | those keys, rebased onto the rest |
+| Window           | Reads                                             | Writes                            |
+| ---------------- | ------------------------------------------------- | --------------------------------- |
+| project (scoped) | the keys of its project group, subgroups included | those keys, rebased onto the rest |
+| free (shared)    | every key no project window is serving            | those keys, rebased onto the rest |
 
 `partitionWorkspaceSessionByWorktrees` (`shared/workspace-session-window-rebase.ts`) is the single
 operation behind all of it: it splits a session into the keys a set of worktrees owns and
@@ -26,7 +26,7 @@ everything else. A scoped read is the first half, a free read is the second, and
 is `rest` of what is stored merged with `owned` of what came in.
 
 **Which keys belong to a project is one rule, and it is not "the repo id inside the key".** A
-session key is a worktree id *or* a folder workspace's `folder:<id>`, and a folder workspace
+session key is a worktree id _or_ a folder workspace's `folder:<id>`, and a folder workspace
 carries its project group itself rather than through a repo. `resolveWorkspaceProjectGroupId`
 (`shared/workspace-project-group.ts`) is that rule, shared with the PTY owner index. The first cut
 of the partition read the repo id out of the key, so every folder workspace in a project — the
@@ -73,7 +73,7 @@ sandboxed preload parses it into `window.api.windowIdentity.sessionAdoption`, an
 `getRendererWindowSessionAdoption()` reads it.
 
 Argv, not IPC, precisely because this is frozen at creation: it needs no round-trip on the first
-paint path, and it survives a `Cmd+R` unchanged. The *scope* is the opposite — main can re-key a
+paint path, and it survives a `Cmd+R` unchanged. The _scope_ is the opposite — main can re-key a
 live window, so the renderer asks for it and listens for changes (see
 [`per-window-view-state.md`](./per-window-view-state.md)). Do not follow that pattern here.
 
@@ -126,7 +126,7 @@ Two write paths do not run through the debounced subscriber and were audited:
   `use-app-session-persistence.ts`, so no local write means no remote push. The other caller,
   `hooks/remote-workspace-target-sync.ts`, pushes only when the window has local tabs for the
   target, which a window not serving that target does not.
-- **`mobile-terminal-close-ipc-bridge.ts`** persists the *whole* session when the CLI or mobile
+- **`mobile-terminal-close-ipc-bridge.ts`** persists the _whole_ session when the CLI or mobile
   closes a terminal tab. Main routes that request to the tab's owner window, and that write goes
   through the same rebase, so it can only touch the keys that window serves.
 

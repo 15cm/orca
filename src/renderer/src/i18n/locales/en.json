@@ -214,7 +214,8 @@
     "paste": "Paste",
     "copy": "Copy",
     "selectAll": "Select All",
-    "newWindow": "New Window"
+    "newWindow": "New Window",
+    "recoverTerminal": "Recover Terminal"
   },
   "tray": {
     "openOrca": "Open Orca",
@@ -5308,7 +5309,8 @@
           "5c9c7c16aa": "Add a project to create workspaces",
           "a30e34eb5c": "Close workspace board",
           "views": "Sidebar view",
-          "addProject": "Add project"
+          "addProject": "Add project",
+          "loadingProject": "Loading project…"
         },
         "SidebarNav": {
           "80611a8b10": "Search",
@@ -5337,7 +5339,8 @@
           "bbbc6e8e3b": "No unselected projects match",
           "allProjects": "All projects",
           "selectedProjectsCount": "{{value0}} projects",
-          "groupsHeading": "Groups"
+          "groupsHeading": "Groups",
+          "projectRow": "Project"
         },
         "SidebarSettingsHelpMenu": {
           "ad3d3ed7f1": "Restart Orca",
@@ -5613,7 +5616,9 @@
           "deleteWorktree": "Delete Worktree",
           "sleepWithDescendants": "Sleep with Descendants ({{value0}})",
           "sleepWithDescendantsDescription": "Close active panels in this workspace and every nested descendant to free up memory and CPU.",
-          "deleteWithDescendants": "Delete with Descendants…"
+          "deleteWithDescendants": "Delete with Descendants…",
+          "primaryError": "Unable to set primary workspace.",
+          "setPrimary": "Set as primary"
         },
         "WorktreeList": {
           "7a8b9c0d1e": "Update required",
@@ -5659,7 +5664,9 @@
           "groupRenameFailedDesc": "Orca could not confirm the new name with the group's host. Recheck the group after reconnecting.",
           "failedNestWorkspace": "Failed to nest workspace",
           "sidebarRowMissing": "Target no longer exists",
-          "failedUnnestWorkspace": "Failed to unnest workspace"
+          "failedUnnestWorkspace": "Failed to unnest workspace",
+          "loadingProject": "Loading project…",
+          "openInNewWindow": "Open in new window"
         },
         "WorktreeMetaDialog": {
           "3db0a2a593": "Cancel",
@@ -6288,6 +6295,13 @@
           "title": "Worktree scan failed for {{value0}}",
           "retry": "Retry scan",
           "retained": "Existing worktrees are kept until a scan succeeds. Click to retry."
+        },
+        "SidebarScopedProjectMenuItems": {
+          "loadingProject": "Loading project…",
+          "alreadyOpen": "That project is already open in another window",
+          "projectLabel": "Project",
+          "changeProject": "Change project",
+          "freeMode": "Free mode"
         }
       },
       "shared": {
@@ -7142,7 +7156,9 @@
           "5cb5475664": "Confirm before closing pinned tabs",
           "36b2a5dc6d": "Show a confirmation dialog before a pinned tab is closed.",
           "projectRuntime": "Project Runtime",
-          "projectRuntimeDescription": "Default runtime for local Windows projects that do not override it."
+          "projectRuntimeDescription": "Default runtime for local Windows projects that do not override it.",
+          "confirmWindowClose": "Confirm before closing windows with running processes",
+          "confirmWindowCloseDescription": "Show a confirmation dialog before closing a window with running processes."
         },
         "GeneralSupportSection": {
           "af7d9f4396": "Thanks for the support!",
@@ -9683,7 +9699,9 @@
             "sidebar": "sidebar",
             "867dddea41": "pinned",
             "5250cf0e48": "pin",
-            "afa37a34e1": "close"
+            "afa37a34e1": "close",
+            "confirmWindowClose": "Confirm before closing windows with running processes",
+            "confirmWindowCloseDescription": "Show a confirmation dialog before closing a window with running processes."
           }
         },
         "git": {
@@ -11872,6 +11890,18 @@
           "targetDescription": "Higher values increase contrast where possible. Background colors stay unchanged.",
           "subtle": "Subtle",
           "strong": "Strong"
+        },
+        "ProjectPrimaryWorkspacePicker": {
+          "title": "Primary workspace",
+          "description": "Workspace used for project level operations.",
+          "label": "Primary workspace",
+          "unavailable": "Saved workspace unavailable",
+          "choose": "Choose workspace",
+          "search": "Search workspace…",
+          "empty": "No workspaces found.",
+          "error": "Unable to set primary workspace.",
+          "workspace": "workspace",
+          "local": "local"
         }
       },
       "right": {
@@ -16939,6 +16969,12 @@
         "3d8e5f1b9c": "Share skills behind an unlisted link and install them on any machine you use.",
         "7e1a9c4d2f": "Signing in…",
         "c5b3e8a17d": "Sign in to Orca"
+      },
+      "primaryWorkspace": {
+        "invalidFolder": "Only the registered project folder can be primary.",
+        "invalidIdentity": "Workspace owner identity is unavailable.",
+        "invalidState": "Archived, bare, or prunable workspaces cannot be primary.",
+        "disconnected": "Workspace host is disconnected."
       }
     },
     "i18n": {
@@ -17002,6 +17038,16 @@
           "deleteColumn": "Delete column",
           "deleteTable": "Delete table"
         }
+      }
+    },
+    "terminal": {
+      "recovery": {
+        "visibility": "re-declared visibility ({{value0}})",
+        "delivery": "healed output delivery",
+        "resize": "re-sent size ({{value0}})",
+        "mobileLock": "took back {{value0}} from a phone",
+        "nothing": "Terminal looked healthy — repainted it",
+        "done": "Terminal recovered"
       }
     }
   },
@@ -17640,6 +17686,12 @@
         "copySessionId": "Copy Session ID",
         "copySessionIdSuccess": "Session ID copied",
         "copySessionIdError": "Unable to copy session ID"
+      }
+    },
+    "settings": {
+      "agentLaunchVariants": {
+        "title": "Launch variants",
+        "description": "Save named commands for agents. Variants use the selected agent environment and always open in a terminal."
       }
     }
   },

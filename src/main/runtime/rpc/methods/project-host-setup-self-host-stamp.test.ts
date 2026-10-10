@@ -9,7 +9,16 @@ function parseParams(methodName: string, params: unknown): { hostId: string } {
   if (!method?.params) {
     throw new Error(`Missing params schema for ${methodName}`)
   }
-  return method.params.parse(params) as { hostId: string }
+  const parsed = method.params.parse(params)
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !('hostId' in parsed) ||
+    typeof parsed.hostId !== 'string'
+  ) {
+    throw new Error(`Missing hostId in ${methodName} params`)
+  }
+  return { hostId: parsed.hostId }
 }
 
 const CREATING_METHODS = [
@@ -29,6 +38,27 @@ const CREATING_METHODS = [
 ] as const
 
 describe('project host setup self-host stamp', () => {
+  it('waits for projectHostSetup.delete to finish before replying', async () => {
+    let finishDelete!: (value: { project: null; setup: null; repo: null }) => void
+    const deletion = new Promise<{ project: null; setup: null; repo: null }>((resolve) => {
+      finishDelete = resolve
+    })
+    const runtime = { deleteProjectHostSetup: () => deletion }
+    const method = PROJECT_RUNTIME_METHODS.find(
+      (candidate) => candidate.name === 'projectHostSetup.delete'
+    )!
+    let settled = false
+    const response = method.handler({ setupId: 'setup-a' }, { runtime } as never).then((value) => {
+      settled = true
+      return value
+    })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    finishDelete({ project: null, setup: null, repo: null })
+    await expect(response).resolves.toEqual({ result: { project: null, setup: null, repo: null } })
+  })
+
   it.each(CREATING_METHODS)('$name stores a caller runtime id as local', ({ name, base }) => {
     const parsed = parseParams(name, { ...base, hostId: 'runtime:c0ffee-env-id' })
 

@@ -11,8 +11,23 @@ import {
 } from './WorktreeCardMeta'
 import { WorktreeCardPortsDetails, WorktreeCardPortsTrigger } from './WorktreeCardPorts'
 import type { WorktreeCardController } from './use-worktree-card-controller'
+import type { Worktree } from '../../../../shared/worktree/types'
 
-export function buildWorktreeCardPresentation(card: WorktreeCardController) {
+export function isPrimaryWorkspaceRow(primary: Worktree | undefined, worktree: Worktree): boolean {
+  return Boolean(
+    primary &&
+    primary.id === worktree.id &&
+    primary.hostId === worktree.hostId &&
+    primary.ownerHostId === worktree.ownerHostId &&
+    primary.instanceId === worktree.instanceId &&
+    primary.peerFingerprint === worktree.peerFingerprint
+  )
+}
+
+export function buildWorktreeCardPresentation(
+  card: WorktreeCardController,
+  isPrimaryWorkspace = false
+) {
   const {
     worktree,
     repo,
@@ -91,7 +106,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const showUnreadQuickAction = !affiliateListMode && showStatus && !newCardStyle
   // Why: the slot owns the unread/status lane; legacy keeps the bell toggle, the new card keeps the glyph passive.
   const showCombinedStatusSlot = showStatus
-  const showTitleRowPrimary = compactCards && worktree.isMainWorktree && !isFolder
+  const showTitleRowPrimary = compactCards && isPrimaryWorkspace
   const showMetaRowDetails = !newCardStyle && !compactCards && (hasDetails || hasPorts)
   const showTitleRowIndicators = (newCardStyle || compactCards) && (hasDetails || hasPorts)
   // Why: grouped views can hide the repo badge; don't reserve a blank metadata lane unless there's real content.
@@ -262,6 +277,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   const titleOnlyCard = !hasSecondaryCardContent
 
   return {
+    isPrimaryWorkspace,
     showPinnedRepoIcon,
     showInlineRepoBadge,
     showRepoBadgeInMetaRow,

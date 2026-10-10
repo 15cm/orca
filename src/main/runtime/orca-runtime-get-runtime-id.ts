@@ -18,6 +18,10 @@ import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
 import type { WorkspaceSessionState } from '../../shared/workspace-session-state-types'
 
 export class OrcaRuntimeWithGetRuntimeId extends OrcaRuntimeWithHasExactPersistedTerminalSurfaceIdentity {
+  getOwnPeerFingerprint(): string | null {
+    return this.getOwnPeerFingerprintFn()
+  }
+
   getRuntimeId(): string {
     return this.runtimeId
   }

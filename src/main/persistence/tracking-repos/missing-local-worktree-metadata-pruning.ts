@@ -63,6 +63,12 @@ function collectPersistedWorkspaceOwners(
       add(run.workspaceId)
     }
   }
+  for (const project of state.projects ?? []) {
+    const primary = project.primaryWorkspace
+    if (primary?.worktreeId && (!primary.hostId || primary.hostId === LOCAL_EXECUTION_HOST_ID)) {
+      add(primary.worktreeId)
+    }
+  }
   return collector.owners
 }
 

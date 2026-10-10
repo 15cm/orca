@@ -37,7 +37,8 @@ export async function listDetectedWorktreesForCapturedRepo(
   repo: Repo,
   isCurrent: () => boolean,
   capturedProvider = repo.connectionId ? getSshGitProvider(repo.connectionId) : undefined,
-  providerAbort?: { signal: AbortSignal; status: () => 'canceled' | 'timed-out' }
+  providerAbort?: { signal: AbortSignal; status: () => 'canceled' | 'timed-out' },
+  ownPeerFingerprint?: string | null
 ): Promise<DetectedWorktreeListResult | { providerAbortStatus: 'canceled' | 'timed-out' } | null> {
   const abortedResult = () =>
     providerAbort?.signal.aborted
@@ -130,6 +131,7 @@ export async function listDetectedWorktreesForCapturedRepo(
         isCurrent: () => isCurrent() && !providerAbort?.signal.aborted,
         sideEffectToken,
         signal: providerAbort?.signal,
+        ownPeerFingerprint,
         ...(hygieneDue === undefined ? {} : { hygieneDue })
       })
       const aborted = abortedResult()

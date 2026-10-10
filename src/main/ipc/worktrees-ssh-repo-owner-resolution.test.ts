@@ -103,7 +103,47 @@ describe('registerWorktreeHandlers', () => {
     setupWorktreeHandlers()
   })
 
+  it('blocks batch metadata cleanup for a primary workspace before mutation', async () => {
+    const runtime = setupWorktreeHandlers()
+    const sshHostId = toSshExecutionHostId('target-a')
+    const worktreeId = 'shared-repo::/remote/primary'
+    const meta = makeWorktreeMeta({ displayName: 'primary', hostId: sshHostId })
+    store.getRepos.mockReturnValue([
+      {
+        id: 'shared-repo',
+        path: '/remote/repo',
+        displayName: 'remote repo',
+        badgeColor: '#000',
+        addedAt: 0,
+        connectionId: 'target-a'
+      }
+    ])
+    store.getProjectHostSetups.mockReturnValue([
+      {
+        id: 'setup-a',
+        projectId: 'project-a',
+        repoId: 'shared-repo',
+        hostId: sshHostId
+      }
+    ])
+    store.getAllWorktreeMeta.mockReturnValue({ [worktreeId]: meta })
+    store.getWorktreeMeta.mockReturnValue(meta)
+    store.getProjects.mockReturnValue([{ id: 'project-a', primaryWorkspace: { worktreeId } }])
+    store.removeWorktreeMeta.mockClear()
+    runtime.beginPrimaryRemovalForWorktree.mockRejectedValue(new Error('primary_selected'))
+
+    await expect(
+      handlers['worktrees:forgetRemovedForExecutionHost'](null, {
+        repoId: 'shared-repo',
+        executionHostId: sshHostId,
+        worktreeIds: [worktreeId]
+      })
+    ).rejects.toThrow('primary_selected')
+    expect(store.removeWorktreeMeta).not.toHaveBeenCalled()
+  })
+
   it('selects the exact SSH repo owner when repo IDs collide across hosts', async () => {
+    const runtime = setupWorktreeHandlers()
     const sshHostId = toSshExecutionHostId('target-a')
     const localRepo = {
       id: 'shared-repo',
@@ -118,7 +158,17 @@ describe('registerWorktreeHandlers', () => {
       displayName: 'remote repo',
       connectionId: 'target-a'
     }
-    const provider = { listWorktrees: vi.fn().mockResolvedValue([]) }
+    const provider = {
+      listWorktrees: vi.fn().mockResolvedValue([
+        {
+          path: '/remote/feature',
+          head: 'feature-head',
+          branch: 'refs/heads/feature',
+          isBare: false,
+          isMainWorktree: false
+        }
+      ])
+    }
     store.getRepos.mockImplementation(() => [{ ...localRepo }, { ...sshRepo }])
     getSshGitProviderMock.mockImplementation((targetId) =>
       targetId === 'target-a' ? provider : undefined
@@ -135,22 +185,27 @@ describe('registerWorktreeHandlers', () => {
     expect(provider.listWorktrees).toHaveBeenCalledWith('/remote/repo', {
       signal: expect.any(AbortSignal)
     })
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       status: 'complete',
       providerRequestId: 'request-1',
       repoId: 'shared-repo',
-      authority: {
-        kind: 'direct-ssh',
-        executionHostId: sshHostId,
-        ...expectedAuthority
-      },
       result: {
-        repoId: 'shared-repo',
         authoritative: true,
-        source: 'git',
-        worktrees: []
+        worktrees: [
+          expect.objectContaining({
+            hostId: sshHostId,
+            ownerHostId: sshHostId,
+            peerFingerprint: 'test-peer'
+          })
+        ]
       }
     })
+    expect(runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ownerHostId: sshHostId, peerFingerprint: 'test-peer' })
+      ]),
+      ['shared-repo']
+    )
   })
 
   it('rejects malformed and contradictory repo host provenance', async () => {

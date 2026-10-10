@@ -3,6 +3,17 @@ import { GLOBAL_FLAGS } from '../args'
 
 export const PROJECT_COMMAND_SPECS: CommandSpec[] = [
   {
+    path: ['project', 'set-primary'],
+    summary: 'Set the project default workspace',
+    usage:
+      'orca project set-primary --project <id> --worktree <selector> [--host <host-id>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'project', 'worktree', 'host'],
+    notes: ['Promotes an existing workspace without changing its checkout or Git state.'],
+    examples: [
+      'orca project set-primary --project github:owner/repo --worktree id:repo::/src/main --host local --json'
+    ]
+  },
+  {
     path: ['project', 'list'],
     summary: 'List durable projects known to Orca',
     usage: 'orca project list [--json]',

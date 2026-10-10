@@ -127,7 +127,10 @@ describe('registerWorktreeHandlers', () => {
       worktreeId === rootWorktreeId ? rootMeta : undefined
     )
 
-    const listed = await handlers['worktrees:list'](null, { repoId: 'repo-1' })
+    const listed = (await handlers['worktrees:list'](null, { repoId: 'repo-1' })) as Record<
+      string,
+      unknown
+    >[]
 
     expect(listed).toEqual([
       expect.objectContaining({
@@ -142,6 +145,80 @@ describe('registerWorktreeHandlers', () => {
       })
     ])
     expect(listWorktreesMock).not.toHaveBeenCalled()
+    expect(listed[0]).toMatchObject({
+      hostId: 'local',
+      ownerHostId: 'local',
+      peerFingerprint: 'test-peer'
+    })
+  })
+
+  it('stamps connected SSH catalog rows with their canonical owner and authenticated peer', async () => {
+    setupWorktreeHandlers()
+    const repo = {
+      id: 'repo-ssh',
+      path: '/remote/repo',
+      displayName: 'SSH Repo',
+      badgeColor: '#000',
+      addedAt: 0,
+      connectionId: 'target-a'
+    }
+    store.getRepo.mockReturnValue(repo)
+    getSshGitProviderMock.mockReturnValue({
+      listWorktrees: vi.fn().mockResolvedValue([
+        {
+          path: '/remote/feature',
+          head: 'feature-head',
+          branch: 'refs/heads/feature',
+          isBare: false,
+          isMainWorktree: false
+        }
+      ])
+    })
+
+    const listed = (await handlers['worktrees:list'](null, { repoId: repo.id })) as {
+      hostId?: string
+      ownerHostId?: string
+      peerFingerprint?: string
+    }[]
+
+    expect(listed[0]).toMatchObject({
+      hostId: 'ssh:target-a',
+      ownerHostId: 'ssh:target-a',
+      peerFingerprint: 'test-peer'
+    })
+  })
+
+  it('does not stamp runtime projected folder rows with native peer identity', async () => {
+    setupWorktreeHandlers()
+    const repo = {
+      id: 'repo-1',
+      path: '/workspace/folder',
+      displayName: 'folder',
+      badgeColor: '#000',
+      addedAt: 0,
+      kind: 'folder' as const,
+      executionHostId: 'runtime:foreign' as const
+    }
+    const rootWorktreeId = 'repo-1::/workspace/folder'
+    store.getRepos.mockReturnValue([repo])
+    store.getRepo.mockReturnValue(repo)
+    const meta = makeWorktreeMeta({
+      instanceId: 'foreign-folder-instance',
+      hostId: 'runtime:foreign'
+    })
+    store.getAllWorktreeMeta.mockReturnValue({ [rootWorktreeId]: meta })
+    store.getWorktreeMeta.mockReturnValue(meta)
+    store.setWorktreeMeta.mockReturnValue(meta)
+
+    const listed = (await handlers['worktrees:list'](null, { repoId: repo.id })) as {
+      hostId?: string
+      ownerHostId?: string
+      peerFingerprint?: string
+    }[]
+
+    expect(listed[0].hostId).toBe('runtime:foreign')
+    expect(listed[0]).not.toHaveProperty('ownerHostId')
+    expect(listed[0]).not.toHaveProperty('peerFingerprint')
   })
 
   it('fails closed when the renderer has not selected a repo yet', async () => {

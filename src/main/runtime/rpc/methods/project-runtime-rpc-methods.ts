@@ -1,4 +1,5 @@
 import { defineMethod } from '../core'
+import { PROJECT_PRIMARY_AUTHORITY_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
 import { projectRepoResultVisibilityForClient } from '../repo-visibility-projection'
 import {
   ProjectHostSetupClone,
@@ -6,7 +7,9 @@ import {
   ProjectHostSetupDelete,
   ProjectHostSetupExistingFolder,
   ProjectHostSetupUpdate,
-  ProjectUpdate
+  ProjectUpdate,
+  ProjectPrimaryGet,
+  ProjectPrimarySet
 } from '../../../../shared/rpc-contract/project-runtime-params'
 
 export const PROJECT_RUNTIME_METHODS = [
@@ -16,6 +19,46 @@ export const PROJECT_RUNTIME_METHODS = [
     handler: (_params, { runtime }) => {
       runtime.enrichMissingRepoGitRemoteIdentities?.()
       return { projects: runtime.listProjects() }
+    }
+  }),
+  defineMethod({
+    name: 'project.primary.get',
+    params: ProjectPrimaryGet,
+    handler: async (rawParams, { runtime, clientKind, clientCapabilities }) => {
+      if (
+        clientKind === 'runtime' &&
+        !clientCapabilities?.includes(PROJECT_PRIMARY_AUTHORITY_RUNTIME_CAPABILITY)
+      ) {
+        throw new Error('primary_authority_capability_required')
+      }
+      const params = ProjectPrimaryGet.parse(rawParams)
+      const project = runtime.listProjects().find((entry) => entry.id === params.projectId)
+      if (!project) {
+        throw new Error(`Project not found: ${params.projectId}`)
+      }
+      return {
+        primaryWorkspace: project.primaryWorkspace,
+        revision: project.primaryWorkspaceRevision ?? 0
+      }
+    }
+  }),
+  defineMethod({
+    name: 'project.primary.set',
+    params: ProjectPrimarySet,
+    handler: async (rawParams, { runtime, clientKind, clientCapabilities }) => {
+      if (
+        clientKind === 'runtime' &&
+        !clientCapabilities?.includes(PROJECT_PRIMARY_AUTHORITY_RUNTIME_CAPABILITY)
+      ) {
+        throw new Error('primary_authority_capability_required')
+      }
+      const params = ProjectPrimarySet.parse(rawParams)
+      const project = await runtime.setPrimaryWorkspace(params)
+      return {
+        primaryWorkspace: project.primaryWorkspace,
+        revision: project.primaryWorkspaceRevision ?? 0,
+        project
+      }
     }
   }),
   defineMethod({
@@ -73,9 +116,9 @@ export const PROJECT_RUNTIME_METHODS = [
   defineMethod({
     name: 'projectHostSetup.delete',
     params: ProjectHostSetupDelete,
-    handler: (params, context) => ({
+    handler: async (params, context) => ({
       result: projectRepoResultVisibilityForClient(
-        context.runtime.deleteProjectHostSetup(params),
+        await context.runtime.deleteProjectHostSetup(params),
         context
       )
     })

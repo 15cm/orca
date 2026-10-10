@@ -19,6 +19,10 @@ import {
   sendRemoteRuntimeRequestAbortable
 } from './runtime-environment-abortable-requests'
 import { attachRemoteControlDiagnostics } from './runtime-environment-status-diagnostics'
+import {
+  isWorktreeCatalogMethod,
+  stampAuthenticatedCatalogResponse
+} from './runtime-worktree-catalog-provenance'
 
 import { isRuntimeEnvironmentManuallyDisconnected } from './runtime-environment-manual-disconnect'
 import { runtimeEnvironmentRevisionFailure } from './runtime-environment-revision-guard'
@@ -104,6 +108,41 @@ export async function callRuntimeEnvironment(
         }
         const pairing = getPreferredPairingOffer(currentEnvironment)
         endpoint = pairing.endpoint
+        const capturedPairingRevision =
+          currentEnvironment.pairingRevision ?? currentEnvironment.createdAt
+        const capturedPublicKey = pairing.publicKeyB64
+        const isCatalogCall = isWorktreeCatalogMethod(method)
+        const finalizeCatalogResponse = (
+          response: RuntimeRpcResponse<unknown>
+        ): RuntimeRpcResponse<unknown> => {
+          if (!isCatalogCall) {
+            markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
+            return response
+          }
+          const after = resolveEnvironment(userDataPath, environment.id)
+          const revisionFailure = runtimeEnvironmentRevisionFailure(
+            after,
+            capturedPairingRevision,
+            method
+          )
+          if (revisionFailure) {
+            return revisionFailure
+          }
+          const afterPairing = getPreferredPairingOffer(after)
+          if (afterPairing.publicKeyB64 !== capturedPublicKey) {
+            return {
+              id: method,
+              ok: false,
+              error: {
+                code: 'runtime_environment_changed',
+                message: 'Runtime environment pairing changed; refresh and try again'
+              },
+              _meta: { runtimeId: after.runtimeId }
+            }
+          }
+          markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
+          return stampAuthenticatedCatalogResponse(method, response, capturedPublicKey)
+        }
         const effectiveTimeoutMs = timeoutMs ?? DEFAULT_REMOTE_RUNTIME_TIMEOUT_MS
         const sharedControlEnvelope = shouldUseSharedControlEnvelope(method, params, envelope)
         if (envelope && !sharedControlEnvelope) {
@@ -116,8 +155,7 @@ export async function callRuntimeEnvironment(
             options?.signal,
             ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
           )
-          markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
-          return response
+          return finalizeCatalogResponse(response)
         }
         if (shouldUseCachedRequestConnection(method)) {
           const response = await sendRemoteRuntimeConnectionRequestAbortable(
@@ -128,11 +166,10 @@ export async function callRuntimeEnvironment(
             effectiveTimeoutMs,
             options?.signal
           )
-          markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
-          return response
+          return finalizeCatalogResponse(response)
         }
         if (shouldRouteCallBySupport(method)) {
-          return executeSupportRoutedCall({
+          const response = await executeSupportRoutedCall({
             userDataPath,
             environment: currentEnvironment,
             method,
@@ -140,8 +177,10 @@ export async function callRuntimeEnvironment(
             timeoutMs: effectiveTimeoutMs,
             expectedPairingRevision: expectedEnvironmentPairingRevision,
             envelope: sharedControlEnvelope,
-            signal: options?.signal
+            signal: options?.signal,
+            deferMarkUsed: isCatalogCall
           })
+          return finalizeCatalogResponse(response)
         }
         // Why: startup/control-plane RPCs use the proven one-shot path so repo
         // hydration cannot be coupled to a stale terminal-control connection.
@@ -154,8 +193,7 @@ export async function callRuntimeEnvironment(
           options?.signal,
           ELECTRON_REMOTE_RUNTIME_CLIENT_CAPABILITIES
         )
-        markEnvironmentUsedFromResponse(userDataPath, currentEnvironment.id, response)
-        return response
+        return finalizeCatalogResponse(response)
       },
       options?.signal
     )

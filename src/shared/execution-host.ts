@@ -115,6 +115,16 @@ export function normalizeExecutionHostId(value: string | null | undefined): Exec
   return parseExecutionHostId(value)?.id ?? null
 }
 
+export function isCanonicalNativeExecutionHostId(
+  value: string | null | undefined
+): value is ExecutionHostId {
+  const parsed = parseExecutionHostId(value)
+  if (!parsed || parsed.id !== value) {
+    return false
+  }
+  return parsed.kind === 'local' || (parsed.kind === 'ssh' && toSshExecutionHostId(parsed.targetId) === value)
+}
+
 export function normalizeExecutionHostScope(value: string | null | undefined): ExecutionHostScope {
   const normalized = normalizeHostPart(value)
   if (!normalized || normalized === ALL_EXECUTION_HOSTS_SCOPE) {

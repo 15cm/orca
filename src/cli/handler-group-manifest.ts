@@ -50,6 +50,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     name: 'project',
     keys: [
       'project list',
+      'project set-primary',
       'project setups',
       'project setup-existing-folder',
       'project setup-clone',

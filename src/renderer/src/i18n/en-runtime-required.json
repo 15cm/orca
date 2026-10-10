@@ -1630,6 +1630,7 @@
             "4d63251595": "Threaded left-sidebar feed for agent completions and blocking states.",
             "603d29ed74": "Automatically materialize configured files or folders into newly created worktrees using APFS clone-copy on macOS when possible, otherwise symlinks.",
             "78c2a8dc74": "Shared paths on worktrees",
+            "818dac284f": "Multi-window",
             "92a9357d1f": "agents view",
             "bff1ff7768": "symlinks",
             "c387565812": "symlink",

@@ -82,6 +82,10 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
             'Cannot delete the project root workspace. Remove the folder project instead.'
           )
         }
+        const primaryRemoval = await runtime.beginPrimaryRemovalForWorktree(
+          args.worktreeId,
+          args.hostId
+        )
 
         const ownerHostId = resolveWorktreeRemovalOwnerHostId(
           store,
@@ -135,6 +139,15 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
           }
         }
         notifyWorktreesChanged(mainWindow, repoId)
+        if (primaryRemoval) {
+          await runtime.recordPrimaryRemovalCompletion(primaryRemoval.token, primaryRemoval.target)
+        }
+        if (
+          primaryRemoval &&
+          !(await runtime.finishPrimaryRemoval(primaryRemoval.token, primaryRemoval.target))
+        ) {
+          throw new Error('primary_workspace_removal_unverified')
+        }
         return {}
       })()
       worktreeRemovalsInFlight.set(inFlightKey, { optionsKey, promise: forget })

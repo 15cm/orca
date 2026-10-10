@@ -286,6 +286,8 @@ export function syncProjectHostSetupCompatibilityState(owner: RepoLifecycleOpera
   owner[repoLifecycleOperationsContext].runtime.state.projects = compatibilityState.projects
   owner[repoLifecycleOperationsContext].runtime.state.projectHostSetups =
     compatibilityState.projectHostSetups
+  owner[repoLifecycleOperationsContext].runtime.state.primaryRemovalReservations =
+    compatibilityState.primaryRemovalReservations
 }
 
 export function getProjectHostSetupOperations(

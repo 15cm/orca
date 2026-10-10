@@ -41,7 +41,9 @@ const repoPath = (absolute) => posix(path.relative(REPO_ROOT, absolute))
 // pre-existing src/shared schemas the RPC methods already bind directly.
 function indexableModules() {
   const modules = new Set(
-    globSync('*.ts', { cwd: CONTRACT_DIR }).map((name) => path.join(CONTRACT_DIR, name))
+    globSync('*.ts', { cwd: CONTRACT_DIR })
+      .filter((name) => !name.endsWith('.test.ts') && !name.endsWith('.spec.ts'))
+      .map((name) => path.join(CONTRACT_DIR, name))
   )
   modules.delete(OUTPUT_PATH)
   for (const file of globSync('**/*.ts', { cwd: RPC_DIR })) {

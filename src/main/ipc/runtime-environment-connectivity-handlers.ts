@@ -54,12 +54,14 @@ type ConnectivityHandlerOptions = {
   store: Store
   getUserDataPath: () => string
   invalidateTransport: (environmentId: string) => Promise<void> | void
+  refreshPrimaryAuthoritySubscriptions?: () => void
 }
 
 export function registerRuntimeEnvironmentConnectivityHandlers({
   store,
   getUserDataPath,
-  invalidateTransport
+  invalidateTransport,
+  refreshPrimaryAuthoritySubscriptions
 }: ConnectivityHandlerOptions): void {
   ipcMain.handle('runtimeEnvironments:getStatusSnapshots', () =>
     getRuntimeEnvironmentStatusSnapshots()
@@ -75,6 +77,7 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
     ): { environment: PublicKnownRuntimeEnvironment } => {
       const environment = addEnvironmentFromPairingCode(getUserDataPath(), args)
       clearRuntimeEnvironmentManualDisconnect(environment.id)
+      refreshPrimaryAuthoritySubscriptions?.()
       return { environment: redactRuntimeEnvironment(environment) }
     }
   )
@@ -84,6 +87,7 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
       const result = await verifyAndAddRuntimeEnvironmentFromPairingCode(getUserDataPath(), args)
       if (result.ok) {
         clearRuntimeEnvironmentManualDisconnect(result.environment.id)
+        refreshPrimaryAuthoritySubscriptions?.()
         getRuntimeEnvironmentStatusOwner(getUserDataPath(), result.environment.id).acceptVerified({
           id: 'status.get',
           ok: true,
@@ -108,6 +112,7 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
       clearRuntimeEnvironmentCapabilityEvidence(removed.id)
       clearRuntimeEnvironmentManualDisconnect(removed.id)
       const retiring = Promise.resolve(invalidateTransport(removed.id))
+      refreshPrimaryAuthoritySubscriptions?.()
       closeLegacySelectorTransport(args.selector, removed.id)
       // Why: removal is an explicit lifecycle decision, so its client-hosted browser storage goes
       // too -- but only once the client host releases its partitions, or every one refuses as live.
@@ -130,6 +135,7 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
       const environment = resolveEnvironment(getUserDataPath(), args.selector)
       markRuntimeEnvironmentManuallyDisconnected(environment.id)
       invalidateTransport(environment.id)
+      refreshPrimaryAuthoritySubscriptions?.()
       closeLegacySelectorTransport(args.selector, environment.id)
       // Retain disconnected evidence for renderers that missed the teardown event.
       getRuntimeEnvironmentStatusOwner(getUserDataPath(), environment.id)
@@ -144,6 +150,7 @@ export function registerRuntimeEnvironmentConnectivityHandlers({
     ): Promise<RuntimeRpcResponse<RuntimeStatus>> => {
       const environment = resolveEnvironment(getUserDataPath(), args.selector)
       clearRuntimeEnvironmentManualDisconnect(environment.id)
+      refreshPrimaryAuthoritySubscriptions?.()
       return getRuntimeEnvironmentStatus(getUserDataPath(), environment.id, args.timeoutMs, {
         reconnect: true
       })

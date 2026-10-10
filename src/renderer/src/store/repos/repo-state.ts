@@ -19,6 +19,7 @@ import type {
   ProjectHostSetupUpdateResult,
   ProjectUpdateArgs
 } from '../../../../shared/project-types'
+import type { ProjectPrimarySelector } from '../../../../shared/project-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type {
   FolderWorkspacePathStatus,
@@ -58,6 +59,7 @@ export type RepoUpdate = Partial<
 }
 
 export type ProjectUpdate = ProjectUpdateArgs['updates']
+export type ProjectPrimaryWorkspaceResult = { project: Project } | { error: unknown }
 
 export type FolderWorkspaceUpdates = Partial<
   Pick<
@@ -251,6 +253,11 @@ export type RepoSlice = {
     options?: { hostId?: ExecutionHostId; errorFeedback?: 'toast' | 'silent' }
   ) => Promise<void>
   updateProject: (projectId: string, updates: ProjectUpdate) => Promise<boolean>
+  setProjectPrimaryWorkspace: (
+    projectId: string,
+    worktreeSelector: string,
+    hostId?: ProjectPrimarySelector['hostId']
+  ) => Promise<ProjectPrimaryWorkspaceResult>
   // options.hostId targets a specific host's row + RPC target when the id exists on multiple hosts; else the focused host is assumed.
   updateRepo: (
     projectId: string,

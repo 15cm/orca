@@ -7,7 +7,63 @@ import {
 } from '../../../../shared/project-host-setup-projection'
 import type { ProjectHostSetupProjection } from '../../../../shared/project-host-setup-projection'
 import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
+import {
+  hasSavedPrimaryWorkspace,
+  normalizePrimaryWorkspaceRevision,
+  resolveProjectPrimaryWorkspace
+} from '../../../../shared/project-primary-workspace'
 import type { ProjectUpdate, RepoSlice } from '../repos/repo-state'
+
+function savedPrimaryAuthority(project: Project): string | null | undefined {
+  if (project.primaryAuthorityFingerprint !== undefined) {
+    return project.primaryAuthorityFingerprint
+  }
+  const saved = project.primaryWorkspace
+  return saved && typeof saved === 'object' ? saved.authorityFingerprint : undefined
+}
+
+function hasNullSavedPrimary(project: Project): boolean {
+  return hasSavedPrimaryWorkspace(project) && (project.primaryWorkspace as unknown) === null
+}
+
+function hasStrictSavedPrimary(project: Project, expectedAuthority: unknown): boolean {
+  const saved = project.primaryWorkspace
+  if (!saved || typeof saved !== 'object' || typeof expectedAuthority !== 'string') {
+    return false
+  }
+  if (saved.authorityFingerprint !== expectedAuthority) {
+    return false
+  }
+  return Boolean(
+    resolveProjectPrimaryWorkspace(project, [
+      {
+        id: saved.worktreeId,
+        path: saved.path,
+        instanceId: saved.instanceId,
+        hostId: saved.hostId,
+        peerFingerprint: saved.peerFingerprint
+      }
+    ])
+  )
+}
+
+function restoreProjectPrimary(base: Project, project: Project): void {
+  if (hasSavedPrimaryWorkspace(base)) {
+    project.primaryWorkspace = base.primaryWorkspace
+  } else {
+    delete project.primaryWorkspace
+  }
+  if (Object.hasOwn(base, 'primaryWorkspaceRevision')) {
+    project.primaryWorkspaceRevision = base.primaryWorkspaceRevision
+  } else {
+    delete project.primaryWorkspaceRevision
+  }
+  if (Object.hasOwn(base, 'primaryAuthorityFingerprint')) {
+    project.primaryAuthorityFingerprint = base.primaryAuthorityFingerprint
+  } else {
+    delete project.primaryAuthorityFingerprint
+  }
+}
 
 export function projectCompatibilityFromRepos(
   repos: readonly Repo[]
@@ -38,6 +94,40 @@ export function mergeProjectCompatibilityProject(base: Project, overlay: Project
     delete project.localWindowsRuntimePreference
   } else {
     project.localWindowsRuntimePreference = localWindowsRuntimePreference
+  }
+  const baseHasSavedPrimary = hasSavedPrimaryWorkspace(base)
+  const overlayHasSavedPrimary = hasSavedPrimaryWorkspace(overlay)
+  const baseRevision = normalizePrimaryWorkspaceRevision(base.primaryWorkspaceRevision)
+  const overlayRevision = normalizePrimaryWorkspaceRevision(overlay.primaryWorkspaceRevision)
+  const baseAuthority = savedPrimaryAuthority(base)
+  const overlayAuthority = savedPrimaryAuthority(overlay)
+  const authorityConflict =
+    baseAuthority !== undefined &&
+    overlayAuthority !== undefined &&
+    baseAuthority !== overlayAuthority
+  const overlayChoiceCanAdvance =
+    overlayHasSavedPrimary &&
+    overlayRevision !== null &&
+    baseRevision !== null &&
+    (baseHasSavedPrimary ? overlayRevision > baseRevision : overlayRevision >= baseRevision) &&
+    !authorityConflict &&
+    (!baseHasSavedPrimary || baseAuthority === undefined || overlayAuthority === baseAuthority) &&
+    (hasNullSavedPrimary(overlay) ||
+      hasStrictSavedPrimary(overlay, baseAuthority ?? overlayAuthority))
+  if (overlayChoiceCanAdvance) {
+    project.primaryWorkspace = overlay.primaryWorkspace
+    project.primaryWorkspaceRevision = overlay.primaryWorkspaceRevision
+  } else {
+    restoreProjectPrimary(base, project)
+  }
+  if (Object.hasOwn(base, 'primaryAuthorityFingerprint')) {
+    project.primaryAuthorityFingerprint = base.primaryAuthorityFingerprint
+  } else if (baseHasSavedPrimary) {
+    delete project.primaryAuthorityFingerprint
+  } else if (overlay.primaryAuthorityFingerprint !== undefined) {
+    project.primaryAuthorityFingerprint = overlay.primaryAuthorityFingerprint
+  } else {
+    delete project.primaryAuthorityFingerprint
   }
   return project
 }

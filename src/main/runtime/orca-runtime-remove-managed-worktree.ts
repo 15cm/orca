@@ -53,6 +53,7 @@ export class OrcaRuntimeWithRemoveManagedWorktree extends OrcaRuntimeWithCreateM
     if (inFlightRemoval) {
       return inFlightRemoval
     }
+    let primaryRemoval: Awaited<ReturnType<typeof this.beginPrimaryRemovalForWorktree>> = null
     const removal = (async (): Promise<RemoveWorktreeResult & { warning?: string }> => {
       return withWorktreeSpan({ stage: 'remove', path: removalTarget.path }, async () => {
         const repoOwner = resolveWorktreeRemovalRepoOwner(
@@ -73,9 +74,12 @@ export class OrcaRuntimeWithRemoveManagedWorktree extends OrcaRuntimeWithCreateM
           removalTarget,
           cleanupHostId,
           removalHostId,
-          repo
+          repo,
+          beginPrimaryRemoval: () =>
+            this.beginPrimaryRemovalForWorktree(removalTarget.id, cleanupHostId)
         })
         if (orphanOrFolderResult) {
+          primaryRemoval = orphanOrFolderResult.primaryRemoval ?? null
           return orphanOrFolderResult
         }
         // One host for the whole removal. Listing on a different host from the one the prune and
@@ -157,6 +161,10 @@ export class OrcaRuntimeWithRemoveManagedWorktree extends OrcaRuntimeWithCreateM
             localWorktreeGitOptions
           ))
         ) {
+          primaryRemoval = await this.beginPrimaryRemovalForWorktree(
+            removalTarget.id,
+            cleanupHostId
+          )
           const removalResult = await removeStaleLocalWorktreeRegistrationAfterFilesystemRemoval({
             canonicalWorktreePath,
             repoPath: repo.path,
@@ -186,6 +194,7 @@ export class OrcaRuntimeWithRemoveManagedWorktree extends OrcaRuntimeWithCreateM
           this.notifyWorktreesChanged(repo.id)
           return removalResult ?? {}
         }
+        primaryRemoval = await this.beginPrimaryRemovalForWorktree(removalTarget.id, cleanupHostId)
         if (route.kind === 'ssh') {
           return removeRuntimeRegisteredRemoteWorktree({
             repo,
@@ -273,6 +282,15 @@ export class OrcaRuntimeWithRemoveManagedWorktree extends OrcaRuntimeWithCreateM
     this.removeManagedWorktreeInFlight.track(cleanupScopeKey, optionsKey, removal)
     try {
       const result = await removal
+      if (primaryRemoval) {
+        await this.recordPrimaryRemovalCompletion(primaryRemoval.token, primaryRemoval.target)
+      }
+      if (
+        primaryRemoval &&
+        !(await this.finishPrimaryRemoval(primaryRemoval.token, primaryRemoval.target))
+      ) {
+        throw new Error('primary_workspace_removal_unverified')
+      }
       this.emitWorktreeLifecycle({
         kind: 'removed',
         worktreeId: removalTarget.id,

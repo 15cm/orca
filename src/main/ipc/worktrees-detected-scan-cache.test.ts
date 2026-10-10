@@ -145,6 +145,7 @@ describe('registerWorktreeHandlers', () => {
   })
 
   it('reuses a recent authoritative detected worktree scan', async () => {
+    const runtime = setupWorktreeHandlers()
     listWorktreesMock.mockResolvedValue([
       {
         path: '/workspace/repo',
@@ -160,6 +161,18 @@ describe('registerWorktreeHandlers', () => {
 
     expect(first).toEqual(second)
     expect(listWorktreesMock).toHaveBeenCalledTimes(1)
+    expect((first as { worktrees: Worktree[] }).worktrees[0]).toMatchObject({
+      hostId: 'local',
+      ownerHostId: 'local',
+      peerFingerprint: 'test-peer'
+    })
+    expect(runtime.getOwnPeerFingerprint).toHaveBeenCalled()
+    expect(runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ownerHostId: 'local', peerFingerprint: 'test-peer' })
+      ]),
+      ['repo-1']
+    )
   })
 
   it('coalesces concurrent authoritative detected worktree scans', async () => {

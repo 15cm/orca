@@ -32,6 +32,10 @@ import type { SshProfileOperations } from './ssh-profile-operations'
 import type { RetiredWorktreeNamePersistence } from './retired-worktree-name-persistence'
 import type { SshLeaseRecoveryOperations } from './ssh-lease-recovery-operations'
 import type { WriteFlushBarrierOperations } from './write-flush-barriers'
+import type { PrimaryRemovalReservation } from '../../../shared/project-primary-removal'
+import type { Project } from '../../../shared/project-types'
+import type { ProjectHostSetup } from '../../../shared/project-types'
+import { ProjectPrimaryAuthorityPersistence } from './project-primary-authority-persistence'
 
 export type StoreOptions = StoreRuntimeOptions
 export type PtyBindingSourceExpectation = {
@@ -48,11 +52,20 @@ export class Store {
   private readonly runtime: StoreRuntimeState
   private readonly domains: StoreDomains
   private readonly state: PersistedState
+  private readonly primaryAuthorityPersistence: ProjectPrimaryAuthorityPersistence
 
   constructor(options: StoreOptions = {}) {
     this.runtime = new StoreRuntimeState(options)
     this.domains = createStoreDomains(this.runtime)
     installStoreDomainContexts(this, this.domains)
+    this.primaryAuthorityPersistence = new ProjectPrimaryAuthorityPersistence({
+      projects: () => this.state.projects,
+      isWritable: () => !this.runtime.writesFrozen,
+      flush: () => this.flushPendingOrThrowAsync(),
+      scheduleSave: () => scheduleSave(this.domains.scheduling),
+      freezeWrites: () => this.freezeWrites(),
+      setPrimaryWorkspace: (id, primary) => this.domains.projects.setPrimaryWorkspace(id, primary)
+    })
     this.runtime.flushOrThrow = () => this.flushOrThrow()
     const loaded = this.domains.loader.load()
     const normalized = normalizePersistedPaneIdentityState(loaded)
@@ -100,6 +113,104 @@ export class Store {
     if (this.runtime.writeTimer) {
       clearTimeout(this.runtime.writeTimer)
       this.runtime.writeTimer = null
+    }
+  }
+
+  getPrimaryRemovalReservations(): readonly PrimaryRemovalReservation[] {
+    return (this.state.primaryRemovalReservations ?? []).map((reservation) => ({
+      ...reservation,
+      target: { ...reservation.target }
+    }))
+  }
+
+  get isPrimaryWorkspaceMutationAvailable(): boolean {
+    return this.primaryAuthorityPersistence.isAvailable
+  }
+
+  async bindPrimaryAuthorityFingerprintDurably(
+    id: string,
+    fingerprint: string
+  ): Promise<Project | null> {
+    return this.primaryAuthorityPersistence.bind(id, fingerprint)
+  }
+
+  async registerRemoteProjectAuthorityCompatibilityDurably(input: {
+    remoteProject: Project
+    hostId: ProjectHostSetup['hostId']
+    setups: readonly ProjectHostSetup[]
+    authorityFingerprint: string
+    runtimeOwnerFingerprint?: string
+    isCurrent?: () => boolean
+  }): Promise<Project> {
+    const priorProjects = structuredClone(this.state.projects)
+    const priorSetups = structuredClone(this.state.projectHostSetups)
+    try {
+      if (input.isCurrent && !input.isCurrent()) {
+        throw new Error('runtime_environment_changed')
+      }
+      const { isCurrent, ...registration } = input
+      const project = this.domains.projects.registerRemoteProjectAuthorityCompatibility(registration)
+      await this.flushPendingOrThrowAsync()
+      if (isCurrent && !isCurrent()) {
+        throw new Error('runtime_environment_changed')
+      }
+      return project
+    } catch (error) {
+      this.state.projects = priorProjects
+      this.state.projectHostSetups = priorSetups
+      scheduleSave(this.domains.scheduling)
+      try {
+        await this.flushPendingOrThrowAsync()
+      } catch {
+        this.freezeWrites()
+        throw new Error('remote_project_compatibility_rollback_failed', { cause: error })
+      }
+      throw error
+    }
+  }
+
+  async applyPrimaryAuthoritySnapshotDurably(input: {
+    projectId: string
+    fingerprint: string
+    primaryWorkspace: Project['primaryWorkspace'] | null | undefined
+    revision: number
+  }): Promise<Project | null> {
+    return this.primaryAuthorityPersistence.applySnapshot(input)
+  }
+
+  async setPrimaryWorkspaceDurably(
+    id: string,
+    primary: Project['primaryWorkspace'] | undefined
+  ): Promise<Project | null> {
+    return this.primaryAuthorityPersistence.set(id, primary)
+  }
+
+  async savePrimaryRemovalReservation(reservation: PrimaryRemovalReservation): Promise<void> {
+    const reservations = this.state.primaryRemovalReservations ?? []
+    if (reservations.some((entry) => entry.token === reservation.token)) {
+      throw new Error('duplicate_primary_removal_token')
+    }
+    this.state.primaryRemovalReservations = [
+      ...reservations,
+      {
+        ...reservation,
+        target: { ...reservation.target }
+      }
+    ]
+    scheduleSave(this.domains.scheduling)
+    await this.flushPendingOrThrowAsync()
+  }
+
+  async removePrimaryRemovalReservation(token: string): Promise<void> {
+    const reservations = this.state.primaryRemovalReservations ?? []
+    this.state.primaryRemovalReservations = reservations.filter((entry) => entry.token !== token)
+    scheduleSave(this.domains.scheduling)
+    try {
+      await this.flushPendingOrThrowAsync()
+    } catch (error) {
+      this.state.primaryRemovalReservations = reservations
+      scheduleSave(this.domains.scheduling)
+      throw error
     }
   }
 }

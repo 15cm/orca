@@ -11,6 +11,11 @@ import type {
 } from './project-grouping'
 import type { WorktreeGroupBy } from './row-types'
 import { getGroupKeyForWorktree } from './worktree-group-keys'
+import type { ProjectGroupingIndex } from './project-grouping'
+import {
+  hasSavedPrimaryWorkspace,
+  resolveProjectPrimaryWorkspace
+} from '../../../../../../shared/project-primary-workspace'
 
 export function getRenderedNaturalAnchorRepoIds({
   groupBy,
@@ -63,14 +68,49 @@ export function getRenderedNaturalAnchorRepoIds({
   return renderedRepoIds
 }
 
-export function orderMainWorktreeFirst(worktrees: Worktree[]): Worktree[] {
-  const mainWorktrees = worktrees.filter((worktree) => worktree.isMainWorktree)
+export function orderMainWorktreeFirst(
+  worktrees: Worktree[],
+  projectIndex?: ProjectGroupingIndex | null
+): Worktree[] {
+  const primaryWorktrees = new Set<Worktree>()
+  const configuredPrimaryProjectIds = new Set<string>()
+  for (const project of projectIndex?.projectById.values() ?? []) {
+    const appliesToSection = worktrees.some(
+      (worktree) =>
+        worktree.projectId === project.id || project.sourceRepoIds.includes(worktree.repoId)
+    )
+    if (!appliesToSection) {
+      continue
+    }
+    if (hasSavedPrimaryWorkspace(project)) {
+      configuredPrimaryProjectIds.add(project.id)
+    }
+    const primary = resolveProjectPrimaryWorkspace(project, worktrees)
+    if (primary) {
+      primaryWorktrees.add(primary)
+    }
+  }
+  if (primaryWorktrees.size > 0) {
+    return [...primaryWorktrees, ...worktrees.filter((worktree) => !primaryWorktrees.has(worktree))]
+  }
+  const mainWorktrees = worktrees.filter((worktree) => {
+    if (!worktree.isMainWorktree) {
+      return false
+    }
+    const project = worktree.projectId
+      ? projectIndex?.projectById.get(worktree.projectId)
+      : [...(projectIndex?.projectById.values() ?? [])].find((candidate) =>
+          candidate.sourceRepoIds.includes(worktree.repoId)
+        )
+    return !project?.primaryWorkspace || !configuredPrimaryProjectIds.has(project.id)
+  })
   if (mainWorktrees.length === 0) {
     return worktrees
   }
+  const mainWorktreeSet = new Set(mainWorktrees)
   // Why: project groups are scanned by repo; keep the repo's canonical
   // workspace anchored even when dynamic sorts rank a child workspace first.
-  return [...mainWorktrees, ...worktrees.filter((worktree) => !worktree.isMainWorktree)]
+  return [...mainWorktrees, ...worktrees.filter((worktree) => !mainWorktreeSet.has(worktree))]
 }
 
 // Why: disambiguate a section's *own* label, not its anchor checkout's repo

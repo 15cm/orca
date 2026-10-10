@@ -17,6 +17,7 @@ import type {
 import type { RuntimeDesktopWindowStatus } from '../../shared/runtime-types'
 import type { AgentSessionClaimSigner } from './agent-session-claim-identity'
 import type { OrchestrationEnvironmentTransport } from './orchestration/environment-transport'
+import type { ResolvedWorktree } from './runtime-worktree-path-identity'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
 import { installRuntimeFileCommandSurface } from './runtime-file-command-surface'
 import { installRuntimeGitCommandSurface } from './runtime-git-command-surface'
@@ -75,6 +76,16 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
       // Why: the device registry lives on the RPC server, which is constructed with this runtime;
       // a closure defers the lookup past that ordering instead of inverting ownership.
       getPairedDeviceName?: (pairedDeviceId: string) => string | null
+      getOwnPeerFingerprint?: () => string | null
+      isDesktopPrimaryAuthority?: () => boolean
+      listAuthenticatedRuntimeWorktrees?: (
+        projectId: string,
+        environmentId: string
+      ) => Promise<ResolvedWorktree[]>
+      listAuthenticatedRuntimeWorktrees?: (
+        projectId: string,
+        environmentId: string
+      ) => Promise<ResolvedWorktree[]>
       // Why: codex-home paths for the Agent Session History scan must be sourced
       // here, not via the window-only registerCoreHandlers path — that path never
       // runs under `orca serve`, so remote/SSH hosts would silently drop
@@ -210,6 +221,13 @@ export class OrcaRuntimeWithStateFields extends OrcaRuntimeWithLinearCommands {
     this.reconcileAgentStatusForEndedProcessFn = deps?.reconcileAgentStatusForEndedProcess ?? null
     this.canRecoverPersistentLocalPtysFn = deps?.canRecoverPersistentLocalPtys ?? (() => true)
     this.getPairedDeviceNameFn = deps?.getPairedDeviceName ?? (() => null)
+    this.getOwnPeerFingerprintFn = deps?.getOwnPeerFingerprint ?? (() => null)
+    this.isDesktopPrimaryAuthorityFn = deps?.isDesktopPrimaryAuthority ?? (() => false)
+    this.listAuthenticatedRuntimeWorktreesFn =
+      deps?.listAuthenticatedRuntimeWorktrees ??
+      (async () => {
+        throw new Error('primary_authority_unavailable')
+      })
     // Why: configure the shared AiVault scan cache from a serve-mode-reachable
     // seam so the aiVault.listSessions RPC includes managed-Codex + WSL sessions
     // even on headless `orca serve` hosts where registerCoreHandlers never runs.

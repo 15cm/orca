@@ -11,7 +11,12 @@ import type {
 } from '../../../shared/project-types'
 import type { PersistedState } from '../../../shared/persisted-state-types'
 import type { Repo } from '../../../shared/repo-types'
-import { getRepoExecutionHostId, normalizeExecutionHostId } from '../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  normalizeExecutionHostId,
+  parseExecutionHostId
+} from '../../../shared/execution-host'
+import { normalizePrimaryWorkspaceRevision } from '../../../shared/project-primary-workspace'
 import { normalizeProjectRuntimePreference } from '../../../shared/project-execution-runtime'
 import { makeProjectHostSetupId } from './project-host-compatibility'
 import { repoGitUsernameCacheKey } from './repo-hydration'
@@ -82,6 +87,96 @@ export class ProjectHostPersistenceOperations {
     return [...this.state.projects]
   }
 
+  registerRemoteProjectAuthorityCompatibility(input: {
+    remoteProject: Project
+    hostId: ProjectHostSetup['hostId']
+    setups: readonly ProjectHostSetup[]
+    authorityFingerprint: string
+    runtimeOwnerFingerprint?: string
+  }): Project {
+    if (
+      !input.remoteProject.id.trim() ||
+      !input.remoteProject.displayName.trim() ||
+      !input.authorityFingerprint.trim() ||
+      parseExecutionHostId(input.hostId)?.kind !== 'runtime'
+    ) {
+      throw new Error('invalid_remote_project_authority_projection')
+    }
+    const existing = this.state.projects.find((entry) => entry.id === input.remoteProject.id)
+    if (
+      existing &&
+      ((Object.hasOwn(existing, 'primaryAuthorityFingerprint') &&
+        existing.primaryAuthorityFingerprint !== input.authorityFingerprint) ||
+        (!Object.hasOwn(existing, 'primaryAuthorityFingerprint') &&
+          Object.hasOwn(existing, 'primaryWorkspace')))
+    ) {
+      throw new Error('primary_authority_conflict')
+    }
+    const project = existing ?? {
+      id: input.remoteProject.id,
+      displayName: input.remoteProject.displayName,
+      badgeColor: input.remoteProject.badgeColor,
+      sourceRepoIds: [],
+      createdAt: input.remoteProject.createdAt,
+      updatedAt: Date.now(),
+      ...(input.remoteProject.providerIdentity
+        ? { providerIdentity: { ...input.remoteProject.providerIdentity } }
+        : {}),
+      ...(input.remoteProject.gitRemoteIdentity
+        ? { gitRemoteIdentity: { ...input.remoteProject.gitRemoteIdentity } }
+        : {}),
+      ...(input.remoteProject.kind ? { kind: input.remoteProject.kind } : {}),
+      ...(input.remoteProject.repoIcon !== undefined
+        ? { repoIcon: input.remoteProject.repoIcon }
+        : {})
+    }
+    let changed = false
+    if (!existing) {
+      this.state.projects.push(project)
+      changed = true
+    }
+    if (project.primaryAuthorityFingerprint !== input.authorityFingerprint) {
+      project.primaryAuthorityFingerprint = input.authorityFingerprint
+      changed = true
+    }
+    const hostId = normalizeExecutionHostId(input.hostId)!
+    for (const remoteSetup of input.setups) {
+      if (remoteSetup.projectId !== project.id || !remoteSetup.id || !remoteSetup.repoId) {
+        continue
+      }
+      const setupId = `${hostId}::${remoteSetup.id}`
+      const current = this.state.projectHostSetups.find((entry) => entry.id === setupId)
+      const projected: ProjectHostSetup = {
+        ...remoteSetup,
+        id: setupId,
+        projectId: project.id,
+        hostId,
+        runtimeOwnerEnvironmentId: hostId.slice('runtime:'.length),
+        ...(input.runtimeOwnerFingerprint
+          ? { runtimeOwnerFingerprint: input.runtimeOwnerFingerprint }
+          : {}),
+        runtimeOwnerHostId: normalizeExecutionHostId(remoteSetup.hostId) ?? remoteSetup.hostId,
+        connectionId: null,
+        executionHostId: null,
+        createdAt: Number.isFinite(remoteSetup.createdAt) ? remoteSetup.createdAt : Date.now(),
+        updatedAt: Number.isFinite(remoteSetup.updatedAt) ? remoteSetup.updatedAt : Date.now()
+      }
+      if (current) {
+        if (JSON.stringify(current) !== JSON.stringify(projected)) {
+          Object.assign(current, projected)
+          changed = true
+        }
+      } else {
+        this.state.projectHostSetups.push(projected)
+        changed = true
+      }
+    }
+    if (changed) {
+      this.scheduleSave()
+    }
+    return { ...project }
+  }
+
   updateProject(id: string, updates: ProjectUpdateArgs['updates']): Project | null {
     const project = this.state.projects.find((entry) => entry.id === id)
     if (!project) {
@@ -101,6 +196,72 @@ export class ProjectHostPersistenceOperations {
     }
     project.updatedAt = Date.now()
     this.scheduleSave()
+    return { ...project }
+  }
+
+  setPrimaryWorkspace(
+    id: string,
+    primary: Project['primaryWorkspace'] | undefined
+  ): Project | null {
+    const project = this.state.projects.find((entry) => entry.id === id)
+    if (!project) {
+      return null
+    }
+    const revision = normalizePrimaryWorkspaceRevision(project.primaryWorkspaceRevision)
+    if (revision === null) {
+      throw new Error('primary_workspace_revision_unavailable')
+    }
+    if (
+      project.primaryAuthorityFingerprint !== undefined &&
+      !isNonBlank(project.primaryAuthorityFingerprint)
+    ) {
+      throw new Error('primary_authority_unavailable')
+    }
+    if (
+      primary &&
+      (!isNonBlank(primary.instanceId) ||
+        !isNonBlank(primary.worktreeId) ||
+        !isNonBlank(primary.path) ||
+        !isNonBlank(primary.peerFingerprint) ||
+        !isNonBlank(primary.authorityFingerprint) ||
+        !isCanonicalPrimaryHost(primary.hostId) ||
+        (project.primaryAuthorityFingerprint !== undefined &&
+          project.primaryAuthorityFingerprint !== primary.authorityFingerprint))
+    ) {
+      throw new Error('Invalid primary workspace locator')
+    }
+    if (
+      primary &&
+      (!project.primaryAuthorityFingerprint ||
+        primary.authorityFingerprint !== project.primaryAuthorityFingerprint)
+    ) {
+      throw new Error('primary_authority_unavailable')
+    }
+    const current = project.primaryWorkspace
+    const unchanged = Boolean(
+      (!current && !primary) ||
+      (current &&
+        primary &&
+        current.worktreeId === primary.worktreeId &&
+        current.instanceId === primary.instanceId &&
+        current.hostId === primary.hostId &&
+        current.path === primary.path &&
+        current.peerFingerprint === primary.peerFingerprint &&
+        current.authorityFingerprint === primary.authorityFingerprint)
+    )
+    if (!unchanged) {
+      if (revision >= Number.MAX_SAFE_INTEGER) {
+        throw new Error('primary_workspace_revision_unavailable')
+      }
+      project.primaryWorkspaceRevision = revision + 1
+      if (primary) {
+        project.primaryWorkspace = { ...primary }
+      } else {
+        delete project.primaryWorkspace
+      }
+      project.updatedAt = Date.now()
+      this.scheduleSave()
+    }
     return { ...project }
   }
 
@@ -241,4 +402,16 @@ export class ProjectHostPersistenceOperations {
     this.scheduleSave()
     return true
   }
+}
+
+function isNonBlank(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isCanonicalPrimaryHost(value: unknown): value is string {
+  if (typeof value !== 'string' || normalizeExecutionHostId(value) !== value) {
+    return false
+  }
+  const parsed = parseExecutionHostId(value)
+  return Boolean(parsed && parsed.kind !== 'runtime')
 }

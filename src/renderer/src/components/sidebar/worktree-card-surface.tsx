@@ -5,11 +5,22 @@ import { cn } from '@/lib/utils'
 import { AutoRenameFailedDialog } from './AutoRenameFailedDialog'
 import WorktreeContextMenu from './WorktreeContextMenu'
 import { WorktreeCardParentContent } from './worktree-card-parent-content'
-import { buildWorktreeCardPresentation } from './worktree-card-presentation'
+import { buildWorktreeCardPresentation, isPrimaryWorkspaceRow } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
+import { useMemo } from 'react'
+import { useAppStore } from '@/store'
+import { resolveProjectPrimaryWorkspace } from '../../../../shared/project-primary-workspace'
 
 export function WorktreeCardSurface({ card }: { card: WorktreeCardController }): React.JSX.Element {
-  const presentation = buildWorktreeCardPresentation(card)
+  const projects = useAppStore((state) => state.projects)
+  const worktreesByRepo = useAppStore((state) => state.worktreesByRepo)
+  const primaryCatalog = useMemo(() => Object.values(worktreesByRepo).flat(), [worktreesByRepo])
+  const primaryProject = projects.find((project) => project.id === card.worktree.projectId)
+  const primaryWorkspace = primaryProject
+    ? resolveProjectPrimaryWorkspace(primaryProject, primaryCatalog)
+    : undefined
+  const isPrimaryWorkspace = isPrimaryWorkspaceRow(primaryWorkspace, card.worktree)
+  const presentation = buildWorktreeCardPresentation(card, isPrimaryWorkspace)
   const {
     worktree,
     selectedWorktrees,

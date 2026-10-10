@@ -32,7 +32,7 @@ export function useAutomationEditorActions({
   destination: AutomationsPageDestinationState
   destinationForm: AutomationsPageDestinationFormState
 }) {
-  const { defaultAgent, worktreesByRepo, repoMap, fetchWorktrees, repos } = store
+  const { defaultAgent, projects, worktreesByRepo, repoMap, fetchWorktrees, repos } = store
   const {
     editRequestRef,
     setEditingAutomationId,
@@ -150,7 +150,7 @@ export function useAutomationEditorActions({
     const localRepos = getAutomationCreateRepos(repos, { kind: 'local' })
     const fallbackRepo = localRepos[0] ?? null
     const fallbackWorktree = fallbackRepo
-      ? getDefaultWorktree(worktreesByRepo[fallbackRepo.id] ?? [])
+      ? getDefaultWorktree(worktreesByRepo[fallbackRepo.id] ?? [], projects)
       : null
     const projectId = targetWorktree?.repoId ?? fallbackRepo?.id ?? ''
     const workspaceId = targetWorktree?.id ?? fallbackWorktree?.id ?? ''
@@ -169,7 +169,7 @@ export function useAutomationEditorActions({
   const handleProjectChange = useCallback(
     (projectId: string): void => {
       const currentWorktrees = worktreesByRepo[projectId] ?? []
-      const currentDefaultWorktree = getDefaultWorktree(currentWorktrees)
+      const currentDefaultWorktree = getDefaultWorktree(currentWorktrees, projects)
       const selectedEditDestination =
         editingAutomationId !== null && editingHostStableKey
           ? editHostResolution.status === 'ready'
@@ -200,7 +200,7 @@ export function useAutomationEditorActions({
       }))
       void fetchWorktrees(projectId, worktreeFetchOptions).then(() => {
         const latestWorktrees = useAppStore.getState().worktreesByRepo[projectId] ?? []
-        const latestWorktree = getDefaultWorktree(latestWorktrees)
+        const latestWorktree = getDefaultWorktree(latestWorktrees, useAppStore.getState().projects)
         if (!latestWorktree) {
           return
         }
@@ -213,6 +213,7 @@ export function useAutomationEditorActions({
     },
     [
       destinationForProject,
+      projects,
       editingAutomationId,
       editingHostStableKey,
       editHostResolution,

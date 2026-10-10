@@ -45,6 +45,7 @@ import {
   shouldRevealWorktreeDeveloperMenu,
   shouldUseNativeContextMenu
 } from './worktree-context-menu-policy'
+import { WorktreePrimaryContextMenuItem } from './WorktreePrimaryContextMenuItem'
 
 export default function WorktreeContextMenuView({ model }: { model: WorktreeContextMenuModel }) {
   const {
@@ -170,6 +171,9 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
             workspaceStatuses={workspaceStatuses}
           />
           <DropdownMenuSeparator />
+          {!isMultiContext ? (
+            <WorktreePrimaryContextMenuItem worktree={worktree} repo={repo} disabled={isDeleting} />
+          ) : null}
           {!isMultiContext && (
             <>
               <WorktreeOpenInSubMenu

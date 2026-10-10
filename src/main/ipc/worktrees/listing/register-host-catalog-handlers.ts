@@ -24,6 +24,7 @@ import {
 } from './ssh-worktree-fallback'
 import type { WorktreeIpcContext } from '../worktree-ipc-context'
 import { readAllWorktreeMetaForHost } from '../../../persistence/host-qualified-worktree-meta'
+import type { PrimaryWorkspaceTarget } from '../../../../shared/project-primary-removal'
 
 export function registerHostCatalogHandlers(context: WorktreeIpcContext): void {
   const { store } = context
@@ -93,10 +94,10 @@ export function registerHostCatalogHandlers(context: WorktreeIpcContext): void {
 
   ipcMain.handle(
     'worktrees:forgetRemovedForExecutionHost',
-    (
+    async (
       _event,
       args: ForgetRemovedWorktreesForExecutionHostArgs
-    ): ForgetRemovedWorktreesForExecutionHostResult => {
+    ): Promise<ForgetRemovedWorktreesForExecutionHostResult> => {
       const nothingForgotten: ForgetRemovedWorktreesForExecutionHostResult = {
         forgottenWorktreeIds: []
       }
@@ -127,6 +128,10 @@ export function registerHostCatalogHandlers(context: WorktreeIpcContext): void {
       }
       const allMeta = readAllWorktreeMetaForHost(store, requestedExecutionHostId)
       const forgottenWorktreeIds: string[] = []
+      const guardedRemovals: {
+        token: string
+        target: PrimaryWorkspaceTarget
+      }[] = []
       for (const worktreeId of worktreeIds) {
         const meta = typeof worktreeId === 'string' ? allMeta[worktreeId] : undefined
         if (!meta || getRepoIdFromWorktreeId(worktreeId) !== repo.id) {
@@ -135,6 +140,13 @@ export function registerHostCatalogHandlers(context: WorktreeIpcContext): void {
         // An unhosted meta belongs to this repo's only owner; a foreign hostId needs that host's own scan.
         if (meta.hostId && meta.hostId !== requestedExecutionHostId) {
           continue
+        }
+        const guard = await context.runtime.beginPrimaryRemovalForWorktree(
+          worktreeId,
+          requestedExecutionHostId
+        )
+        if (guard) {
+          guardedRemovals.push(guard)
         }
         store.removeWorktreeMeta(worktreeId, requestedExecutionHostId)
         forgottenWorktreeIds.push(worktreeId)
@@ -147,6 +159,12 @@ export function registerHostCatalogHandlers(context: WorktreeIpcContext): void {
         }))
         void pruneWorkspaceCleanupScanSnapshots(snapshotDirectory, targets)
         void pruneWorkspaceSpaceAnalysisSnapshots(snapshotDirectory, targets)
+      }
+      for (const guard of guardedRemovals) {
+        await context.runtime.recordPrimaryRemovalCompletion(guard.token, guard.target)
+        if (!(await context.runtime.finishPrimaryRemoval(guard.token, guard.target))) {
+          throw new Error('primary_workspace_removal_unverified')
+        }
       }
       return { forgottenWorktreeIds }
     }

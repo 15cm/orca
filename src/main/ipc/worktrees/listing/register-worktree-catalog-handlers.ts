@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron'
 import { isFolderRepo } from '../../../../shared/repo-kind'
-import { getRepoExecutionHostId, type ExecutionHostId } from '../../../../shared/execution-host'
+import {
+  getRepoExecutionHostId,
+  parseExecutionHostId,
+  type ExecutionHostId
+} from '../../../../shared/execution-host'
 import { getSshGitProvider } from '../../../providers/ssh-git-dispatch'
 import { EMPTY_RETIRED_NAME_REGISTRY } from '../../../../shared/worktree/retired-name-registry'
 import { getRetiredNameRegistryForRepo } from '../../../worktree-name-retirement'
@@ -28,6 +32,9 @@ import {
   readAllWorktreeMetaForRepo
 } from '../../../persistence/host-qualified-worktree-meta'
 import type { WorktreeMeta } from '../../../../shared/worktree/meta-types'
+import type { Repo } from '../../../../shared/repo-types'
+import type { Worktree } from '../../../../shared/worktree/types'
+import { stampAuthenticatedNativeWorktreeRows } from './stamp-authenticated-native-worktree-rows'
 
 const WORKTREE_LIST_ALL_CONCURRENCY = 8
 
@@ -53,9 +60,24 @@ async function mapWithConcurrency<T, R>(
 
 export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): void {
   const { store } = context
+  const schedulePrimaryLifecycle = (
+    repo: Repo,
+    rows: Worktree[],
+    allowLegacySeed = false
+  ): void => {
+    const hostKind = parseExecutionHostId(getRepoExecutionHostId(repo))?.kind
+    if (hostKind === 'local' || hostKind === 'ssh') {
+      context.runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog(
+        rows,
+        [repo.id],
+        allowLegacySeed
+      )
+    }
+  }
 
   ipcMain.handle('worktrees:listAll', async () => {
     const repos = store.getRepos()
+    const authoritativeRepoIds = new Set<string>()
     const legacyMetadata =
       typeof store.getAllWorktreeMetaForHost === 'function' ? undefined : store.getAllWorktreeMeta()
     const metadataByHost = new Map<ExecutionHostId, Record<string, WorktreeMeta>>()
@@ -96,7 +118,13 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
         let metadataPrune: DetectedWorktreeMetadataPrune | undefined
         let hygieneDue: boolean | undefined
         if (isFolderRepo(repo)) {
-          return listVisibleFolderWorkspaces(store, repo)
+          const rows = stampAuthenticatedNativeWorktreeRows(
+            listVisibleFolderWorkspaces(store, repo),
+            repo,
+            context.runtime.getOwnPeerFingerprint()
+          )
+          authoritativeRepoIds.add(repo.id)
+          return rows
         } else if (repo.connectionId) {
           const provider = getSshGitProvider(repo.connectionId)
           if (!provider) {
@@ -110,6 +138,7 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
           loggedUnavailableSshGitProviders.delete(`${repo.connectionId}:${repo.id}`)
           try {
             gitWorktrees = await provider.listWorktrees(repo.path)
+            authoritativeRepoIds.add(repo.id)
           } catch (err) {
             warnOnce(
               loggedWorktreeListFailures,
@@ -128,6 +157,7 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
           hygieneDue = scan.hygieneDue
         }
         if (freshScan) {
+          authoritativeRepoIds.add(repo.id)
           await applyFreshDetectedWorktreeScanSideEffects(
             store,
             repo,
@@ -135,15 +165,23 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
             metadataPrune,
             {
               sideEffectToken,
+              ownPeerFingerprint: context.runtime.getOwnPeerFingerprint(),
               ...(hygieneDue === undefined ? {} : { hygieneDue })
             }
           )
         }
         loggedWorktreeListFailures.delete(`${repo.id}:${repo.path}`)
         const metadata = metadataForRepo(repo)
-        return buildDetectedGitWorktrees(store, repo, gitWorktrees, metadata)
-          .filter((worktree) => worktree.visible)
-          .map((worktree) => stampAndMergeVisibleDetectedWorktree(store, repo, worktree, metadata))
+        const rows = stampAuthenticatedNativeWorktreeRows(
+          buildDetectedGitWorktrees(store, repo, gitWorktrees, metadata)
+            .filter((worktree) => worktree.visible)
+            .map((worktree) =>
+              stampAndMergeVisibleDetectedWorktree(store, repo, worktree, metadata)
+            ),
+          repo,
+          context.runtime.getOwnPeerFingerprint()
+        )
+        return rows
       } catch (err) {
         warnOnce(
           loggedWorktreeListFailures,
@@ -156,7 +194,13 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
       }
     })
 
-    return results.flat()
+    const rows = results.flat()
+    await context.runtime.schedulePrimaryWorkspaceLifecycleFromAuthoritativeCatalog(
+      rows,
+      [...authoritativeRepoIds],
+      true
+    )
+    return rows
   })
 
   ipcMain.handle('worktrees:listRetiredNames', async (_event, args: { repoId: string }) => {
@@ -189,7 +233,13 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
       let metadataPrune: DetectedWorktreeMetadataPrune | undefined
       let hygieneDue: boolean | undefined
       if (isFolderRepo(repo)) {
-        return listVisibleFolderWorkspaces(store, repo)
+        const rows = stampAuthenticatedNativeWorktreeRows(
+          listVisibleFolderWorkspaces(store, repo),
+          repo,
+          context.runtime.getOwnPeerFingerprint()
+        )
+        schedulePrimaryLifecycle(repo, rows)
+        return rows
       } else if (repo.connectionId) {
         const provider = getSshGitProvider(repo.connectionId)
         if (!provider) {
@@ -223,14 +273,23 @@ export function registerWorktreeCatalogHandlers(context: WorktreeIpcContext): vo
       if (freshScan) {
         await applyFreshDetectedWorktreeScanSideEffects(store, repo, gitWorktrees, metadataPrune, {
           sideEffectToken,
+          ownPeerFingerprint: context.runtime.getOwnPeerFingerprint(),
           ...(hygieneDue === undefined ? {} : { hygieneDue })
         })
       }
       loggedWorktreeListFailures.delete(`${repo.id}:${repo.path}`)
       const metadata = allMeta ?? readAllWorktreeMetaForRepo(store, repo)
-      return buildDetectedGitWorktrees(store, repo, gitWorktrees, metadata)
-        .filter((worktree) => worktree.visible)
-        .map((worktree) => stampAndMergeVisibleDetectedWorktree(store, repo, worktree, metadata))
+      const rows = stampAuthenticatedNativeWorktreeRows(
+        buildDetectedGitWorktrees(store, repo, gitWorktrees, metadata)
+          .filter((worktree) => worktree.visible)
+          .map((worktree) => stampAndMergeVisibleDetectedWorktree(store, repo, worktree, metadata)),
+        repo,
+        context.runtime.getOwnPeerFingerprint()
+      )
+      if (repo.connectionId || freshScan) {
+        schedulePrimaryLifecycle(repo, rows)
+      }
+      return rows
     } catch (err) {
       warnOnce(
         loggedWorktreeListFailures,

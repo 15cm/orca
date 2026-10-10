@@ -6,12 +6,16 @@ import { projectHostSetupProjectionFromRepos } from '../../../shared/project-hos
 import { carryProjectStateThroughIdentityChange } from '../../../shared/project-identity-succession'
 
 export function projectHostSetupCompatibilityStateEqual(
-  state: Pick<PersistedState, 'projects' | 'projectHostSetups'>,
-  nextState: Pick<PersistedState, 'projects' | 'projectHostSetups'>
+  state: Pick<PersistedState, 'projects' | 'projectHostSetups' | 'primaryRemovalReservations'>,
+  nextState: Pick<PersistedState, 'projects' | 'projectHostSetups' | 'primaryRemovalReservations'>
 ): boolean {
   return (
     arraysEqualByJson(state.projects ?? [], nextState.projects ?? []) &&
-    arraysEqualByJson(state.projectHostSetups ?? [], nextState.projectHostSetups ?? [])
+    arraysEqualByJson(state.projectHostSetups ?? [], nextState.projectHostSetups ?? []) &&
+    arraysEqualByJson(
+      state.primaryRemovalReservations ?? [],
+      nextState.primaryRemovalReservations ?? []
+    )
   )
 }
 
@@ -48,9 +52,9 @@ function projectHostKey(setup: Pick<ProjectHostSetup, 'projectId' | 'hostId'>): 
 }
 
 export function mergeProjectHostSetupCompatibilityState(
-  state: Pick<PersistedState, 'projects' | 'projectHostSetups'>,
+  state: Pick<PersistedState, 'projects' | 'projectHostSetups' | 'primaryRemovalReservations'>,
   repos: readonly Repo[]
-): Pick<PersistedState, 'projects' | 'projectHostSetups'> {
+): Pick<PersistedState, 'projects' | 'projectHostSetups' | 'primaryRemovalReservations'> {
   const projection = projectHostSetupProjectionFromRepos(repos)
   const succession = carryProjectStateThroughIdentityChange(
     projection.projects,
@@ -86,9 +90,16 @@ export function mergeProjectHostSetupCompatibilityState(
       ...project,
       sourceRepoIds: project.sourceRepoIds.filter((repoId) => currentRepoIds.has(repoId))
     }))
+  const primaryRemovalReservations = (state.primaryRemovalReservations ?? []).map(
+    (reservation) => ({
+      ...reservation,
+      projectId: succession.remappedProjectIds.get(reservation.projectId) ?? reservation.projectId
+    })
+  )
   return {
     projects: [...succession.projects, ...independentProjects],
-    projectHostSetups: [...projection.setups, ...independentSetups]
+    projectHostSetups: [...projection.setups, ...independentSetups],
+    primaryRemovalReservations
   }
 }
 

@@ -21,6 +21,7 @@ export function withRepoHostOwnership<
     runtimeOwnerEnvironmentId?: string
     projectId?: string
     projectHostSetupId?: string
+    ownerHostId?: ExecutionHostId
   }
 >(worktree: T, hostId: ExecutionHostId, setup?: ProjectHostSetup): T {
   const parsedOwner = parseExecutionHostId(hostId)
@@ -33,13 +34,20 @@ export function withRepoHostOwnership<
     (runtimeOwnerEnvironmentId !== undefined && worktreeHost?.kind === 'ssh')
       ? worktree.hostId
       : hostId
+  const ownerHostId =
+    parsedOwner?.kind === 'runtime'
+      ? worktreeHost?.kind === 'ssh'
+        ? worktree.hostId
+        : LOCAL_EXECUTION_HOST_ID
+      : hostId
   const projectId = worktree.projectId ?? setup?.projectId
   const projectHostSetupId = worktree.projectHostSetupId ?? setup?.id
   if (
     nextHostId === worktree.hostId &&
     runtimeOwnerEnvironmentId === worktree.runtimeOwnerEnvironmentId &&
     projectId === worktree.projectId &&
-    projectHostSetupId === worktree.projectHostSetupId
+    projectHostSetupId === worktree.projectHostSetupId &&
+    ownerHostId === worktree.ownerHostId
   ) {
     return worktree
   }
@@ -47,6 +55,7 @@ export function withRepoHostOwnership<
     ...worktree,
     ...(nextHostId ? { hostId: nextHostId } : {}),
     runtimeOwnerEnvironmentId,
+    ownerHostId,
     ...(projectId ? { projectId } : {}),
     ...(projectHostSetupId ? { projectHostSetupId } : {})
   } as T

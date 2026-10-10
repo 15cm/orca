@@ -28,8 +28,12 @@ import { RuntimeAccountController } from './runtime-account-controller'
 import { RuntimeMobileSpeechCatalog } from './runtime-mobile-speech-catalog'
 import { RuntimeMobileDictationController } from './runtime-mobile-dictation-controller'
 import { RuntimeProjectHostSetupController } from './runtime-project-host-setup-controller'
+import { RuntimeProjectPrimaryRemovalController } from './runtime-project-primary-removal-controller'
+import type { PrimaryWorkspaceTarget } from '../../shared/project-primary-removal'
+import type { ResolvedWorktree } from './runtime-worktree-path-identity'
 import { addRemoteRepoFromPath } from '../ipc/repos/remote-repo-registration'
 import type { Store } from '../persistence'
+import { parseExecutionHostId } from '../../shared/execution-host'
 import { RuntimeProjectGroupController } from './runtime-project-group-controller'
 import { RuntimeNestedRepoImport } from './runtime-nested-repo-import'
 import { RuntimeRepositoryRegistrationController } from './runtime-repository-registration-controller'
@@ -43,8 +47,27 @@ import { RuntimeWorkspaceSessionController } from './runtime-workspace-session-c
 import { RuntimeAiVaultCommands } from './runtime-ai-vault-commands'
 import { ClaudeAgentTeamsService } from './claude-agent-teams-service'
 import { teardownFolderWorkspacePtys } from './folder-workspace-pty-teardown'
+import { verifyPrimaryOwner } from './project-primary-owner-verification'
+import { getProjectPrimaryAuthorityRegistry } from './project-primary-authority-registry'
 
 export class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeWithTerminalDrivers {
+  private readonly primaryRemoval = new RuntimeProjectPrimaryRemovalController({
+    getStore: () => this.store,
+    isDesktopAuthority: () => this.isDesktopPrimaryAuthorityFn(),
+    listResolvedWorktrees: () => this.listResolvedWorktrees(),
+    listAuthenticatedRuntimeWorktrees: (projectId, environmentId) =>
+      this.listAuthenticatedRuntimeWorktreesFn(projectId, environmentId),
+    verifyAuthoritativeWorktree: (worktree) => this.verifyProjectPrimaryOwner(worktree),
+    getOwnPeerFingerprint: () => this.getOwnPeerFingerprintFn(),
+    forwardRemovalBegin: (projectId, target) =>
+      this.forwardProjectPrimaryRemovalBegin(projectId, target),
+    forwardRemovalFinish: (projectId, token, target) =>
+      this.forwardProjectPrimaryRemovalFinish(projectId, token, target),
+    forwardSetupRemovalAuthorization: (projectId, setupId, operation) =>
+      getProjectPrimaryAuthorityRegistry(this).authorizeSetupRemoval(projectId, setupId, operation),
+    forwardProjectRemovalAuthorization: (projectId, repoId, operation) =>
+      getProjectPrimaryAuthorityRegistry(this).authorizeProjectRemoval(projectId, repoId, operation)
+  })
   protected readonly preservedBranchCleanup = new RuntimePreservedBranchCleanup(() =>
     this.store ? this.requireStore() : null
   )
@@ -97,6 +120,12 @@ export class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeWithTermin
   protected readonly canRecoverPersistentLocalPtysFn: () => boolean
 
   protected readonly getPairedDeviceNameFn: (pairedDeviceId: string) => string | null
+  protected readonly getOwnPeerFingerprintFn: () => string | null
+  protected readonly isDesktopPrimaryAuthorityFn: () => boolean
+  protected readonly listAuthenticatedRuntimeWorktreesFn: (
+    projectId: string,
+    environmentId: string
+  ) => Promise<ResolvedWorktree[]>
 
   protected readonly buildAgentHookPtyEnv: (() => Record<string, string>) | null
 
@@ -219,8 +248,135 @@ export class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeWithTermin
       (this as RuntimeCommandSurfaceHost<this>).cloneRepo(url, destination, hostId),
     invalidateResolvedWorktrees: () => this.invalidateResolvedWorktreeCache(),
     invalidateWorktreeScan: (repoId) => this.invalidateWorktreeScanCacheForRepo(repoId),
-    notifyReposChanged: () => this.notifyReposChanged()
+    notifyReposChanged: () => this.notifyReposChanged(),
+    listResolvedWorktrees: () => this.listResolvedWorktrees(),
+    listAuthenticatedRuntimeWorktrees: (projectId, environmentId) =>
+      this.listAuthenticatedRuntimeWorktreesFn(projectId, environmentId),
+    verifyAuthoritativeWorktree: (worktree) => this.verifyProjectPrimaryOwner(worktree),
+    getOwnPeerFingerprint: () => this.getOwnPeerFingerprintFn(),
+    isDesktopAuthority: () => this.isDesktopPrimaryAuthorityFn(),
+    forwardPrimaryWorkspace: (args) =>
+      getProjectPrimaryAuthorityRegistry(this).forwardSet(args.projectId, args),
+    runPrimaryMutation: (projectId, target, operation) =>
+      this.primaryRemoval.runPrimaryMutation(projectId, target, operation),
+    flushPrimaryPersistence: async () => {
+      const flush = this.requireStore().flushPendingOrThrowAsync
+      if (!flush) {
+        throw new Error('runtime_unavailable')
+      }
+      await flush.call(this.requireStore())
+    },
+    guardSetupRemoval: (setupId, operation) =>
+      this.primaryRemoval.guardSetupRemoval(setupId, operation)
   })
+  beginPrimaryRemoval(projectId: string, target: PrimaryWorkspaceTarget): Promise<string> {
+    return this.primaryRemoval.beginRemoval(projectId, target)
+  }
+
+  beginPrimaryRemovalForPeer(
+    projectId: string,
+    target: PrimaryWorkspaceTarget,
+    environmentId: string
+  ): Promise<string> {
+    return this.primaryRemoval.beginRemoval(projectId, target, environmentId)
+  }
+
+  isDesktopPrimaryAuthority(): boolean {
+    return this.isDesktopPrimaryAuthorityFn()
+  }
+
+  forwardProjectPrimaryRemovalBegin(
+    projectId: string,
+    target: PrimaryWorkspaceTarget
+  ): Promise<string> {
+    return getProjectPrimaryAuthorityRegistry(this).beginRemoval(projectId, target)
+  }
+
+  forwardProjectPrimaryRemovalFinish(
+    projectId: string,
+    token: string,
+    target: PrimaryWorkspaceTarget
+  ): Promise<void> {
+    return getProjectPrimaryAuthorityRegistry(this).finishRemoval(projectId, token, target)
+  }
+
+  async beginPrimaryRemovalForWorktree(
+    worktreeId: string,
+    hostId?: string
+  ): Promise<{ token: string; target: PrimaryWorkspaceTarget; projectId: string } | null> {
+    return this.primaryRemoval.beginRemovalForWorktree(worktreeId, hostId)
+  }
+
+  finishPrimaryRemoval(token: string, owner: PrimaryWorkspaceTarget): Promise<boolean> {
+    return this.primaryRemoval.finishRemoval(token, owner)
+  }
+
+  recordPrimaryRemovalCompletion(token: string, owner: PrimaryWorkspaceTarget): Promise<void> {
+    return this.primaryRemoval.recordCompletion(token, owner)
+  }
+
+  guardPrimarySetupRemoval(setupId: string, expectedHostId: string): Promise<void> {
+    return this.primaryRemoval.guardPrimarySetupRemoval(setupId, expectedHostId)
+  }
+
+  guardPrimaryProjectRemoval<T>(
+    repoId: string,
+    expectedHostId: string | undefined,
+    operation?: () => Promise<T>
+  ): Promise<T> {
+    return this.primaryRemoval.guardPrimaryProjectRemoval(repoId, expectedHostId, operation)
+  }
+
+  beginProjectRemovalPermit(
+    projectId: string,
+    resourceKey: string,
+    environmentId: string,
+    requesterFingerprint: string
+  ): Promise<string> {
+    return this.primaryRemoval.beginProjectRemovalPermit(
+      projectId,
+      resourceKey,
+      environmentId,
+      requesterFingerprint
+    )
+  }
+
+  finishProjectRemovalPermit(
+    token: string,
+    projectId: string,
+    resourceKey: string,
+    requesterFingerprint: string,
+    isCurrent: () => boolean
+  ): Promise<boolean> {
+    return this.primaryRemoval.finishProjectRemovalPermit(
+      token,
+      projectId,
+      resourceKey,
+      requesterFingerprint,
+      isCurrent
+    )
+  }
+
+  protected verifyProjectPrimaryOwner(worktree: ResolvedWorktree): Promise<boolean> {
+    if (parseExecutionHostId(worktree.hostId)?.kind === 'runtime') {
+      return Promise.resolve(
+        Boolean(
+          worktree.peerFingerprint &&
+            worktree.instanceId &&
+            this.requireStore().getProjectHostSetups?.().some(
+              (setup) =>
+                setup.repoId === worktree.repoId &&
+                setup.hostId === worktree.hostId &&
+                setup.setupState === 'ready'
+            )
+        )
+      )
+    }
+    return verifyPrimaryOwner(worktree, {
+      listRepos: () => this.listRepos(),
+      store: this.requireStore()
+    })
+  }
 
   protected readonly projectGroups = new RuntimeProjectGroupController({
     getStore: () => this.store,
@@ -249,7 +405,9 @@ export class OrcaRuntimeWithPreservedBranchCleanup extends OrcaRuntimeWithTermin
     getStore: () => this.store,
     invalidateResolvedWorktrees: () => this.invalidateResolvedWorktreeCache(),
     invalidateWorktreeScan: (repoId) => this.invalidateWorktreeScanCacheForRepo(repoId),
-    notifyReposChanged: () => this.notifyReposChanged()
+    notifyReposChanged: () => this.notifyReposChanged(),
+    guardPrimaryProjectRemoval: (repoId, hostId, operation) =>
+      this.primaryRemoval.guardProjectRemoval(repoId, hostId, operation)
   })
 
   protected readonly repositoryRegistrations = new RuntimeRepositoryRegistrationController({

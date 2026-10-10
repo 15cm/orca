@@ -10,6 +10,7 @@ import type {
   ProjectHostSetupResult,
   ProjectHostSetupUpdateArgs,
   ProjectHostSetupUpdateResult,
+  ProjectPrimarySelector,
   ProjectUpdateArgs
 } from '../../shared/project-types'
 import type { Repo } from '../../shared/repo-types'
@@ -23,6 +24,9 @@ import { getProjectHostSetupForRepo } from '../../shared/project-host-setup-look
 import { invalidateAuthorizedRootsCache } from '../ipc/filesystem-auth'
 import { prepareLocalWorktreeRootForRepo } from '../worktree-root-preparation'
 import type { RuntimeStore } from './runtime-store-contract'
+import type { PrimaryWorkspaceTarget } from '../../shared/project-primary-removal'
+import type { ResolvedWorktree } from './runtime-worktree-path-identity'
+import { RuntimeProjectPrimaryWorkspaceController } from './runtime-project-primary-workspace-controller'
 
 type RuntimeProjectHostSetupDependencies = {
   getStore: () => RuntimeStore | null
@@ -39,6 +43,22 @@ type RuntimeProjectHostSetupDependencies = {
   invalidateResolvedWorktrees: () => void
   invalidateWorktreeScan: (repoId: string) => void
   notifyReposChanged: () => void
+  listResolvedWorktrees?: () => Promise<ResolvedWorktree[]>
+  verifyAuthoritativeWorktree?: (worktree: ResolvedWorktree) => Promise<boolean>
+  listAuthenticatedRuntimeWorktrees?: (
+    projectId: string,
+    environmentId: string
+  ) => Promise<ResolvedWorktree[]>
+  getOwnPeerFingerprint?: () => string | null
+  isDesktopAuthority?: () => boolean
+  forwardPrimaryWorkspace?: (args: ProjectPrimarySelector) => Promise<Project>
+  runPrimaryMutation?: <T>(
+    projectId: string,
+    target: PrimaryWorkspaceTarget,
+    operation: () => Promise<T>
+  ) => Promise<T>
+  flushPrimaryPersistence?: () => Promise<void>
+  guardSetupRemoval?: <T>(setupId: string, operation: () => Promise<T>) => Promise<T>
 }
 
 // Why clone alone still refuses: nothing in this process clones onto an SSH host. `cloneRepo` runs
@@ -55,7 +75,45 @@ function assertCloneHostIsSupported(hostId: ExecutionHostId | null | undefined):
 }
 
 export class RuntimeProjectHostSetupController {
-  constructor(private readonly deps: RuntimeProjectHostSetupDependencies) {}
+  private readonly primaryWorkspace: RuntimeProjectPrimaryWorkspaceController
+
+  constructor(private readonly deps: RuntimeProjectHostSetupDependencies) {
+    this.primaryWorkspace = new RuntimeProjectPrimaryWorkspaceController({
+      getStore: () => this.deps.getStore(),
+      listProjects: () => this.listProjects(),
+      listSetups: () => this.listSetups(),
+      listResolvedWorktrees: async () => {
+        if (!this.deps.listResolvedWorktrees) {
+          throw new Error('runtime_unavailable')
+        }
+        return this.deps.listResolvedWorktrees()
+      },
+      listAuthenticatedRuntimeWorktrees: this.deps.listAuthenticatedRuntimeWorktrees,
+      verifyAuthoritativeWorktree: async (worktree) => {
+        if (!this.deps.verifyAuthoritativeWorktree) {
+          throw new Error('runtime_unavailable')
+        }
+        return this.deps.verifyAuthoritativeWorktree(worktree)
+      },
+      getOwnPeerFingerprint: () => this.deps.getOwnPeerFingerprint?.() ?? null,
+      isDesktopAuthority: () => this.deps.isDesktopAuthority?.() ?? true,
+      forwardPrimaryWorkspace: this.deps.forwardPrimaryWorkspace,
+      runPrimaryMutation: async (projectId, target, operation) => {
+        if (!this.deps.runPrimaryMutation) {
+          throw new Error('runtime_unavailable')
+        }
+        return this.deps.runPrimaryMutation(projectId, target, operation)
+      },
+      flushPrimaryPersistence: async () => {
+        if (!this.deps.flushPrimaryPersistence) {
+          throw new Error('runtime_unavailable')
+        }
+        await this.deps.flushPrimaryPersistence()
+      },
+      invalidateResolvedWorktrees: () => this.deps.invalidateResolvedWorktrees(),
+      notifyReposChanged: () => this.deps.notifyReposChanged()
+    })
+  }
 
   listProjects(): Project[] {
     return this.deps.getStore()?.getProjects?.() ?? []
@@ -73,6 +131,59 @@ export class RuntimeProjectHostSetupController {
     this.deps.invalidateResolvedWorktrees()
     this.deps.notifyReposChanged()
     return project
+  }
+
+  setPrimaryWorkspace(args: ProjectPrimarySelector): Promise<Project> {
+    return this.primaryWorkspace.set(args)
+  }
+
+  setPrimaryWorkspaceForPeer(
+    args: ProjectPrimarySelector,
+    environmentId: string
+  ): Promise<Project> {
+    return this.primaryWorkspace.setWithAuthenticatedPeer(args, environmentId)
+  }
+
+  async bindPrimaryAuthorityFingerprint(projectId: string, fingerprint: string): Promise<Project> {
+    const store = this.deps.getStore()
+    if (!store?.bindPrimaryAuthorityFingerprintDurably) {
+      throw new Error('runtime_unavailable')
+    }
+    const project = await store.bindPrimaryAuthorityFingerprintDurably(projectId, fingerprint)
+    if (!project) {
+      throw new Error(`Project not found: ${projectId}`)
+    }
+    this.deps.notifyReposChanged()
+    return project
+  }
+
+  async applyPrimaryAuthoritySnapshot(input: {
+    projectId: string
+    fingerprint: string
+    primaryWorkspace: Project['primaryWorkspace'] | null | undefined
+    revision: number
+  }): Promise<Project> {
+    const store = this.deps.getStore()
+    if (!store?.applyPrimaryAuthoritySnapshotDurably) {
+      throw new Error('runtime_unavailable')
+    }
+    const project = await store.applyPrimaryAuthoritySnapshotDurably(input)
+    if (!project) {
+      throw new Error(`Project not found: ${input.projectId}`)
+    }
+    this.deps.notifyReposChanged()
+    return project
+  }
+
+  runPrimaryWorkspaceMutation<T>(
+    projectId: string,
+    target: PrimaryWorkspaceTarget,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    if (!this.deps.runPrimaryMutation) {
+      throw new Error('runtime_unavailable')
+    }
+    return this.deps.runPrimaryMutation(projectId, target, operation)
   }
 
   listSetups(): ProjectHostSetup[] {
@@ -141,16 +252,27 @@ export class RuntimeProjectHostSetupController {
     return result
   }
 
-  deleteSetup(args: ProjectHostSetupDeleteArgs): ProjectHostSetupDeleteResult {
+  deleteSetup(args: ProjectHostSetupDeleteArgs): Promise<ProjectHostSetupDeleteResult> {
     const store = this.deps.getStore()
     if (!store?.deleteProjectHostSetup) {
       throw new Error('runtime_unavailable')
     }
-    const result = store.deleteProjectHostSetup(args)
-    if (!result) {
-      throw new Error(`Project host setup not found: ${args.setupId}`)
+    if (!this.deps.flushPrimaryPersistence || !this.deps.guardSetupRemoval) {
+      throw new Error('runtime_unavailable')
     }
-    return result
+    const remove = async () => {
+      const result = store.deleteProjectHostSetup!(args)
+      if (!result) {
+        throw new Error(`Project host setup not found: ${args.setupId}`)
+      }
+      await this.deps.flushPrimaryPersistence!()
+      return result
+    }
+    const guarded = this.deps.guardSetupRemoval(args.setupId, remove)
+    return guarded.then((result) => {
+      this.deps.notifyReposChanged()
+      return result
+    })
   }
 
   private completeSetup(

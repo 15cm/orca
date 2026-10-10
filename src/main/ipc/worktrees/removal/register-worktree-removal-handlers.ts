@@ -36,9 +36,33 @@ export function registerWorktreeRemovalHandlers(context: WorktreeIpcContext): vo
       }
 
       // Why: concurrent stale-toast/double-click/sidebar races can hit the same worktree; share the op so only one path touches Git and disk.
-      const removal = withWorktreeSpan({ stage: 'remove', path: worktreePath }, () =>
-        executeWorktreeRemoval(context, args, repo, repoId, worktreePath, removalHostId)
-      )
+      const removal = withWorktreeSpan({ stage: 'remove', path: worktreePath }, async () => {
+        const primaryRemoval = await context.runtime.beginPrimaryRemovalForWorktree(
+          args.worktreeId,
+          removalHostId
+        )
+        const result = await executeWorktreeRemoval(
+          context,
+          args,
+          repo,
+          repoId,
+          worktreePath,
+          removalHostId
+        )
+        if (primaryRemoval) {
+          await context.runtime.recordPrimaryRemovalCompletion(
+            primaryRemoval.token,
+            primaryRemoval.target
+          )
+        }
+        if (
+          primaryRemoval &&
+          !(await context.runtime.finishPrimaryRemoval(primaryRemoval.token, primaryRemoval.target))
+        ) {
+          throw new Error('primary_workspace_removal_unverified')
+        }
+        return result
+      })
       worktreeRemovalsInFlight.set(inFlightKey, { optionsKey, promise: removal })
       try {
         const result = await removal
